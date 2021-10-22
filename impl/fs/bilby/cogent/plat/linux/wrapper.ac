@@ -658,7 +658,7 @@ static int wfsop_readpage(struct wrapper_data *wd, struct inode *inode, $ty:(OSP
     fargs.block = index;
     fargs.buf = wd->buf;
     fargs.buf->bound = PAGE_CACHE_SIZE;
-    memcpy (fargs.buf->data, addr, PAGE_CACHE_SIZE);
+    fargs.buf->data = addr;
 
     fret = $exp:fsop_readpage(fargs);
     if (fret.p2.tag == TAG_ENUM_Error)
@@ -718,7 +718,7 @@ static inline int wfsop_write_begin(struct wrapper_data *wd, struct inode *inode
         fargs.len = len;
         fargs.buf = wd->buf;
         fargs.buf->bound = PAGE_CACHE_SIZE;
-        memcpy (fargs.buf->data, addr, PAGE_CACHE_SIZE);
+        fargs.buf->data = addr;
 
         fret = $exp:(fsop_write_begin)(fargs);
         if (fret.p2.tag == TAG_ENUM_Error)
@@ -835,7 +835,7 @@ static int wfsop_write_end(struct wrapper_data *wd, struct inode *inode, loff_t 
         fargs.len = len;
         fargs.buf = wd->buf;
         fargs.buf->bound = PAGE_CACHE_SIZE;
-        memcpy (fargs.buf->data, kaddr, PAGE_CACHE_SIZE);
+        fargs.buf->data = kaddr;
 
         fret = $exp:fsop_write_end(fargs);
         if (fret.p2.tag == TAG_ENUM_Error)

@@ -13,7 +13,6 @@
 -- implmemented in COGENT using the WordArray U8 ADT.
 -- ADT or not Buffers interface should comply with these prototypes:
 
-include "../kernel/linux/osbuffer.cogent"
 
 -- BufOffs is used to specify the offset within a Buffer
 -- Should be used by functions that manipulate Buffers including
