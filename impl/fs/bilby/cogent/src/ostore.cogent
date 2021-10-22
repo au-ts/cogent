@@ -30,44 +30,44 @@ ostore_init (ex, mount_st, ostore_st) =
   and sync_offs:U32 = 0
   and leb_size = wubi_vol_usable_leb_size mount_st.vol
   -- rbuf
-  in newBuffer (ex, leb_size)
+  in buffer_create (ex, leb_size)
   | Error ex ->
     Error (eNoMem, ex, ostore_st)
   | Success (ex, rbuf) ->
     -- wbuf
-    newBuffer (ex, leb_size)
+    buffer_create (ex, leb_size)
     | Error ex ->
-      let ex = freeBuffer(ex, rbuf)
+      let ex = buffer_free(ex, rbuf)
       in Error (eNoMem, ex, ostore_st)
     | Success (ex, wbuf) ->
       -- opad
       newObj ex
       | Error ex ->
-        let ex = freeBuffer(ex, rbuf)
-        and ex = freeBuffer(ex, wbuf)
+        let ex = buffer_free(ex, rbuf)
+        and ex = buffer_free(ex, wbuf)
         in Error (eNoMem, ex, ostore_st)
       | Success (ex, opad) ->
         -- idxpool
         allocpool_create[RbtIndexNode] ex
         | Error ex ->
-          let ex = freeBuffer(ex, rbuf)
-          and ex = freeBuffer(ex, wbuf)
+          let ex = buffer_free(ex, rbuf)
+          and ex = buffer_free(ex, wbuf)
           and ex = freeObj(ex, opad)
           in Error (eNoMem, ex, ostore_st)
         | Success (ex, idxpool) ->
           -- gimpool
           allocpool_create[RbtGimNode] ex
           | Error ex ->
-            let ex = freeBuffer(ex, rbuf)
-            and ex = freeBuffer(ex, wbuf)
+            let ex = buffer_free(ex, rbuf)
+            and ex = buffer_free(ex, wbuf)
             and ex = freeObj(ex, opad)
             and ex = allocpool_free[RbtIndexNode] (ex, idxpool)
             in Error (eNoMem, ex, ostore_st)
           | Success (ex, gimpool) ->
             newFsmState ex
             | Error ex ->
-              let ex = freeBuffer(ex, rbuf)
-              and ex = freeBuffer(ex, wbuf)
+              let ex = buffer_free(ex, rbuf)
+              and ex = buffer_free(ex, wbuf)
               and ex = freeObj(ex, opad)
               and ex = allocpool_free[RbtIndexNode] (ex, idxpool)
               and ex = allocpool_free[RbtGimNode] (ex, gimpool)
@@ -75,8 +75,8 @@ ostore_init (ex, mount_st, ostore_st) =
             | Success (ex, fsm_st) ->
               rbt_create[ObjId, ObjAddr] ex
               | Error ex ->
-                let ex = freeBuffer(ex, rbuf)
-                and ex = freeBuffer(ex, wbuf)
+                let ex = buffer_free(ex, rbuf)
+                and ex = buffer_free(ex, wbuf)
                 and ex = freeObj(ex, opad)
                 and ex = allocpool_free[RbtIndexNode] (ex, idxpool)
                 and ex = allocpool_free[RbtGimNode] (ex, gimpool)
@@ -86,8 +86,8 @@ ostore_init (ex, mount_st, ostore_st) =
                 let (ex, r) = fsm_init(ex, mount_st, fsm_st)
                 in r
                 | Error (err, fsm_st) ->
-                  let ex = freeBuffer(ex, rbuf)
-                  and ex = freeBuffer(ex, wbuf)
+                  let ex = buffer_free(ex, rbuf)
+                  and ex = buffer_free(ex, wbuf)
                   and ex = freeObj(ex, opad)
                   and ex = allocpool_free[RbtIndexNode] (ex, idxpool)
                   and ex = allocpool_free[RbtGimNode] (ex, gimpool)
@@ -104,8 +104,8 @@ ostore_init (ex, mount_st, ostore_st) =
                   and _ = WHEN_DEBUGGING(cogent_debug "\n")
                   in summary_init (ex, max_nb_sum_entry) -- minimum Obj size is ObjHeader + id
                   | Error ex ->
-                    let ex = freeBuffer(ex, rbuf)
-                    and ex = freeBuffer(ex, wbuf)
+                    let ex = buffer_free(ex, rbuf)
+                    and ex = buffer_free(ex, wbuf)
                     and ex = freeObj(ex, opad)
                     and ex = allocpool_free[RbtIndexNode] (ex, idxpool)
                     and ex = allocpool_free[RbtGimNode] (ex, gimpool)
@@ -189,8 +189,8 @@ ostore_read_sum(ex, mount_st, ostore_st {rbuf}, ebnum) =
 
 ostore_clean: (SysState, OstoreState) -> SysState
 ostore_clean(ex, ostore_st {rbuf,wbuf,opad,pools,fsm_st,index_st,ubi_vol,summary,sum_obj}) =
-  let ex = freeBuffer(ex, rbuf)
-  and ex = freeBuffer(ex, wbuf)
+  let ex = buffer_free (ex, rbuf)
+  and ex = buffer_free (ex, wbuf)
   and ex = deep_freeObj(ex, opad)
   and pools {idx=idxpool, gim=gimpool} = pools
   and ex = allocpool_free[RbtIndexNode] (ex, idxpool)
@@ -535,15 +535,10 @@ write_objects_loop_body #{elem=obj, acc=(buf, used, sqnum, i), obsv=nb_objs} =
   if sqnum+1 < sqnum then
     Break #{elem=obj, rbrk=(eOverflow, buf)}
   else
-    let obj {sqnum=_, offs, trans} = obj
-    and trans = get_obj_trans(i, nb_objs)
+    let trans = get_obj_trans(i, nb_objs)
     and obj = obj {sqnum, offs=used, trans}
     and (buf, offs, obj) = serialise_Obj_crc(buf, used, obj)
-
-    and obj {ounion} = obj
     and _ = print_ObjHeader obj !obj
-    and obj = obj {ounion}
-
     in Iterate #{elem=obj, acc=(buf, offs, sqnum+1, i+1)}
 
 write_objects: (Buffer, U32, U64, Array Obj) -> RR (Buffer, Array Obj, U32) U64 ()

@@ -13,6 +13,12 @@ $esc:(#include <wrapper.h>)
 #include <abstract.h>
 #include <c/linux/abstract-defns.h> /* In lib gum */
 #include <bilbyfs.c>
+
+$esc:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,4,0))
+#define PAGE_CACHE_SIZE  PAGE_SIZE
+#define PAGE_CACHE_SHIFT PAGE_SHIFT
+$esc:(#endif)
+
 #include <gum/anti/common.ac>
 #include <gum/anti/log.ac>
 #include <gum/anti/seq.ac>
@@ -21,6 +27,7 @@ $esc:(#include <wrapper.h>)
 #include <gum/anti/array.ac>
 #include <gum/anti/iterator.ac>
 #include <gum/anti/vector.ac>
+#include <gum/anti/buffer.ac>
 #include <gum/anti/list.ac>
 #include <gum/anti/rbt.ac>
 #include <gum/anti/os.ac>
@@ -46,11 +53,6 @@ const struct inode_operations bilbyfs_symlink_inode_operations;
 const struct file_operations bilbyfs_file_operations;
 const struct file_operations bilbyfs_dir_operations;
 const struct address_space_operations bilbyfs_file_address_operations;
-
-$esc:(#if LINUX_VERSION_CODE > KERNEL_VERSION(4,4,0))
-#define PAGE_CACHE_SIZE  PAGE_SIZE
-#define PAGE_CACHE_SHIFT PAGE_SHIFT
-$esc:(#endif)
 
 struct wrapper_data {
         struct semaphore lock;
@@ -656,8 +658,7 @@ static int wfsop_readpage(struct wrapper_data *wd, struct inode *inode, $ty:(OSP
     fargs.block = index;
     fargs.buf = wd->buf;
     fargs.buf->bound = PAGE_CACHE_SIZE;
-    fargs.buf->length = PAGE_CACHE_SIZE;
-    memcpy (fargs.buf->data, addr, fargs.buf->length);
+    memcpy (fargs.buf->data, addr, PAGE_CACHE_SIZE);
 
     fret = $exp:fsop_readpage(fargs);
     if (fret.p2.tag == TAG_ENUM_Error)
@@ -717,8 +718,7 @@ static inline int wfsop_write_begin(struct wrapper_data *wd, struct inode *inode
         fargs.len = len;
         fargs.buf = wd->buf;
         fargs.buf->bound = PAGE_CACHE_SIZE;
-        fargs.buf->length = PAGE_CACHE_SIZE;
-        memcpy (fargs.buf->data, addr, fargs.buf->length);
+        memcpy (fargs.buf->data, addr, PAGE_CACHE_SIZE);
 
         fret = $exp:(fsop_write_begin)(fargs);
         if (fret.p2.tag == TAG_ENUM_Error)
@@ -835,8 +835,7 @@ static int wfsop_write_end(struct wrapper_data *wd, struct inode *inode, loff_t 
         fargs.len = len;
         fargs.buf = wd->buf;
         fargs.buf->bound = PAGE_CACHE_SIZE;
-        fargs.buf->length = PAGE_CACHE_SIZE;
-        memcpy (fargs.buf->data, kaddr, fargs.buf->length);
+        memcpy (fargs.buf->data, kaddr, PAGE_CACHE_SIZE);
 
         fret = $exp:fsop_write_end(fargs);
         if (fret.p2.tag == TAG_ENUM_Error)

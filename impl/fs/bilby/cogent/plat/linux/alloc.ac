@@ -45,6 +45,7 @@ GEN_ALLOC(OstoreState)
 GEN_ALLOC(UbiVolInfo)
 GEN_ALLOC(UbiDevInfo)
 GEN_ALLOC(VfsInode)
+GEN_ALLOC(Buffer)
 
 $ty:(R (SysState, ObjDentry) SysState) newObjDentry ($ty:((SysState, U32)) args)
 {
@@ -66,28 +67,6 @@ $ty:(SysState) freeObjDentry ($ty:((SysState, ObjDentry)) args)
   kfree(args.p2);
   return args.p1;
 }
-
-$ty:(R (SysState, Buffer) SysState) newBuffer ($ty:((SysState, U32)) args)
-{
-  bilbyfs_debug ("newBuffer\n");
-  $ty:(R (SysState, Buffer) SysState) ret;
-  ret.Success.p2 = kmalloc (sizeof(*ret.Success.p2) + args.p2);
-  if (!ret.Success.p2) {
-    ret.tag = TAG_ENUM_Error;
-    ret.Error = args.p1;
-  } else {
-    ret.tag = TAG_ENUM_Success;
-    ret.Success.p1 = args.p1;
-  }
-  return ret;
-} 
-
-$ty:(SysState) freeBuffer ($ty:((SysState, Buffer)) args)
-{
-  kfree(args.p2);
-  return args.p1;
-}
-
 
 $ty:(R (SysState, (ObjData take (..)) put padding) SysState) newObjData ($ty:((SysState, U32)) args)
 {
@@ -133,6 +112,27 @@ $ty:(SysState) $id:(freeFsState2)($ty:((SysState, FsState')) args)
 	kfree(args.p2); 
 	return args.p1; 
 }
+
+$ty:(RR SysState BufferData ()) newBufferData ($ty:(SysState) args)
+{
+    $ty:(RR SysState BufferData ()) ret;
+    ret.p1 = args;
+    ret.p2.Success = kmalloc (PAGE_CACHE_SIZE);
+    if (!ret.p2.Success) {
+      ret.p2.tag = TAG_ENUM_Error;
+      ret.p2.Error = $exp:(());
+    } else {
+      ret.p2.tag = TAG_ENUM_Success;
+    }
+    return ret;
+}
+
+$ty:(SysState) freeBufferData ($ty:((SysState, BufferData)) args)
+{
+    kfree (args.p2);
+    return args.p1;
+}
+
 
 #define GEN_PTYPE_ALLOC(TYPE, PARAMS) \
 $ty:(R (SysState, TYPE PARAMS) SysState) $id:(new##TYPE)($ty:(SysState) ex) \

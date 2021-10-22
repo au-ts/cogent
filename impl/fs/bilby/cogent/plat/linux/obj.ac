@@ -47,7 +47,7 @@ $ty:((Buffer, BufOffs)) serialise_ObjData_data ($ty:((Buffer, BufOffs, ObjData!)
     $ty:((Buffer, BufOffs)) ret;
     memcpy (args.p1->data + args.p2, args.p3->odata, args.p3->size);
     ret.p1 = args.p1;
-    ret.p2 = args.p2 + args.p3->length;
+    ret.p2 = args.p2 + args.p3->size + $exp:(bilbyFsObjDataHeaderSize);
     return ret;
 }
 

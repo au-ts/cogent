@@ -13,40 +13,53 @@
 -- implmemented in COGENT using the WordArray U8 ADT.
 -- ADT or not Buffers interface should comply with these prototypes:
 
-include "wordarray.cogent"
+include "../kernel/linux/osbuffer.cogent"
 
 -- BufOffs is used to specify the offset within a Buffer
 -- Should be used by functions that manipulate Buffers including
 -- serialisation ones.
 type BufOffs = U32
 
+type BufferData
+
 type Buffer = {
-    length : U32,
- -- @length is the allocated length of the @data
     bound : BufOffs,
  -- @bound is used to virtually resize the buffer when
  -- using serialisation functions. It allows allocating
  -- one large buffer that can be reused across FS operation
  -- for instance. It counts from the beginning of @data
-    data : U8#[0]
+    data : BufferData
 }
 {-
     wellformed_buf: wordarray_length buf.data >= buf.bound
 -}
 
 {-# cinline newBuffer #-}
-newBuffer : (SysState, U32) -> R (SysState, Buffer) SysState
+newBuffer : SysState -> R (SysState, Buffer take (..)) SysState
 
 {-# cinline freeBuffer #-}
-freeBuffer : (SysState, Buffer) -> SysState
+freeBuffer : (SysState, Buffer take (..)) -> SysState
 
-{-# cinline buf_set_bound #-}
-buf_set_bound: (Buffer, BufOffs) -> R Buffer Buffer
-buf_set_bound (buf, newbound) =
-    if newbound > buf.length !buf then
-      Error buf
-    else
-      Success (buf {bound=newbound})
+{-# CINLINE newBufferData #-}
+newBufferData : SysState -> RR SysState BufferData ()
+
+{-# CINLINE freeBufferData #-}
+freeBufferData : (SysState, BufferData) -> SysState
+
+buffer_create : (SysState, U32) -> R (SysState, Buffer) SysState
+buffer_create (s, size) =
+  let Success (s, buf) <= newBuffer s
+      |> Error s -> Error s
+  and (s, r) = newBufferData s
+  and Success osbuf <= r
+      |> Error () -> Error (freeBuffer (s, buf))
+  in Success (s, buf {bound = size, data = osbuf})
+
+buffer_free : (SysState, Buffer) -> SysState
+buffer_free (s, buf) =
+  let buf {data = osbuf} = buf
+  and s = freeBufferData (s, osbuf)
+  in freeBuffer (s, buf)
 
 {-# cinline buf_memset #-}
 buf_memset: (Buffer, U32, U32, U8) -> Buffer

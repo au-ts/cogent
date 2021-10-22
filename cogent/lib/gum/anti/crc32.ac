@@ -11,11 +11,7 @@
 #define CRCINIT 0xFFFFFFFFU
 $ty:(U32) $id:crc32_buf($ty:(Crc32bufP) args)
 {
-    u32 arrlen = args.buf->length;
-    
-    if (!arrlen || args.frm >= args.to)
+    if (args.frm >= args.to)
         return CRCINIT;
-    if (args.to > arrlen)
-        args.to = arrlen;
     return crc32(CRCINIT, args.buf->data[args.frm], args.to - args.frm);
 }
