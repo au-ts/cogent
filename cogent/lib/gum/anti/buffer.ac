@@ -15,7 +15,7 @@ $ty:(Buffer) buf_memset ($ty:((Buffer, U32, U32, U8)) args)
 $ty:(U8) buf_get ($ty:((Buffer!, BufOffs)) args)
 {
     if (args.p2 < args.p1->bound) {
-        return args.p1->data[args.p2]'
+        return args.p1->data[args.p2];
     }
     return 0;
 }
