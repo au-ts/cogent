@@ -384,22 +384,33 @@ obj_inode_new(ex, vnode) =
       and obj = obj {len}
       in (ex, Success obj)
 
-obj_data_new: (SysState, ObjId, U32, CString!) -> RR SysState Obj ErrCode
-obj_data_new(ex, id, len, odata) =
-  newObj(ex)
-  | Error ex -> (ex, Error eNoMem)
-  | Success (ex, obj) ->
-    let Success (ex, od) <= newObjData (ex, len)
-        |> Error ex -> let ex = freeObj (ex, obj)
-                       in (ex, Error eNoMem)
-    and od = od {id, size=len}
-    and od = set_ObjData_odata (od, odata)
-    and obj = obj_init_default(obj, bilbyFsObjTypeData)
-    and obj = obj {len = bilbyFsObjHeaderSize + bilbyFsObjDataHeaderSize + len}
-    in (ex, Success (obj {ounion = TObjData od}))
+obj_data_new: (SysState, ObjId, CString!) -> RR SysState Obj ErrCode
+obj_data_new(ex, id, odata) =
+  let len = wordarray_length[U8] odata
+  in newObj(ex)
+     | Error ex -> (ex, Error eNoMem)
+     | Success (ex, obj) ->
+       let Success (ex, od) <= newObjData (ex, len)
+           |> Error ex -> let ex = freeObj (ex, obj)
+                          in (ex, Error eNoMem)
+       and od = od {id, size=len}
+       and od = set_ObjData_odata (od, odata)
+       and obj = obj_init_default(obj, bilbyFsObjTypeData)
+       and obj = obj {len = bilbyFsObjHeaderSize + bilbyFsObjDataHeaderSize + len}
+       in (ex, Success (obj {ounion = TObjData od}))
 
-obj_data_new_with_buf : (SysState, ObjId, U32, Buffer!) -> RR SysState Obj ErrCode
--- TODO
+obj_data_new_buf : (SysState, ObjId, U32, Buffer!) -> RR SysState Obj ErrCode
+obj_data_new_buf (ex, oid, len, buf) =
+  let Success (ex, obj) <= newObj ex
+      |> Error ex -> (ex, Error eNoMem)
+  and Success (ex, odata) <= newObjData (ex, len)
+      |> Error ex -> let ex = freeObj (ex, obj)
+                     in (ex, Error eNoMem)
+  and odata = odata {id = oid, size = len}
+  and odata = set_ObjData_odata_buf (odata, buf, len)
+  and obj = obj_init_default (obj, bilbyFsObjTypeData)
+  and obj = obj {len = bilbyFsObjHeaderSize + bilbyFsObjDataHeaderSize + len}
+  in (ex, Success (obj {ounion = TObjData odata}))
 
 obj_del_new: (SysState, ObjId) -> RR SysState Obj ErrCode
 obj_del_new(ex, id) =
@@ -1922,8 +1933,7 @@ fsop_write_end #{ex, fs_st, vnode, pos, len, buf} =
        and oid = obj_id_data_mk (vfs_inode_get_ino vnode, block) !vnode
        and start = pos .&. (os_PAGE_CACHE_SIZE - 1)
        and end = u64_to_u32 start + len
-       -- get data out
-       and (ex, r) = obj_data_new_with_buf (ex, oid, end, buf) !buf
+       and (ex, r) = obj_data_new_buf (ex, oid, end, buf) !buf
        in r
        | Error err ->
          let ex = deep_freeObj(ex, ovnode)
@@ -2205,7 +2215,7 @@ fsop_symlink #{ex, fs_st = fs_st {ostore_st}, vdir, name, symname, vnode} =
      | Success (new_v_size, dentarr_obj) ->
        let fs_st = fs_st {ostore_st}
        and oid = obj_id_data_mk (vfs_inode_get_ino vnode, 0) !vnode
-       and (ex, r) = obj_data_new(ex, oid, sz_sym, symname) !symname
+       and (ex, r) = obj_data_new(ex, oid, symname) !symname
        in r
        | Error err ->
          let ex = deep_freeObj(ex, dentarr_obj)
