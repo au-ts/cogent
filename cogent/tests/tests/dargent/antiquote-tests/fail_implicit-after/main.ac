@@ -1,0 +1,28 @@
+$esc:(#include <stdio.h>)
+$esc:(#include <stdlib.h>)
+$esc:(#include <string.h>)
+
+#include <cogent-defns.h>
+
+#include "generated.c"
+
+$ty:(A layout L0) getZeroedL0($ty:(()) arg) {
+  $ty:(A layout L0) p = malloc(sizeof(*p));
+  memset(p, 0, sizeof(*p));
+  return p;
+}
+
+$ty:(A layout L1) getZeroedL1($ty:(()) arg) {
+  $ty:(A layout L1) p = malloc(sizeof(*p));
+  memset(p, 0, sizeof(*p));
+  return p;
+}
+
+$ty:(U8) assert_memcmp($ty:((A layout L0 , A layout L1)) arg) {
+  return memcmp(arg.p1->data, arg.p2->data, 4);
+}
+
+int main () {
+  $ty:(()) u;
+  return setup(u);
+}

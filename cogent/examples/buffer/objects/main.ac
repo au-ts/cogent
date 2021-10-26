@@ -8,6 +8,7 @@
  * @TAG(UNSW_GPL)
 */
 $esc:(#include <stdio.h>)
+$esc:(#include <string.h>)
 $esc:(#include <stddef.h>)
 $esc:(#include <stdint.h>)
 $esc:(#include <math.h>)
@@ -24,9 +25,36 @@ typedef struct item BTail;
 #include <gum/anti/iterator.ac>
 #include <gum/anti/common.ac>
 
+#include <cogent-defns.h>
+#include <cogent-endianness.h>
+
 typedef struct item {
-  unsigned long len;
+  u32 len;
 } item_t;
+
+/* The binary compatible C versions of the object hierarchy */
+
+typedef struct header {
+  u32 len;
+  u32 id;
+  u32 value;
+  u8 kind;  
+} header_t;
+
+typedef struct obj_kind_a {
+  header_t ch;
+  u16 w;
+} A;
+
+// typedef struct obj_kind_a {
+//   header_t ch;
+//   u8 
+// } B;
+
+// typedef struct obj_kind_a {
+//   header_t ch;
+//   __le16 w;
+// } C;
 
 unsigned long size = 2048;
 char block[MAXCAP]; // Contains Objects jammed together; terminated by
@@ -61,10 +89,6 @@ $ty:(<None BItem | Some BItem>) next($ty:((BItem, BTail!)) arg) {
 
 Hdr *read(BItem *item) {
    return (Hdr *)item;
-}
-
-$ty:(U32) length($ty:(BItem!) item) {
-  return 0;
 }
 
 /* Primitive display functions */
@@ -107,8 +131,50 @@ $ty:(()) display_footer($ty:(U32) arg) {
   printf("=====---\n");
 }
 
+int in_range(header_t *hdr, u32 nlen) {
+  unsigned long p;
+
+  p = (uintptr_t)hdr + nlen;
+
+  return nlen > 0 && (p - (uintptr_t)block) < MAXCAP;
+}
+
+
+/* Initialise our block of entries. */
+/* Not translated into Cogent. */
+void init(void) {
+  FILE *fp;
+  header_t *hdr;
+  void *p;
+  u32 nbytes;
+
+  memset(block, 0, MAXCAP);
+
+  if ((fp = fopen("objs6.bin", "rb")) != NULL) {
+    p = hdr = (header_t *)block;
+    /* Read length of header */
+    while (fread(hdr, sizeof(u32), 1, fp) == 1) {
+      fprintf(stdout, "Length is %u or %u\n", le_u32_swap(hdr->len), hdr->len);
+      if (!in_range(hdr, le_u32_swap(hdr->len))) {
+        break;
+      }
+      /* Read the rest of the object */
+      p += sizeof(u32);
+      nbytes = le_u32_swap(hdr->len) - sizeof(u32);
+      if (fread(p, nbytes, 1, fp) != 1) {
+        fprintf(stderr, "Error reading %u bytes from header %p\n", nbytes, hdr);
+        break;
+      }
+      p += nbytes;
+      hdr = p;
+    }
+    fclose(fp);
+  }
+}
+
 int main(void)
 {
+   init();
    sethdr((Hdr*)block);
    comain(block);
    return 0;

@@ -17,6 +17,7 @@
     - pass_lrec-reorder.cogent
     - pass_variant-tag-size.cogent
     - pass_pragma-gsetters.cogent
+    - pass_layout-variant-implicit-after.cogent
   expected_result: pass
   flags:
     - -g
@@ -35,6 +36,7 @@
     - fail_after-nonexisting-field-2.cogent
     - fail_bits-endianness.cogent
     - fail_record-endianness.cogent
+    - fail_layout-no-overlapping-variant.cogent
   expected_result: fail
   flags:
     - -t

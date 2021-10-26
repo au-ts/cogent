@@ -32,6 +32,7 @@ import Cogent.Util (WriterMaybe, tellEmpty, mapTells, third3, fourth4, fst3, thd
 import Control.Monad (guard, foldM, unless, when)
 import Control.Monad.Trans.Except
 import Data.Bifunctor (bimap, first, second)
+import Data.Bwd
 import Data.Data
 import qualified Data.Map as M
 import Data.List ((\\))
@@ -116,31 +117,54 @@ tcDataLayoutExpr env vs (DLOffset expr off) = do
   return (TLOffset expr' off, alloc')
 
 tcDataLayoutExpr env vs (DLRecord fields) = do
-  blob <- foldM tcField [] fields
+  blob <- foldM tcField [] $ fwd $ foldl desugar BEmp fields
   let (fields', fieldAllocs) = unzip $ fmap (\(a,b,c,d) -> ((a,b,c),d)) blob
   alloc <- except $ first OverlappingBlocks $ foldM (/\) emptyAllocation fieldAllocs
   return (TLRecord fields', alloc)
-  where lookup' :: (Eq a) => a -> [(a,b,c,d)] -> Maybe (c,d)
-        lookup' _key []          =  Nothing
-        lookup'  key ((x,_,z,w):xyzws)
-          | key == x          =  Just (z,w)
-          | otherwise         =  lookup' key xyzws
-    
-        tcField :: [(FieldName, SourcePos, TCDataLayout, Allocation)]  -- accum
-                -> (FieldName, SourcePos, DataLayoutExpr)
-                -> Except DataLayoutTcError [(FieldName, SourcePos, TCDataLayout, Allocation)]
-        tcField fs (fn, pos, expr) = do
-          case expr of
-            DLAfter e f -> do case lookup' f fs of
-                                Nothing -> throwE $ NonExistingField f (InField fn pos PathEnd)
-                                Just (ef,af) -> do 
-                                  let end = endOfAllocation af
-                                  (e',a) <- tcDataLayoutExpr env vs e
-                                  let a' = fmap (InField fn pos) $ offset end a
-                                  return (fs ++ [(fn, pos, TLOffset e' (Bits end), a')])
-            _           -> do (expr',alloc') <- tcDataLayoutExpr env vs expr
-                              return (fs ++ [(fn, pos, expr', fmap (InField fn pos) alloc')])
-      
+  where
+    -- Any unspecified blocks will be re-written to "after" annotations
+    desugar :: Bwd (FieldName, SourcePos, DataLayoutExpr) ->
+               (FieldName, SourcePos, DataLayoutExpr) ->
+               Bwd (FieldName, SourcePos, DataLayoutExpr)
+    desugar BEmp field = BEmp :< field -- Ignore first field in record.
+    desugar cx (f, p, e) = switch e
+      where
+        -- Make sure 'after' annotations occur at the top-level to be
+        -- eliminated by tcField below.
+        switch e@(DLOffset _ _) = cx :< (f, p, e)
+        switch e@(DLAfter _ _) = cx :< (f, p, e)
+        switch (DLEndian e' end) = case switch e' of
+          BEmp -> __impossible "tcDataLayoutExpr/record/desugar: invariant broken (endian)"
+          cx :< (f, p, DLAfter e f') -> cx :< (f, p, (DLAfter (DLEndian e end) f'))
+          cx :< (f, p, e) -> cx :< (f, p, DLEndian e end)
+        switch       e           = case cx of
+          BEmp -> __impossible "tcDataLayout/record/desugar: invariant broken (switch)"
+          (cx' :< (f', p', e')) -> cx' :< (f', p', e') :< (f, p, DLAfter e f')
+
+    lookup' :: (Eq a) => a -> [(a,b,c,d)] -> Maybe (c,d)
+    lookup' _key []          =  Nothing
+    lookup'  key ((x,_,z,w):xyzws)
+      | key == x          =  Just (z,w)
+      | otherwise         =  lookup' key xyzws
+
+    tcField :: [(FieldName, SourcePos, TCDataLayout, Allocation)] -- accum
+            -> (FieldName, SourcePos, DataLayoutExpr)
+            -> Except DataLayoutTcError [(FieldName, SourcePos, TCDataLayout, Allocation)]
+    tcField fs (fn, pos, expr) = do
+      case expr of
+        DLAfter e f -> do
+          case lookup' f fs of
+            Nothing ->
+              throwE $ NonExistingField f (InField fn pos PathEnd)
+            Just (ef, af) -> do
+              let end = endOfAllocation af
+              (e', a) <- tcDataLayoutExpr env vs e
+              let a' = fmap (InField fn pos) $ offset end a
+              return (fs ++ [(fn, pos, TLOffset e' (Bits end), a')])
+        _ -> do
+          (expr', alloc') <- tcDataLayoutExpr env vs expr
+          return (fs ++ [(fn, pos, expr', fmap (InField fn pos) alloc')])
+
 tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
   case primitiveBitRange tagExpr of
     Just tagBits | isZeroSizedBR tagBits -> throwE $ ZeroSizedBitRange (InTag PathEnd)
@@ -149,13 +173,23 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
         (tagExpr', tagAlloc) <- tcDataLayoutExpr env vs tagExpr
         when (2 ^ (bitSizeBR tagBits - 1) > maximum (alts <&> (^. _3))) $  -- we don't allow a variant without any alternatives
           throwE $ TagSizeTooLarge (InTag PathEnd)
-        (altsExprs, altsAlloc, _) <- foldM (tcAlternative tagBits) ([], emptyAllocation, M.empty) alts
+        (altsExprs, altsAlloc, _) <- foldM (tcAlternative tagBits) ([], emptyAllocation, M.empty) (foldl (desugar tagBits) BEmp alts)
         alloc <- except $ first OverlappingBlocks $ singletonAllocation (tagBits, InTag PathEnd) /\ altsAlloc
         let alts' = zipWith (\(t,p,l,_) e -> (t,p,l,e)) alts altsExprs
         return (TLVariant tagExpr' alts', alloc)
     Nothing -> throwE $ TagNotSingleBlock (InTag PathEnd)
 
   where
+    desugar :: BitRange ->
+               Bwd (TagName, SourcePos, Integer, DataLayoutExpr) ->
+               (TagName, SourcePos, Integer, DataLayoutExpr) ->
+               Bwd (TagName, SourcePos, Integer, DataLayoutExpr)
+    desugar r cx x@(t, p, i, e) = switch e
+      where
+        switch (DLOffset _ _) = cx :< x
+        switch (DLEndian (DLOffset _ _) _) = cx :< x
+        switch e = cx :< (t, p, i, DLOffset e (Bits (bitSizeBR r)))
+
     tcAlternative
       :: BitRange -- Of the variant's tag
       -> ([TCDataLayout], Allocation, Map Integer TagName)
@@ -165,9 +199,9 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
 
     tcAlternative range (exprs, accumAlloc, accumTagValues) (tagName, pos, tagValue, expr) = do
       (expr', alloc) <- tcDataLayoutExpr env vs expr
-      let alloc' = accumAlloc \/ fmap (InAlt tagName pos) alloc
+      let alloc' = fmap (InAlt tagName pos) alloc \/ accumAlloc
       tagValues <- checkedTagValues
-      return (exprs ++ [expr'], alloc', tagValues)
+      return (expr' : exprs, alloc', tagValues)
       where
         checkedTagValues :: Except DataLayoutTcError (Map Size TagName)
         checkedTagValues

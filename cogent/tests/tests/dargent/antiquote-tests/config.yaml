@@ -4,3 +4,10 @@
   expected_result: pass
   run:
     - bash BUILD
+
+- test_name: fail-dargent-antiquoted
+  files:
+    - fail_implicit-after
+  expected_result: fail
+  run:
+    - bash BUILD
