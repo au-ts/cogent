@@ -88,7 +88,7 @@ assignOf (V r1 :=: V r2)
     (Just x, Nothing) -> pure [Subst.ofRow x r2]
     (Nothing, Just x) -> pure [Subst.ofRow x r1]
     (Just x , Just y) ->
-      do v <- lift solvFresh
+      do v <- lift $ solvFresh (UnifyingRows r1 r2)
          pure [ Subst.ofRow x (Row.incomplete (Row.entries r2) v)
               , Subst.ofRow y (Row.incomplete (Row.entries r1) v)
               ]
@@ -100,7 +100,7 @@ assignOf (R _ r1 s1 :=: R _ r2 s2)
     (Just x, Nothing) -> pure [Subst.ofRow x r2]
     (Nothing, Just x) -> pure [Subst.ofRow x r1]
     (Just x , Just y) ->
-      do v <- lift solvFresh
+      do v <- lift $ solvFresh (UnifyingRows r1 r2)
          pure [ Subst.ofRow x (Row.incomplete (Row.entries r2) v)
               , Subst.ofRow y (Row.incomplete (Row.entries r1) v)
               ]

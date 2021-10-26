@@ -14,6 +14,7 @@
 - test_name: fail-case
   files:
     - fail_unmatched-case.cogent
+    - fail_case-biased-no-and.cogent
   expected_result: fail
   flags:
     - "-t"

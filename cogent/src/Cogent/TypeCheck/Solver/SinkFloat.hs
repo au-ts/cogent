@@ -10,6 +10,7 @@
 -- @TAG(DATA61_GPL)
 --
 
+{-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Cogent.TypeCheck.Solver.SinkFloat ( sinkfloat ) where
@@ -47,6 +48,7 @@ import qualified Text.PrettyPrint.ANSI.Leijen as P
 
 import Debug.Trace
 
+
 sinkfloat :: Rewrite.RewriteT TcSolvM [Goal]
 sinkfloat = Rewrite.rewrite' $ \gs -> do
   let mentions = getMentions gs
@@ -80,19 +82,19 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
 
     genStructSubst :: IM.IntMap (Int,Int) -> Constraint -> MaybeT TcSolvM Subst.Subst
     -- record rows
-    genStructSubst _ (R rp r s :< U i) = do
+    genStructSubst _ (t@(R rp r s) :< U i) = do
       s' <- case s of
         Left Unboxed -> return $ Left Unboxed -- unboxed is preserved by bang and TUnbox, so we may propagate it
-        _            -> Right <$> lift solvFresh
-      makeRowUnifSubsts (flip (R rp) s') (filter R.taken (R.entries r)) i
-    genStructSubst _ (U i :< R rp r s) = do
+        _            -> Right <$> lift (solvFresh $ SinkFloatSigil (U i) t)
+      makeRowUnifSubsts i (flip (R rp) s') (filter R.taken (R.entries r)) t
+    genStructSubst _ (U i :< t@(R rp r s)) = do
       s' <- case s of
         Left Unboxed -> return $ Left Unboxed -- unboxed is preserved by bang and TUnbox, so we may propagate it
-        _            ->  Right <$> lift solvFresh
+        _            -> Right <$> lift (solvFresh $ SinkFloatSigil (U i) t)
       -- Subst. a record structure for the unifier with only present entries of
       -- the record r (respecting the lattice order for records).
-      makeRowUnifSubsts (flip (R rp) s') (filter R.present (R.entries r)) i
-    genStructSubst mentions (R _ r1 s1 :< R _ r2 s2)
+      makeRowUnifSubsts i (flip (R rp) s') (filter R.present (R.entries r)) t
+    genStructSubst mentions (t1@(R _ r1 s1) :< t2@(R _ r2 s2))
       {- The most tricky case.
          For Records, present is the bottom of the order, taken is the top.
          If present things are in r2, then we can infer they must be in r1.
@@ -102,26 +104,27 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
                      (R.entries r2)
       , not $ null es
       , Just rv <- R.var r1
-         = makeRowVarSubsts rv es
+         = makeRowVarSubsts rv es t1 t2
+
       | es <- filter (\e -> R.taken e && notElemBy R.compatEntry e (R.entries r2))
                      (R.entries r1)
       , not $ null es
       , Just rv <- R.var r2
-         = makeRowVarSubsts rv es
+         = makeRowVarSubsts rv es t1 t2
 
       | R.isComplete r2 && all (\e -> elemBy R.compatEntry e (R.entries r2)) (R.entries r1)
       , Just rv <- R.var r1
       , es <- filter (\e -> R.taken e && notElemBy R.compatEntry e (R.entries r1))
                      (R.entries r2)
       , canSink mentions rv && not (null es)
-         = makeRowVarSubsts rv es
+         = makeRowVarSubsts rv es t1 t2
 
       | R.isComplete r1 && all (\e -> elemBy R.compatEntry e (R.entries r1)) (R.entries r2)
       , Just rv <- R.var r2
       , es <- filter (\e -> R.present e && notElemBy R.compatEntry e (R.entries r2))
                      (R.entries r1)
       , canFloat mentions rv && not (null es)
-         = makeRowVarSubsts rv es
+         = makeRowVarSubsts rv es t1 t2
 
       | R.isComplete r1
       , null (R.diff r1 r2)
@@ -136,23 +139,23 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
       | Left Unboxed <- s1 , Right i <- s2 = return $ Subst.ofSigil i Unboxed
       | Right i <- s1 , Left Unboxed <- s2 = return $ Subst.ofSigil i Unboxed
 
-    genStructSubst _ (R rp r s :~~ U i) = do
+    genStructSubst _ (t@(R rp r s) :~~ U i) = do
       s' <- case s of
               Left Unboxed -> return $ Left Unboxed
-              _            -> Right <$> lift solvFresh
-      makeRowUnifSubsts (flip (R rp) s') (filter R.taken (R.entries r)) i
-    genStructSubst _ (U i :~~ R rp r s) = do
+              _            -> Right <$> lift (solvFresh $ SinkFloatSigil (U i) t)
+      makeRowUnifSubsts i (flip (R rp) s') (filter R.taken (R.entries r)) t
+    genStructSubst _ (U i :~~ t@(R rp r s)) = do
       s' <- case s of
               Left Unboxed -> return $ Left Unboxed
-              _            -> Right <$> lift solvFresh
-      makeRowUnifSubsts (flip (R rp) s') (filter R.taken (R.entries r)) i
+              _            -> Right <$> lift (solvFresh $ SinkFloatSigil (U i) t)
+      makeRowUnifSubsts i (flip (R rp) s') (filter R.taken (R.entries r)) t
 
     -- variant rows
-    genStructSubst _ (V r :< U i) =
-      makeRowUnifSubsts V (filter R.present (R.entries r)) i
-    genStructSubst _ (U i :< V r) =
-      makeRowUnifSubsts V (filter R.taken (R.entries r)) i
-    genStructSubst mentions (V r1 :< V r2)
+    genStructSubst _ (t@(V r) :< U i) =
+      makeRowUnifSubsts i V (filter R.present (R.entries r)) t
+    genStructSubst _ (U i :< t@(V r)) =
+      makeRowUnifSubsts i V (filter R.taken (R.entries r)) t
+    genStructSubst mentions (t1@(V r1) :< t2@(V r2))
       -- \ | trace ("#### r1 = " ++ show r1 ++ "\n#### r2 = " ++ show r2) False = undefined
       {- The most tricky case.
          For variants, taken is the bottom of the order.
@@ -163,26 +166,27 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
                      (R.entries r2)
       , not $ null es
       , Just rv <- R.var r1
-         = makeRowVarSubsts rv es
+         = makeRowVarSubsts rv es t1 t2
+
       | es <- filter (\e -> R.present e && notElemBy R.compatEntry e (R.entries r2))
                      (R.entries r1)
       , not $ null es
       , Just rv <- R.var r2
-         = makeRowVarSubsts rv es
+         = makeRowVarSubsts rv es t1 t2
 
       | R.isComplete r2 && all (\e -> elemBy R.compatEntry e (R.entries r2)) (R.entries r1)
       , Just rv <- R.var r1
       , es <- filter (\e -> R.present e && notElemBy R.compatEntry e (R.entries r1))
                      (R.entries r2)
       , canSink mentions rv && not (null es)
-         = makeRowVarSubsts rv es
+         = makeRowVarSubsts rv es t1 t2
 
       | R.isComplete r1 && all (\e -> elemBy R.compatEntry e (R.entries r1)) (R.entries r2)
       , Just rv <- R.var r2
       , es <- filter (\e -> R.taken e && notElemBy R.compatEntry e (R.entries r2))
                      (R.entries r1)
       , canFloat mentions rv && not (null es)
-         = makeRowVarSubsts rv es
+         = makeRowVarSubsts rv es t1 t2
 
       | R.isComplete r1
       , null (R.diff r1 r2)
@@ -194,26 +198,26 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
       , Just rv <- R.var r1
          = makeRowShapeSubsts rv r2
 
-    genStructSubst _ (V r :~~ U i) = makeRowUnifSubsts V (filter R.present (R.entries r)) i
-    genStructSubst _ (U i :~~ V r) = makeRowUnifSubsts V (filter R.present (R.entries r)) i
+    genStructSubst _ (t@(V r) :~~ U i) = makeRowUnifSubsts i V (filter R.present (R.entries r)) t
+    genStructSubst _ (U i :~~ t@(V r)) = makeRowUnifSubsts i V (filter R.present (R.entries r)) t
 
     -- tuples
-    genStructSubst _ (T (TTuple ts) :< U i) = makeTupleUnifSubsts ts i
-    genStructSubst _ (U i :< T (TTuple ts)) = makeTupleUnifSubsts ts i
-    genStructSubst _ (T (TTuple ts) :=: U i) = makeTupleUnifSubsts ts i
-    genStructSubst _ (U i :=: T (TTuple ts)) = makeTupleUnifSubsts ts i
+    genStructSubst _ (T (TTuple ts) :< U i) = makeTupleUnifSubsts i ts
+    genStructSubst _ (U i :< T (TTuple ts)) = makeTupleUnifSubsts i ts
+    genStructSubst _ (T (TTuple ts) :=: U i) = makeTupleUnifSubsts i ts
+    genStructSubst _ (U i :=: T (TTuple ts)) = makeTupleUnifSubsts i ts
 
     -- tcon
-    genStructSubst _ (T (TCon n ts s) :< U i) = makeTConUnifSubsts n ts s i
-    genStructSubst _ (U i :< T (TCon n ts s)) = makeTConUnifSubsts n ts s i
-    genStructSubst _ (T (TCon n ts s) :=: U i) = makeTConUnifSubsts n ts s i
-    genStructSubst _ (U i :=: T (TCon n ts s)) = makeTConUnifSubsts n ts s i
+    genStructSubst _ (T (TCon n ts s) :< U i) = makeTConUnifSubsts  i n ts s
+    genStructSubst _ (U i :< T (TCon n ts s)) = makeTConUnifSubsts  i n ts s
+    genStructSubst _ (T (TCon n ts s) :=: U i) = makeTConUnifSubsts i n ts s
+    genStructSubst _ (U i :=: T (TCon n ts s)) = makeTConUnifSubsts i n ts s
 
     -- tfun
-    genStructSubst _ (T (TFun _ _) :< U i)  = makeFunUnifSubsts i
-    genStructSubst _ (U i :< T (TFun _ _))  = makeFunUnifSubsts i
-    genStructSubst _ (T (TFun _ _) :=: U i) = makeFunUnifSubsts i
-    genStructSubst _ (U i :=: T (TFun _ _)) = makeFunUnifSubsts i
+    genStructSubst _ (t@(T (TFun _ _)) :< U i)  = makeFunUnifSubsts i t
+    genStructSubst _ (U i :< t@(T (TFun _ _)))  = makeFunUnifSubsts i t
+    genStructSubst _ (t@(T (TFun _ _)) :=: U i) = makeFunUnifSubsts i t
+    genStructSubst _ (U i :=: t@(T (TFun _ _))) = makeFunUnifSubsts i t
 
     -- tunit
     genStructSubst _ (t@(T TUnit) :< U i) = return $ Subst.ofType i t
@@ -228,39 +232,43 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
     -- Helper Functions
     --
 
-    makeEntryUnif e = R.mkEntry <$>
-                      pure (R.fname e) <*>
-                      (U <$> lift solvFresh) <*> pure (R.taken e)
+    makeEntryUnif e t1 t2 = R.mkEntry <$>
+                            pure (R.fname e) <*>
+                            (U <$> lift (solvFresh $ SinkFloatEntry e t1 t2)) <*> pure (R.taken e)
 
     -- Substitute a record structure for the unifier with only the specified
     -- entries, hence an incomplete record.
-    makeRowUnifSubsts frow es u =
-      do rv <- lift solvFresh
-         es' <- traverse makeEntryUnif es
-         return $ Subst.ofType u (frow (R.incomplete es' rv))
+    makeRowUnifSubsts :: Int -> (R.Row TCType -> TCType) -> [R.Entry TCType] -> TCType -> MaybeT TcSolvM Subst.Subst
+    makeRowUnifSubsts i frow es t = mdo
+      rv <- lift (solvFresh $ SinkFloat (U i) s t)
+      es' <- traverse (\e -> makeEntryUnif e (U i) t) es
+      let s = frow (R.incomplete es' rv)
+      return $ Subst.ofType i s
 
     -- Expand rows containing row variable rv with the specified entries.
-    makeRowVarSubsts rv es =
-      do rv' <- lift solvFresh
-         es' <- traverse makeEntryUnif es
-         return $ Subst.ofRow rv $ R.incomplete es' rv'
+    makeRowVarSubsts rv es t1 t2 = mdo
+      rv' <- lift (solvFresh $ SinkFloatRow rv s t1 t2)
+      es' <- traverse (\e -> makeEntryUnif e t1 t2) es
+      let s = R.incomplete es' rv'
+      return $ Subst.ofRow rv s
 
     -- Create a shape substitution for the row variable.
     makeRowShapeSubsts rv row =
       return $ Subst.ofShape rv (R.shape row)
 
-    makeTupleUnifSubsts ts i = do
-      tus <- traverse (const (U <$> lift solvFresh)) ts
-      let t = T (TTuple tus)
-      return $ Subst.ofType i t
+    makeTupleUnifSubsts i ts = mdo
+      tus <- traverse (const (U <$> lift (solvFresh $ SinkFloat (U i) s (T $ TTuple ts)))) ts
+      let s = T (TTuple tus)
+      return $ Subst.ofType i s
 
-    makeFunUnifSubsts i = do
-      t' <- U <$> lift solvFresh
-      u' <- U <$> lift solvFresh
-      return . Subst.ofType i . T $ TFun t' u'
+    makeFunUnifSubsts i t = mdo
+      t' <- U <$> lift (solvFresh $ SinkFloat (U i) s t)
+      u' <- U <$> lift (solvFresh $ SinkFloat (U i) s t)
+      let s = T $ TFun t' u'
+      return $ Subst.ofType i s
 
-    makeTConUnifSubsts n ts s i = do
-      tus <- traverse (const (U <$> lift solvFresh)) ts
+    makeTConUnifSubsts i n ts s = mdo
+      tus <- traverse (const (U <$> lift (solvFresh $ SinkFloat (U i) t (T $ TCon n ts s)))) ts
       let t = T (TCon n tus s)  -- FIXME: A[R] :< (?0)! will break if ?0 ~> A[W] is needed somewhere else
       return $ Subst.ofType i t
 

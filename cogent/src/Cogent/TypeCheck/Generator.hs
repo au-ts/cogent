@@ -969,9 +969,11 @@ withBindings (BindingAlts pat tau e0 bs alts : xs) e top = do
       tvs <- use knownTypeVars
       (ctau,tau'') <- validateType (stripLocT tau')
       return (ctau <> alpha :< tau'', tau'')
-  (calts, alts') <- cgAlts (Alt pat Regular (LocExpr (posOfE e) (Let xs e)) : alts) top alpha'
+  let letE = case xs of [] -> exprOfLE e; _ -> Let xs e
+  (calts, alts') <- cgAlts (Alt pat Regular (LocExpr (posOfE e) letE) : alts) top alpha'
   let c = c0 <> ct <> calts
-      (Alt pat' _ (TE _ (Let xs' e') _)) : altss' = alts'
+      (Alt pat' _ letE') : altss' = alts'
+      (e',xs') = case letE' of TE _ (Let xs' e') _ -> (e',xs'); _ -> (letE', [])
       b0' = BindingAlts pat' (fmap (const alpha) tau) e0' bs altss'
   return (c, b0':xs', e')
 
