@@ -1,8 +1,9 @@
 import lldb
 
 
-import lib.annotation as annotation
-import lib.color as color
+import src.lib.annotation as annotation
+import src.lib.color as color
+from src. lib.annotation import LineAnnotationValue
 
 
 def handler(debugger: lldb.SBDebugger, command: str, exe_ctx: lldb.SBExecutionContext, result: lldb.SBCommandReturnObject):
@@ -25,6 +26,14 @@ def handler(debugger: lldb.SBDebugger, command: str, exe_ctx: lldb.SBExecutionCo
                 frame, declaration) else f"{color.GREY}UNINITIALIZED{color.RESET}"
 
             result.AppendMessage(f"({ty}) {name} = {value}")
+
+            if 'line' in annotations:
+                data: LineAnnotationValue = annotations['line']
+                file = data['file']
+                line = data['line']
+                col = data['col']
+
+                result.AppendMessage(f"@{file}:{line}:{col}")
 
 
 def is_initialized(frame: lldb.SBFrame, declaration: lldb.SBDeclaration) -> bool:

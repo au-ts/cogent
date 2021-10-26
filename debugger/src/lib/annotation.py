@@ -3,18 +3,31 @@ import lldb
 import re
 from typing import Literal, TypedDict, Union
 
-from lib.util import does_match, is_comment, is_whitespace
+from src.lib.util import does_match, is_comment, is_whitespace
 
 VarAnnotation = TypedDict(
     'VarAnnotation', {'type': Literal['var'], 'value': str})
 
-Annotation = Union[VarAnnotation]
+LineAnnotationValue = TypedDict(
+    'LineAnnotationValue', {'file': str, 'line': int, 'col': int})
+LineAnnotation = TypedDict(
+    'LineAnnotation', {'type': Literal['line'], 'value': LineAnnotationValue}
+)
 
-regex_annotation_var = re.compile(r"^[^\S\n]*\/\* \$VAR: (\w+) \*\/[^\S\n]*$")
+Annotation = Union[VarAnnotation, LineAnnotation]
+
+regex_annotation_var = re.compile(
+    r"^[^\S\n]*\/\* \$VAR:\s*(\w+) \*\/[^\S\n]*$")
+regex_annotation_line = re.compile(
+    r"^[^\S\n]*\/\* \$LINE: \"([^\"]+)\" : (\d+) : (\d+) \*\/[^\S\n]*$")
 
 
 def is_var(annotation: str):
     return does_match(regex_annotation_var, annotation)
+
+
+def is_line(annotation: str):
+    return does_match(regex_annotation_line, annotation)
 
 
 def extract_annotation(comment: str) -> Union[Annotation, None]:
@@ -22,6 +35,14 @@ def extract_annotation(comment: str) -> Union[Annotation, None]:
         match = re.match(regex_annotation_var, comment)
         assert match is not None
         return {'type': 'var', 'value': match.group(1)}
+    elif is_line(comment):
+        match = re.match(regex_annotation_line, comment)
+        assert match is not None
+        return {'type': 'line', 'value': {
+            'file': match.group(1),
+            'line': int(match.group(2)),
+            'col': int(match.group(3))
+        }}
     else:
         return None
 

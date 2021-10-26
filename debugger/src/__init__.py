@@ -8,28 +8,13 @@ import inspect
 import lldb
 import shlex
 import sys
+
+from ast import parse
 from typing import Any, Mapping, Optional
 
-import commands.vars
-
-# if __name__ == '__main__':
-#   # Create a new debugger instance in your module if your module
-#   # can be run from the command line. When we run a script from
-#   # the command line, we won't have any debugger object in
-#   # lldb.debugger, so we can just create it if it will be needed
-#   lldb.debugger = lldb.SBDebugger.Create()
-# elif lldb.debugger:
-#   # Module is being run inside the LLDB interpreter
-#   lldb.debugger.HandleCommand('command script add -f ls.ls ls')
-#   print 'The "ls" python command has been installed and is ready for use.'
-
-# def ls(debugger, command, result, internal_dict):
-#   print >>result, (commands.getoutput('/bin/ls %s' % command))
-
-# And the initialization code to add your commands
-# def __lldb_init_module(debugger, internal_dict):
-#     debugger.HandleCommand('command script add -f ls.ls ls')
-#     print 'The "ls" python command has been installed and is ready for use.'
+import src.commands.breakpoint
+import src.commands.step
+import src.commands.vars
 
 
 class CogentCLI:
@@ -44,6 +29,7 @@ class CogentCLI:
                                                       cls.__name__,
                                                       cls.program)
         debugger.HandleCommand(command)
+        print(f"module_name = {module_name}.{cls.__name__}")
         print('The "{0}" command has been installed, type "help {0}" or "{0} '
               '--help" for detailed help.'.format(cls.program))
 
@@ -55,7 +41,13 @@ class CogentCLI:
 
         # Variable mapping
         parser_vars = subparsers.add_parser("vars")
-        parser_vars.set_defaults(handler=commands.vars.handler)
+        parser_vars.set_defaults(handler=src.commands.vars.handler)
+
+        # Breakpoint
+        src.commands.breakpoint.register_command(subparsers)
+
+        # Stepping
+        src.commands.step.register_command(subparsers)
 
         return parser
 
@@ -89,7 +81,7 @@ class CogentCLI:
             return
 
         if callable(getattr(parsed_args, 'handler', None)):
-            parsed_args.handler(debugger, command, exe_ctx, result)
+            parsed_args.handler(debugger, parsed_args, exe_ctx, result)
         else:
             debugger.HandleCommand('help cogent')
 

@@ -1,4 +1,6 @@
+import lldb
 import re
+
 from typing import Pattern
 
 regex_whitespace = re.compile(r"^\s*$")
@@ -16,3 +18,12 @@ def is_whitespace(line: str):
 
 def is_comment(line: str):
     return does_match(regex_comment, line)
+
+
+def get_source_file(debugger: lldb.SBDebugger) -> str:
+    target: lldb.SBTarget = debugger.GetSelectedTarget()
+    module: lldb.SBModule = target.GetModuleAtIndex(0)
+    unit: lldb.SBCompileUnit = module.GetCompileUnitAtIndex(0)
+    file: lldb.SBFileSpec = unit.file
+
+    return file.fullpath
