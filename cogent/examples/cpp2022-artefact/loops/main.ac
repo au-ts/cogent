@@ -1,0 +1,3 @@
+#include "build/generated.c"
+#include "repeat.ac"
+#include "wordarray.ac"

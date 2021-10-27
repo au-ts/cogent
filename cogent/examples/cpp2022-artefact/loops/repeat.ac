@@ -1,0 +1,19 @@
+/*
+ * Antiquoted C file for a simple for loop
+ *
+ *
+ */
+
+$ty:acc $id:repeat($ty:(RepParam acc obsv) args) {
+    u64 i = 0;
+    $ty:(StepParam acc obsv) a;
+    a.acc = args.acc;
+    a.obsv = args.obsv;
+    for (i = 0; i < args.n; i++) {
+        bool_t b = (($spec:(StopF acc obsv)) args.stop)(a);
+        if (b.boolean)
+            break;
+        a.acc = (($spec:(StepF acc obsv)) args.step)(a);
+    }
+    return a.acc;
+}

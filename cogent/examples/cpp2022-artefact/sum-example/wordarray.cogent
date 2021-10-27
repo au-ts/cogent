@@ -1,0 +1,22 @@
+type WordArray a
+
+type WordArrayIndex = U32
+type ElemAO a acc obsv = #{elem:a, acc:acc, obsv:obsv!}
+
+type WordArrayPutP a = #{arr: WordArray a, idx: WordArrayIndex, val: a}
+
+type WordArrayMapNoBreakF a acc obsv = ElemAO a acc obsv -> (a, acc)
+type WordArrayMapNoBreakP a acc obsv = #{arr: WordArray a, frm: WordArrayIndex, to: WordArrayIndex, f: WordArrayMapNoBreakF a acc obsv, acc: acc, obsv: obsv}
+
+type WordArrayFoldNoBreakF a acc obsv = ElemAO a acc obsv! -> acc
+type WordArrayFoldNoBreakP a acc obsv = #{arr: (WordArray a)!, frm: WordArrayIndex, to: WordArrayIndex, f: WordArrayFoldNoBreakF a acc obsv, acc: acc, obsv: obsv!}
+
+wordarray_length: all(a :< DSE). (WordArray a)! -> U32
+
+wordarray_get: all(a :< DSE). ((WordArray a)!, WordArrayIndex) -> a
+
+wordarray_put2: all(a :< DSE). WordArrayPutP a -> WordArray a
+
+wordarray_map_no_break: all(a :< DSE,acc,obsv). WordArrayMapNoBreakP a acc obsv -> (WordArray a, acc)
+
+wordarray_fold_no_break: all(a :< DSE,acc,obsv). WordArrayFoldNoBreakP a acc obsv -> acc 
