@@ -1,5 +1,5 @@
 type F = { f1 : U32, len : U32, f2 : U8, data : U8#[0] }
-layout L = record { f1 : 4B, len : 4B after f1, f2 : 1B after len, data : array [1B] after f2}
+layout L = record { f1 : 4B, len : 4B, f2 : 1B, data : array [1B]}
 {-# GETTER F, data, get_data #-}
 {-# SETTER F, data, set_data #-}
 type FL = F layout L
