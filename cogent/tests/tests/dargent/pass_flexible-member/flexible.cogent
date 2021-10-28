@@ -1,0 +1,30 @@
+type F = { f1 : U32, len : U32, f2 : U8, data : U8#[0] }
+layout L = record { f1 : 4B, len : 4B after f1, f2 : 1B after len, data : array [1B] after f2}
+{-# GETTER F, data, get_data #-}
+{-# SETTER F, data, set_data #-}
+type FL = F layout L
+
+type Heap
+
+-- The arg is the size of the data field, not the whole record.
+newF : (Heap, U32) -> (Heap, FL take data)
+freeF : (Heap, FL) -> Heap
+printF : FL! -> ()
+
+type Data
+
+-- Usually implemented as a memcpy().
+real_set_data : (Heap, FL take data, Data!) -> (Heap, FL)
+
+foo : (Heap, Data!) -> Heap
+foo (h,d) = let (h, r) = newF (h, 4)
+            and r = r {f1 = 20211028, len = 4, f2 = 1}
+            and (h, r) = real_set_data (h, r, d)
+            and _ = printF r !r
+            in  freeF (h, r)
+
+-- | XXX -- This shows the generated getter/setter are not suitable,
+-- | XXX -- as it has a different type signature.
+-- | XXX bad : FL -> FL
+-- | XXX bad r = let r {data} = r in r {data}
+

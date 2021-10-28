@@ -1055,7 +1055,7 @@ int bilbyfs_statfs(struct dentry *dentry, struct kstatfs *kstat)
         u32 eb_size = wd->fs_st->mount_st->super->eb_size;
         int err;
 
-        bilbyfs_debug("bilbyfs_statfs(NOT ) = NotImpl\n");
+        bilbyfs_debug("bilbyfs_statfs(NOT) = NotImpl\n");
         down(&wd->lock);
         free = wd->fs_st->ostore_st->fsm_st->nb_free_eb * eb_size;
         avail = (wd->fs_st->mount_st->super->nb_eb - wd->fs_st->ostore_st->fsm_st->nb_free_eb) * eb_size;

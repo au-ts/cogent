@@ -167,9 +167,19 @@ genGS s root TUnit UnitLayout path m = do
   return fn
 
 #ifdef BUILTIN_ARRAYS
-genGS s box t@(TArray elt l (Boxed {}) _) (PrimLayout br ω) path m = do
+genGS s root t@(TArray elt l (Boxed {}) _) (PrimLayout br ω) path m = do
   t' <- genType t
-  genGSBlock s br ω box t' path m
+  genGSBlock s br ω root t' path m
+
+-- vvv FIXME!!!
+genGS s root t@(TArray telt l Unboxed _) (ArrayLayout lelt) path m = do
+  fn <- genGSName path m
+  tarr' <- genType t
+  telt' <- genType telt
+  eltGsName <- genGS s root telt lelt (path ++ ["arr"]) m
+  tell [mkGSDeclUArray root tarr' telt' fn eltGsName m]
+  return fn
+  
 #endif
 
 genGS s root t l _ _ = __impossible $ "genGS"
@@ -531,6 +541,11 @@ mkGsDeclABR b root (AlignedBitRange sz boff woff) fn m =
              True  -> CArrayDeref (CStructDot (CDeref boxVar) boxFieldName) (uint woff)
              False -> CArrayDeref boxVar (uint woff)
 
+
+mkGSDeclUArray :: CType -> CType -> CType -> CId -> FunName -> GetOrSet -> CExtDecl
+mkGSDeclUArray root tarr telt fn eltGsName m =
+  let stmts = [CBIStmt $ CComment "// FIXME: Don't use it! Define your own getter/setter using the GETTER or SETTER pragmas." CEmptyStmt]
+   in mkGsDecl root tarr fn stmts m
 
 arrayGetterSetter :: CType -> CType -> Size -> CId -> FunName -> GetOrSet -> CExtDecl
 arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Get =
