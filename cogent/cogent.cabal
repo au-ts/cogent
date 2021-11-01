@@ -333,3 +333,4 @@ test-suite test-quickcheck
               , QuickCheck >= 2.11.3
               , transformers
               , mtl >= 2.2.1
+              , ansi-wl-pprint >= 0.6

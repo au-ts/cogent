@@ -34,6 +34,11 @@ import Cogent.Dargent.Util
 import Cogent.Surface (noPos)
 import CogentTests.Dargent.Core
 
+import Text.PrettyPrint.ANSI.Leijen hiding ((<$>), empty)
+import Cogent.PrettyPrint
+
+import Debug.Trace
+
 {- PROPERTIES -}
 
 prop_allocationConj :: Allocation -> Allocation -> Bool
@@ -51,7 +56,7 @@ prop_typeCheckValidGivesNoErrors =
   forAll (genDataLayout size) $ \(Layout layout, alloc) ->  -- FIXME: not considering CLayout for now / zilinc
     case runExcept $ tcDataLayoutExpr M.empty [] (sugarDataLayout layout) of
       Right (_,alloc') -> toSet alloc == toSet alloc'
-      _                -> False
+      Left msg         -> trace (show $ pretty msg) False
   where size = 30
 
 {-+ INVERSE FUNCTIONS
@@ -60,15 +65,13 @@ prop_typeCheckValidGivesNoErrors =
   +-}
 
 bitSizeToDataLayoutSize :: Size -> DataLayoutSize
-bitSizeToDataLayoutSize size =
-  if bytes == 0
-    then Bits bits
-  else if bits == 0
-    then Bytes bytes
-    else Add (Bytes bytes) (Bits bits)
+bitSizeToDataLayoutSize size
+  | bytes == 0 = Bits bits
+  | bits == 0 = Bytes bytes
+  | otherwise = Add (Bytes bytes) (Bits bits)
   where
-    bytes = size `div` 8
-    bits  = size `mod` 8
+      bytes = size `div` 8
+      bits = size `mod` 8
 
 sugarBitRange :: BitRange -> DataLayoutExpr
 sugarBitRange (BitRange size offset) =
@@ -76,7 +79,7 @@ sugarBitRange (BitRange size offset) =
 
 sugarDataLayout  :: DataLayout' BitRange -> DataLayoutExpr
 sugarDataLayout UnitLayout = DL $ Prim (Bits 0)
-sugarDataLayout (PrimLayout bitRange endianness) = 
+sugarDataLayout (PrimLayout bitRange endianness) =
   case endianness of
     ME -> sugarBitRange bitRange
     _  -> DL $ Endian (sugarBitRange bitRange) endianness

@@ -1,0 +1,19 @@
+type A
+type B
+type C
+type E
+
+type D = { x : Bool , y : #E }
+
+layout LD = record { x : 1b at 20b , y : 2b at 23b }
+
+foo : () -> { x0 : #A, x1 : <X01 #B | X11 #D -- { x011 : Bool , x111 : Bool }
+                                    | X12 <X012 Bool | X112 Bool>
+                                    | X13 Bool
+                                    | X14 Bool> }
+                  layout record { x0 : 1b at 14b
+                                , x1 : variant (3b at 7b) { X01(0) : 3b at 17b
+                                                          , X11(1) : LD -- { x011 : 1b at 20b , x111 : 2b at 23b }
+                                                          , X12(2) : variant (1b at 13b) { X012(0) : 1b , X112(1) : 1b }
+                                                          , X13(3) : 1b
+                                                          , X14(4) : 1b } }

@@ -41,8 +41,6 @@ import Data.Maybe (fromJust, fromMaybe)
 import Lens.Micro
 import Text.Parsec.Pos (SourcePos)
 
-import Debug.Trace
-
 {- * Definition for datalayout representation in typechecker -}
 
 data TCDataLayout   = TL { unTCDataLayout :: DataLayoutExpr' TCDataLayout }
@@ -173,7 +171,8 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
         (tagExpr', tagAlloc) <- tcDataLayoutExpr env vs tagExpr
         when (2 ^ (bitSizeBR tagBits - 1) > maximum (alts <&> (^. _3))) $  -- we don't allow a variant without any alternatives
           throwE $ TagSizeTooLarge (InTag PathEnd)
-        (altsExprs, altsAlloc, _) <- foldM (tcAlternative tagBits) ([], emptyAllocation, M.empty) (foldl (desugar tagBits) BEmp alts)
+        let bs = foldl (desugar tagBits) BEmp alts
+        (altsExprs, altsAlloc, _) <- foldM (tcAlternative tagBits) ([], emptyAllocation, M.empty) bs
         alloc <- except $ first OverlappingBlocks $ singletonAllocation (tagBits, InTag PathEnd) /\ altsAlloc
         let alts' = zipWith (\(t,p,l,_) e -> (t,p,l,e)) alts altsExprs
         return (TLVariant tagExpr' alts', alloc)
@@ -188,7 +187,7 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
       where
         switch (DLOffset _ _) = cx :< x
         switch (DLEndian (DLOffset _ _) _) = cx :< x
-        switch e = cx :< (t, p, i, DLOffset e (Bits (bitSizeBR r)))
+        switch e = cx :< (t, p, i, DLOffset e (Bits (bitOffsetBR r + bitSizeBR r)))
 
     tcAlternative
       :: BitRange -- Of the variant's tag

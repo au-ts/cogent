@@ -1,4 +1,0 @@
-
-foo : () -> { a : U8, b : <None | Some U8> }
-                  layout record { a : 1B, b : variant (1b) { None(0) : 0b at 0B
-                                                           , Some(1) : 8b at 0B } }
