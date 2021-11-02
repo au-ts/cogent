@@ -246,9 +246,39 @@ fun make_corres_shallow_C desugar_thy deep_thy ctxt f = let
                               (Const (@{const_name val_rel}, _), _) => false
                             | _ => true)
 
-  (* FIXME: abstract function assumptions for SCorres_Normal.
-   *        SCorres_Normal currently does not generate them correctly *)
-  val scorres_assms = []
+  fun get_frees (Free (s, t)) xs = (Free (s, t)) :: xs
+   |  get_frees (Abs (_, _, a)) xs = get_frees a xs
+   |  get_frees (a $ b) xs = get_frees a xs |> get_frees b
+   |  get_frees _ xs = xs
+
+  val xip =
+    get_frees basic_prop []
+    |> find_first (fn x => case x of Free ("\<xi>\<^sub>p", _) => true | _ => false)
+    |> the
+
+  fun rep_term (Free (s, t)) x  y = if Free (s, t) = x then y else Free (s, t)
+   |  rep_term (Const (s, t)) x  y = if Const (s, t) = x then y else Const (s, t)
+   |  rep_term (Var ((s, i), t)) x y = if Var ((s, i), t) = x then y  else Var ((s, i), t)
+   |  rep_term (Bound i) x y =  if Bound i = x then y else Bound i
+   |  rep_term (Abs (s, t, a)) x y = if Abs (s, t, a) = x then y else Abs (s, t, rep_term a x y)
+   |  rep_term (a $ b) x y = if a $ b = x then y else (rep_term a x y) $ (rep_term b x y)
+  
+  val scorres_assms =
+    Thm.prems_of scorres_thm
+    |> filter (fn prem => case strip_comb (get_concl prem) of
+                              (Const (@{const_name valRel}, _), _) => false
+                            | _ => true)
+  fun get_vars (Var x) xs = (Var x) :: xs
+   |  get_vars (Abs (_, _, a)) xs = get_vars a xs
+   |  get_vars (a $ b) xs = get_vars a xs |> get_vars b
+   |  get_vars _ xs = xs
+
+  val old_xip =
+    hd scorres_assms  
+    |> (fn x => get_vars x [])
+    |> hd
+
+  val scorres_assms = map (fn x => rep_term x old_xip xip) scorres_assms
 
   (* Our proof involves two locale assumptions:
    * one for correspondence_init (this locale) and one for
