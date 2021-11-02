@@ -27,6 +27,8 @@ import Cogent.Dargent.Surface (Endianness(..))
 import Cogent.Dargent.TypeCheck
 import Cogent.Dargent.Util
 
+import Debug.Trace
+
 {- PROPERTIES -}
 
 prop_sizePreserved range =
@@ -105,35 +107,66 @@ genPrimLayout maxBitIndex maxSize alloc = do
 
 genSumLayout
   :: Size -- max allowed allocated bit index
-  -> Size -- max allowed total bit size for the records fields
+  -> Size -- max allowed total bit size for the variant constructors
   -> Allocation -- Existing allocation
   -> Gen (DataLayout' BitRange, Allocation)
 genSumLayout maxBitIndex maxSize alloc =
   do
     let maxTagSize = min 4 maxSize
     (tagBitRange, alloc') <- genBitRange maxBitIndex maxTagSize alloc
-    let alloc''            = fmap InTag alloc'
-    let maxNumAlternatives = 2 ^ (bitSizeBR tagBitRange)
-    (alts, alloc''') <- genAlts (maxSize - maxTagSize) 0 maxNumAlternatives alloc''
+    let alloc''           = fmap InTag alloc'
+    let noAlts = 2 ^ bitSizeBR tagBitRange
+    -- FIXME: Add offset sugar for 0b offset alternatives.
+    (alts, alloc''') <-
+      first swizzle <$> genAlts (maxSize - maxTagSize) (noAlts - 1) ([],alloc'') alloc''
+
+-- genAlts (maxSize - maxTagSize) (noAlts - 1) ([],alloc'') alloc''
     return (SumLayout tagBitRange alts, alloc''')
   where
+    swizzle :: [(TagName, Size, DataLayout' BitRange)] ->
+      Map TagName (Size, DataLayout' BitRange)
+    swizzle ts = M.fromList $ map (\(t,p,d) -> (t,(p,d))) ts
+
+    generate :: Allocation -> Size -> Gen (DataLayout' BitRange, Allocation)
+    generate alloc sz = genDataLayout' maxBitIndex sz alloc
+
+    combine :: [TagName] -> [Size] -> [(DataLayout' BitRange, Allocation)] ->
+      Allocation ->
+      ([(TagName, Size, DataLayout' BitRange)], Allocation)
+    combine ts zs ys alloc = foldr g ([],alloc) xs
+      where xs = zip3 ts zs ys
+            g (t,sz,(y,a)) (ds,alloc) = ((t,sz,y):ds , a \/ alloc)
+
+    genSizes :: Size -> Integer -> Gen [Size]
+    genSizes m n
+      | n < 0 = return []
+      | otherwise =
+          do sz <- if 1 <= m then choose (1, m) else pure 0
+             (sz :) <$> genSizes (m - sz) (n - 1)
+
+    genTags :: Size -> Integer -> Allocation ->
+      Gen ([(TagName, Size, DataLayout' BitRange)], Allocation)
+    genTags max num alloc = do zs <- genSizes max num
+                               ys <- mapM (generate alloc) zs
+                               return $ combine (map show [0,1..]) zs ys alloc
+
     genAlts
-      :: Size     -- max allowed total bit size for remaining fields
-      -> Integer  -- tag value for alternative
-      -> Size     -- max number of alternatives
+      :: Size     -- max allowed total bit size for remaining constrs.
+      -> Size     -- tag value for alternative
+      -> ([(TagName, Size, DataLayout' BitRange)], Allocation) -- accumlated state
       -> Allocation -- existing allocation
-      -> Gen (Map TagName (Size, DataLayout' BitRange), Allocation)
+      -> Gen ([(TagName, Size, DataLayout' BitRange)], Allocation)
 
-    genAlts _ m n alloc | m == n = return (M.empty, alloc)
+    genAlts _ tag (ts,alloc) _ | tag < 0 = return (ts, alloc)
 
-    genAlts maxSize tagValue maxTagValue alloc = do
+    genAlts max tag (ts,alloc) tagAlloc = do
       sourcePos <- arbitrary
-      altSize <- if 1 <= maxSize then choose (1, maxSize) else return 0
-      (remainingAlts, remainingAlloc) <- genAlts (maxSize - altSize) (tagValue + 1) maxTagValue alloc
-      let altName = show tagValue
-      (altLayout, altAlloc) <- genDataLayout' maxBitIndex altSize alloc
-      let altAlloc' = fmap (InAlt altName sourcePos) altAlloc
-      return (M.insert altName (tagValue, altLayout) remainingAlts, altAlloc' \/ remainingAlloc)
+      sz <- if 1 <= max then choose (1, max) else return 0
+      (altLayout, altAlloc) <- genDataLayout' maxBitIndex sz tagAlloc
+      let tagName = show tag
+          altAlloc' = fmap (InAlt tagName sourcePos) altAlloc
+      genAlts (max - sz) (tag - 1)
+        ((tagName,tag,altLayout):ts, altAlloc' \/ alloc) tagAlloc
 
 genRecordLayout
   :: Size -- max allowed allocated bit index
@@ -143,6 +176,7 @@ genRecordLayout
 genRecordLayout maxBitIndex maxSize alloc =
   do
     (fields, alloc') <- genFields maxSize 0 alloc
+    -- FIXME: Add offset sugar for 0b offset fields
     return (RecordLayout fields, alloc')
   where
     genFields
