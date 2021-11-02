@@ -148,8 +148,8 @@ inductive_cases v_sem_appE  [elim] : "\<xi> , \<gamma> \<turnstile> App a b \<Do
 
 
 locale value_sem =
-  fixes abs_typing :: "'a \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
-  assumes abs_typing_bang : "abs_typing av n \<tau>s \<Longrightarrow> abs_typing av n (map bang \<tau>s)"
+  fixes abs_typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> 'a \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
+  assumes abs_typing_bang : "abs_typing \<Xi> av n \<tau>s \<Longrightarrow> abs_typing \<Xi> av n (map bang \<tau>s)"
 
 context value_sem begin
 
@@ -177,8 +177,9 @@ and vval_typing_record :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) v
                   
                   \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VRecord fs :v TRecord ts s"
 
-| v_t_abstract : "\<lbrakk> abs_typing a n ts
+| v_t_abstract : "\<lbrakk> abs_typing \<Xi> a n ts
                   ; 0, [], {} \<turnstile>* ts wellformed
+
                   \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VAbstract a :v TCon n ts s"
 
 (*
@@ -541,7 +542,7 @@ next
 (* vval_typing_vval_typing_record.intros *)
 
 next
-  case (v_t_abstract a n ts \<Xi> s)
+  case (v_t_abstract \<Xi> a n ts s)
   have "t' = TCon n ts s"
     using subtyping.cases v_t_abstract by fastforce
   then show ?case
@@ -977,7 +978,8 @@ next case (v_sem_case_nm \<xi> \<gamma> x tag' v tag n n' m)
     from split\<Gamma>
     have \<gamma>_matches_\<Gamma>1: "\<Xi> \<turnstile> \<gamma> matches instantiate_ctx \<epsilon> \<tau>s \<Gamma>1"
       and \<gamma>_matches_\<Gamma>2: "\<Xi> \<turnstile> \<gamma> matches instantiate_ctx \<epsilon> \<tau>s \<Gamma>2"
-      using matches_split2 v_sem_case_nm.prems
+      using matches_split2[OF v_sem_case_nm.prems(4) v_sem_case_nm.prems(2)] 
+
       by fastforce+
 
     have "\<Xi> \<turnstile> VSum tag' v :v instantiate \<epsilon> \<tau>s (TSum ts)"

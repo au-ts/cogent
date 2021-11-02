@@ -1,0 +1,9 @@
+
+type StepParam acc obsv = #{acc: acc, obsv: obsv!}
+type StopF acc obsv = StepParam acc! obsv -> Bool
+
+type StepF acc obsv = StepParam acc obsv -> acc
+
+type RepParam acc obsv = #{n: U64, stop: StopF acc obsv, step: StepF acc obsv, acc: acc, obsv: obsv!}
+
+repeat: all (acc, obsv). RepParam acc obsv -> acc

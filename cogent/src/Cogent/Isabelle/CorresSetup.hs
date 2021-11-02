@@ -77,6 +77,8 @@ updSemInit =
   , "  val_rel_unit_t_C_def"
   , "  val_rel_bool_t_C_def"
   , "  val_rel_fun_tag"
+  , "(* Put manual value relation definitions below here *)"  
+  , "(* Put manual value relation definitions above here *)" 
   , ""
   , "lemmas type_rel_simps[TypeRelSimp] ="
   , "  type_rel_word"
@@ -84,6 +86,8 @@ updSemInit =
   , "  type_rel_unit_def"
   , "  type_rel_unit_t_C_def"
   , "  type_rel_bool_t_C_def"
+  , "(* Put manual type relation definitions below here *)"  
+  , "(* Put manual type relation definitions above here *)"  
   , ""
   ]
 
@@ -105,7 +109,10 @@ setup cfile =
 
 localSetup :: String -> [String]
 localSetup cfile =
-  [ "local_setup \\<open> local_setup_val_rel_type_rel_put_them_in_buckets \"" ++ cfile ++ "\" \\<close>"
+  [ "(* Put manual type and value relations below here *)"
+  , "(* Put manual type and value relations above here *)"
+  , ""
+  ,	"local_setup \\<open> local_setup_val_rel_type_rel_put_them_in_buckets \"" ++ cfile ++ "\" [] \\<close>"
   , "local_setup \\<open> local_setup_instantiate_cogent_C_heaps_store_them_in_buckets \"" ++ cfile ++ "\" \\<close>"
   ]
 
@@ -140,7 +147,7 @@ locale thy cfile =
   , "  \"heap_rel_ptr = heap_rel_meta is_valid heap\""
   , "  by (simp add: heap_rel_ptr_def[abs_def] heap_rel_meta_def[abs_def])"
   , ""
-  , "local_setup \\<open> local_setup_heap_rel \"" ++ cfile ++ "\" \\<close>"
+  , "local_setup \\<open> local_setup_heap_rel \"" ++ cfile ++ "\" [] [] \\<close>"
   , ""
   , "definition state_rel :: \"((funtyp, abstyp, ptrtyp) store \\<times> lifted_globals) set\""
   , "where"
