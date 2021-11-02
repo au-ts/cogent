@@ -17,7 +17,7 @@ module CogentTests.Dargent.Core where
 import Control.Arrow (first)
 import Data.Map (Map)
 import qualified Data.Map as M
-import Text.Parsec.Pos (SourcePos, newPos)
+import Text.Parsec.Pos (SourcePos)
 import Test.QuickCheck
 
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
@@ -26,8 +26,10 @@ import Cogent.Dargent.Core
 import Cogent.Dargent.Surface (Endianness(..))
 import Cogent.Dargent.TypeCheck
 import Cogent.Dargent.Util
+import Cogent.Surface (noPos)
 
 import Debug.Trace
+
 
 {- PROPERTIES -}
 
@@ -160,11 +162,10 @@ genSumLayout maxBitIndex maxSize alloc =
     genAlts _ tag (ts,alloc) _ | tag < 0 = return (ts, alloc)
 
     genAlts max tag (ts,alloc) tagAlloc = do
-      sourcePos <- arbitrary
       sz <- if 1 <= max then choose (1, max) else return 0
       (altLayout, altAlloc) <- genDataLayout' maxBitIndex sz tagAlloc
       let tagName = show tag
-          altAlloc' = fmap (InAlt tagName sourcePos) altAlloc
+          altAlloc' = fmap (InAlt tagName noPos) altAlloc
       genAlts (max - sz) (tag - 1)
         ((tagName,tag,altLayout):ts, altAlloc' \/ alloc) tagAlloc
 
@@ -188,11 +189,10 @@ genRecordLayout maxBitIndex maxSize alloc =
     genFields 0 _ alloc = return (M.empty, alloc)
     genFields maxSize name alloc = do
       fieldSize <- choose (1, maxSize)
-      sourcePos <- arbitrary
       (remainingFields, alloc') <- genFields (maxSize - fieldSize) (name + 1) alloc
       let fieldName = show name
       (fieldLayout, alloc'') <- genDataLayout' maxBitIndex fieldSize alloc'
-      let alloc''' = fmap (InField fieldName sourcePos) alloc''
+      let alloc''' = fmap (InField fieldName noPos) alloc''
       return $ (M.insert fieldName fieldLayout remainingFields, alloc''')
 
 
@@ -227,16 +227,6 @@ allNonAllocatedRanges maxBitIndex alloc = do
   case Allocation [(range, PathEnd)] /\ alloc of
     Right newAlloc -> return (range, newAlloc)
     _              -> []
-
-{- Arbitrary instances -}
-
-instance Arbitrary SourcePos where
-  arbitrary = do
-    sourceName <- arbitrary
-    line <- choose (0, 100)
-    column <- choose (0, 80)
-    return $ newPos sourceName line column
-
 
 return []
 testAll = $quickCheckAll

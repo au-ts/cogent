@@ -684,7 +684,7 @@ instance Pretty DataLayoutSize where
 instance Pretty Endianness where
   pretty LE = keyword "LE"
   pretty BE = keyword "BE"
-  pretty ME = err "Invalid endianness" <+> keyword "ME"
+  pretty ME = keyword "ME"
 
 instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (RepRef n s) = if null s then reprname n else parens $ reprname n <+> hsep (fmap pretty s)
@@ -1098,6 +1098,12 @@ instance Pretty a => Pretty (DataLayout' a) where
   pretty (VarLayout n s) = (dullcyan . string . ("_l" ++) . show $ natToInt n) <> prettyOffset s
     where prettyOffset 0 = empty
           prettyOffset n = space <> symbol "offset" <+> integer n <> symbol "b"
+
+instance Pretty (Allocation' p) where
+  pretty (Allocation bs) = list $ map pretty bs
+
+instance {-# OVERLAPPING #-} Pretty (AllocationBlock p) where
+  pretty (br, _) = pretty br
 
 instance Pretty BitRange where
   pretty br = literal (pretty $ bitSizeBR br) <> symbol "b" <+> symbol "at" <+> literal (pretty $ bitOffsetBR br) <> symbol "b"

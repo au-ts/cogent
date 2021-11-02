@@ -53,11 +53,17 @@ prop_overlaps a b = overlaps a b == not (toSet a `disjoint` toSet b)
 
 prop_typeCheckValidGivesNoErrors :: Property
 prop_typeCheckValidGivesNoErrors =
-  forAll (genDataLayout size) $ \(Layout layout, alloc) ->  -- FIXME: not considering CLayout for now / zilinc
-    case runExcept $ tcDataLayoutExpr M.empty [] (sugarDataLayout layout) of
-      Right (_,alloc') -> toSet alloc == toSet alloc'
+  forAllShow (genDataLayout size) (\(l,_) -> show (pretty l)) $ \(Layout layout, alloc) -> do  -- FIXME: not considering CLayout for now / zilinc
+    let layout' = sugarDataLayout layout
+    case runExcept $ tcDataLayoutExpr M.empty [] layout' of
+      Right (_,alloc') -> let allocExpected = toSet alloc
+                              allocActual   = toSet alloc'
+                              res = allocExpected == allocActual
+                           in if not res then trace ("surface layout is:\n" ++ show (pretty layout') ++
+                                                     "\nalloc  = " ++ show (pretty alloc) ++ 
+                                                     "\nalloc' = " ++ show (pretty alloc') ++ "\n") res else res
       Left msg         -> trace (show $ pretty msg) False
-  where size = 30
+  where size = 5
 
 {-+ INVERSE FUNCTIONS
   |
@@ -84,11 +90,11 @@ sugarDataLayout (PrimLayout bitRange endianness) =
     ME -> sugarBitRange bitRange
     _  -> DL $ Endian (sugarBitRange bitRange) endianness
 sugarDataLayout (RecordLayout fields) =
-  DL . Record $ fmap (\(name, layout) -> (name, noPos, (sugarDataLayout  layout))) (M.toList fields)
+  DL . Record $ fmap (\(name, layout) -> (name, noPos, (sugarDataLayout layout))) (M.toList fields)
 sugarDataLayout (SumLayout tagBitRange alternatives) =
   DL $ Variant
     (sugarBitRange tagBitRange)
-    (fmap (\(tagName, (tagValue, altLayout)) -> (tagName, noPos, tagValue, (sugarDataLayout  altLayout))) (M.toList alternatives))
+    (fmap (\(tagName, (tagValue, altLayout)) -> (tagName, noPos, tagValue, (sugarDataLayout altLayout))) (M.toList alternatives))
 
 {- ARBITRARY INSTANCES -}
 instance Arbitrary DataLayoutPath where

@@ -22,6 +22,7 @@ import Test.QuickCheck
 
 import Cogent.Common.Syntax (FieldName, TagName, Size)
 import Cogent.Dargent.Surface
+import Cogent.Surface (noPos)
 import CogentTests.Dargent.TypeCheck (bitSizeToDataLayoutSize)
 
 instance Arbitrary DataLayoutSize where
@@ -54,8 +55,7 @@ genDataLayoutExpr size = oneof
           otherFields <- genFields (size - fieldSize)
           fieldName <- arbitrary
           fieldDataLayoutExpr <- genDataLayoutExpr fieldSize
-          sourcePos <- arbitrary
-          return $ (fieldName, sourcePos, fieldDataLayoutExpr) : otherFields
+          return $ (fieldName, noPos, fieldDataLayoutExpr) : otherFields
 
     genVariant :: Int -> Gen DataLayoutExpr
     genVariant size = do
@@ -74,8 +74,7 @@ genDataLayoutExpr size = oneof
           altName <- arbitrary
           altValue <- arbitrary
           altDataLayoutExpr <- genDataLayoutExpr altSize
-          sourcePos <- arbitrary
-          return $ (altName, sourcePos, altValue, altDataLayoutExpr) : otherAlts
+          return $ (altName, noPos, altValue, altDataLayoutExpr) : otherAlts
 
     genOffset :: Int -> Gen DataLayoutExpr
     genOffset size = DL <$> (Offset <$> genDataLayoutExpr size <*> arbitrary)
