@@ -55,6 +55,7 @@ import Data.Word (Word32)
 import System.FilePath (takeFileName)
 import Text.Parsec.Pos
 import Text.PrettyPrint.ANSI.Leijen hiding (indent, tupled)
+import qualified Data.Set as S
 
 
 -- pretty-printing theme definition
@@ -1101,6 +1102,9 @@ instance Pretty a => Pretty (DataLayout' a) where
 
 instance Pretty (Allocation' p) where
   pretty (Allocation bs) = list $ map pretty bs
+
+instance Pretty a => Pretty (S.Set a) where
+  pretty s = list $ S.foldr ((:) . pretty) [] s
 
 instance {-# OVERLAPPING #-} Pretty (AllocationBlock p) where
   pretty (br, _) = pretty br

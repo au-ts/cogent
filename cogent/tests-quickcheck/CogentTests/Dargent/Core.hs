@@ -121,42 +121,17 @@ genSumLayout maxBitIndex maxSize alloc =
     -- FIXME: Add offset sugar for 0b offset alternatives.
     (alts, alloc''') <-
       first swizzle <$> genAlts (maxSize - maxTagSize) (noAlts - 1) ([],alloc'') alloc''
-
--- genAlts (maxSize - maxTagSize) (noAlts - 1) ([],alloc'') alloc''
     return (SumLayout tagBitRange alts, alloc''')
   where
     swizzle :: [(TagName, Size, DataLayout' BitRange)] ->
       Map TagName (Size, DataLayout' BitRange)
     swizzle ts = M.fromList $ map (\(t,p,d) -> (t,(p,d))) ts
 
-    generate :: Allocation -> Size -> Gen (DataLayout' BitRange, Allocation)
-    generate alloc sz = genDataLayout' maxBitIndex sz alloc
-
-    combine :: [TagName] -> [Size] -> [(DataLayout' BitRange, Allocation)] ->
-      Allocation ->
-      ([(TagName, Size, DataLayout' BitRange)], Allocation)
-    combine ts zs ys alloc = foldr g ([],alloc) xs
-      where xs = zip3 ts zs ys
-            g (t,sz,(y,a)) (ds,alloc) = ((t,sz,y):ds , a \/ alloc)
-
-    genSizes :: Size -> Integer -> Gen [Size]
-    genSizes m n
-      | n < 0 = return []
-      | otherwise =
-          do sz <- if 1 <= m then choose (1, m) else pure 0
-             (sz :) <$> genSizes (m - sz) (n - 1)
-
-    genTags :: Size -> Integer -> Allocation ->
-      Gen ([(TagName, Size, DataLayout' BitRange)], Allocation)
-    genTags max num alloc = do zs <- genSizes max num
-                               ys <- mapM (generate alloc) zs
-                               return $ combine (map show [0,1..]) zs ys alloc
-
     genAlts
       :: Size     -- max allowed total bit size for remaining constrs.
       -> Size     -- tag value for alternative
       -> ([(TagName, Size, DataLayout' BitRange)], Allocation) -- accumlated state
-      -> Allocation -- existing allocation
+      -> Allocation -- tag allocation
       -> Gen ([(TagName, Size, DataLayout' BitRange)], Allocation)
 
     genAlts _ tag (ts,alloc) _ | tag < 0 = return (ts, alloc)

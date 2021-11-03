@@ -133,7 +133,7 @@ tcDataLayoutExpr env vs (DLRecord fields) = do
         switch e@(DLAfter _ _) = cx :< (f, p, e)
         switch (DLEndian e' end) = case switch e' of
           BEmp -> __impossible "tcDataLayoutExpr/record/desugar: invariant broken (endian)"
-          cx :< (f, p, DLAfter e f') -> cx :< (f, p, (DLAfter (DLEndian e end) f'))
+          cx :< (f, p, DLAfter e f') -> cx :< (f, p, DLAfter (DLEndian e end) f')
           cx :< (f, p, e) -> cx :< (f, p, DLEndian e end)
         switch       e           = case cx of
           BEmp -> __impossible "tcDataLayout/record/desugar: invariant broken (switch)"
