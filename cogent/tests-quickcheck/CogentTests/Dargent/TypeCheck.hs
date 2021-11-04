@@ -48,9 +48,8 @@ prop_overlaps a b = overlaps a b == not (toSet a `disjoint` toSet b)
 
 prop_typeCheckValidGivesNoErrors :: Property
 prop_typeCheckValidGivesNoErrors =
-  forAllShow (genDataLayout size) (\(l,_) -> show (pretty l)) $ \(Layout layout, alloc) -> do  -- FIXME: not considering CLayout for now / zilinc
-    let layout' = sugarDataLayout layout
-    case runExcept $ tcDataLayoutExpr M.empty [] layout' of
+  forAll (genDataLayout size) $ \(Layout layout, alloc) ->  -- FIXME: not considering CLayout for now / zilinc
+    case runExcept $ tcDataLayoutExpr M.empty [] (sugarDataLayout layout) of
       Right (_,alloc') -> toSet alloc == toSet alloc'
       Left msg         -> False
   where size = 30
