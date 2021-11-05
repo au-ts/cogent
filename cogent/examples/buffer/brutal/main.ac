@@ -13,12 +13,53 @@ $esc:(#include <string.h>)
 $esc:(#include <stdint.h>)
 $esc:(#include <stddef.h>)
 
+struct __attribute__ ((__packed__)) PersonC {
+  unsigned int  age;
+  unsigned char len;
+  char name[];
+};
+typedef struct PersonC PersonC;
+
+struct __attribute__ ((__packed__)) AddrC {
+  unsigned char zip;
+  unsigned char len;
+  char addr[];
+};
+typedef struct AddrC AddrC;
+
+struct __attribute__ ((__packed__)) DateC {
+  unsigned char yr;
+  unsigned char mon;
+  unsigned char day;
+};
+typedef struct DateC DateC;
+
+struct __attribute__ ((__packed__)) DataC {
+  unsigned char    :6;
+  unsigned char tag:2;
+  union {
+    PersonC Person;
+    AddrC   Addr;
+    DateC   Date;
+  } payload;
+};
+typedef struct DataC DataC;
+
+struct __attribute__ ((__packed__)) EntryC {
+  unsigned int id;
+  unsigned int size;
+  DataC        data;
+};
+typedef struct EntryC EntryC;
+
 typedef char Vector;
 typedef char CString;
 typedef void *SysState;
 typedef struct entry BItem;
 typedef struct entry BTail;
-typedef struct entry Entry;
+typedef DataC BoxedData;
+typedef DataC BoxedData_take_Person;
+
 
 #define MAXCAP 4096
 
@@ -26,15 +67,10 @@ typedef struct entry Entry;
 #include <gum/anti/iterator.ac>
 #include <gum/anti/common.ac>
 
-typedef struct entry {
-  unsigned long len;
-  $ty:(#Stuff) stuff;
-  char name[];
-} entry_t;
 
 unsigned long size = 2048;
 char block[MAXCAP]; // Contains Entry's jammed together; terminated by
-                    // len==0.
+                    // size==0.
 
 $ty:((a, Vector))
 $id:focus_buffer($ty:((Vector, b!, #{ obj : (BItem, BTail), obsv : b!} -> (a, BItem, BTail))) arg) {
@@ -52,8 +88,8 @@ $id:focus_buffer($ty:((Vector, b!, #{ obj : (BItem, BTail), obsv : b!} -> (a, BI
 
 $ty:(<None BItem | Some BItem>) next($ty:((BItem, BTail!)) arg) {
    $ty:(<None BItem | Some BItem>) ret;
-   BItem *next = (BItem *)((char *)arg.p1 + arg.p1->len);
-   if ((uintptr_t)next < (uintptr_t)arg.p2 && next->len != 0) {
+   BItem *next = (BItem *)((char *)arg.p1 + ((EntryC *)arg.p1)->size);
+   if ((uintptr_t)next < (uintptr_t)arg.p2 && ((EntryC *)next)->size != 0) {
       ret.tag = TAG_ENUM_Some;
       ret.Some = next;
    } else {
@@ -64,12 +100,12 @@ $ty:(<None BItem | Some BItem>) next($ty:((BItem, BTail!)) arg) {
 }
 
 Entry *read(BItem *item) {
-   return item;
+   return (Entry *)item;
 }
 
 $ty:(Bool) cstring_eq($ty:((CString!, CString!)) args) {
    $ty:(Bool) ret;
-
+   // printf ("arg1 = %s, arg2 = %s\n", args.p1, args.p2);
    if (!strcmp(args.p1, args.p2)) {
       ret.boolean = 1;
    } else {
@@ -79,18 +115,47 @@ $ty:(Bool) cstring_eq($ty:((CString!, CString!)) args) {
    return ret;
 }
 
-$ty:(CString!) get_name($ty:(Entry!) e) {
-   return e->name;
+$ty:(CString!) get_Person_name($ty:(TPerson!) args) {
+   // printf ("the name we got is: %s\n", ((PersonC *)args)->name);
+   // printf ("the pointer to the payload person is: %p\n", (PersonC *)args);
+   return ((PersonC *)args)->name;
 }
 
-$ty:(Stuff!) get_stuff($ty:(Entry!) e) {
-   return &e->stuff;
+$ty:(BoxedData!) get_Entry_data ($ty:(Entry!) args) {
+  // printf ("the pointer to the data variant is: %p\n", &((EntryC *)args)->data);
+  return &((EntryC *)args)->data;
 }
+
+$ty:((r, acc)) $id:match_Data_Person ($ty:(#{ scr  : BoxedData!
+                                            , acc  : acc
+                                            , obsv : obsv
+                                            , hit  : (TPerson!, acc, obsv) -> (r, acc)
+                                            , miss : (BoxedData_take_Person!, acc, obsv) -> (r, acc)
+                                            }) args) {
+  $ty:((r,acc)) ret;
+  if ((int)args.scr->tag == 0) {
+    $ty:((TPerson!, acc, obsv)) fargs;
+    fargs.p1 = ($ty:(TPerson))(&args.scr->payload);
+    // printf ("the pointer to the age is %p\n", &((PersonC *)fargs.p1)->age);
+    // printf ("fargs.p1 = {age = %u, len = %u, name = %s}\n", ((PersonC *)fargs.p1)->age, ((PersonC *)fargs.p1)->len, ((PersonC *)fargs.p1)->name);
+    fargs.p2 = args.acc;
+    fargs.p3 = args.obsv;
+    ret = (($spec:((TPerson!, acc, obsv) -> (r, acc)))args.miss) (fargs);
+  } else {
+    $ty:((BoxedData_take_Person!, acc, obsv)) fargs;
+    fargs.p1 = args.scr;
+    fargs.p2 = args.acc;
+    fargs.p3 = args.obsv;
+    ret = (($spec:((BoxedData_take_Person!, acc, obsv) -> (r, acc)))args.miss) (fargs);
+  }
+  
+  return ret;
+} 
 
 int in_range($ty:(Entry!) e, unsigned long nlen) {
   unsigned long p;
 
-  p = (uintptr_t)e + offsetof(Entry,name) + nlen;
+  p = (uintptr_t)e + nlen;
 
   return (p - (uintptr_t)block) < size;
 }
@@ -99,40 +164,89 @@ int in_range($ty:(Entry!) e, unsigned long nlen) {
 /* Not translated into Cogent. */
 void init(void) {
   FILE *fp;
-  $ty:(Entry) e;
-  int a, b, c, len;
+  EntryC* e;
+  int type;
+  unsigned int size, len;
+  unsigned int id;
+  unsigned int age;
+  unsigned char zip, year, month, day;
   char buf[80];
 
   memset(block, 0, MAXCAP);
 
   if ((fp = fopen("entries.txt", "r")) != NULL) {
-    e = (Entry *)block;
-    while (fscanf(fp, "%s%d%d%d\n", buf, &a, &b, &c) == 4) {
-      len = strlen(buf)+1;
-      if (!in_range(e, len)) {
-        break;
+    e = (EntryC *)block;
+    while (fscanf(fp, "%c%u", &type, &id) == 2) {
+      // printf ("%c %u: ", type, id);
+      switch (type) {
+        case 'p':  // person
+          fscanf (fp, "%u %[^\n]%*c\n", &age, buf);
+          // printf("reads in %s\n", buf);
+          len = strlen(buf)+1;
+          size = 14 + len;
+          if (!in_range(($ty:(Entry))e, size)) {
+            break;
+          }
+          e->id = id;
+          e->size = size;
+          e->data.tag = 0;
+          ((PersonC *)&e->data.payload)->age = age;
+          // printf ("age is set at %p\n", &((PersonC *)&e->data.payload)->age);
+          ((PersonC *)&e->data.payload)->len = len;
+          strcpy(((PersonC *)&e->data.payload)->name, buf);
+          // printf ("%u;(%u) %s\n", age, ((PersonC *)&e->data)->len, ((PersonC *)&e->data.payload)->name);
+          e = (EntryC *) ((uintptr_t)e + e->size);
+          break;
+        case 'a':  // addr
+          fscanf (fp, "%u %[^\n]%*c\n", &zip, buf);
+          len = strlen(buf)+1;
+          size = 11 + len;
+          if (!in_range(($ty:(Entry))e, size)) {
+            break;
+          }
+          e->id = id;
+          e->size = size;
+          e->data.tag = 1;
+          ((AddrC*)&e->data.payload)->zip = zip;
+          ((AddrC*)&e->data.payload)->len = len;
+          strcpy(((AddrC*)&e->data.payload)->addr, buf);
+          e = (EntryC *) ((uintptr_t)e + e->size);
+          break;
+        case 'd':  // date
+          fscanf (fp, "%u%u%u\n", &year, &month, &day);
+          size = 12;
+          if (!in_range(($ty:(Entry))e, size)) {
+            break;
+          }
+          e->id = id;
+          e->size = size;
+          e->data.tag = 2;
+          ((DateC *)&e->data.payload)->yr  = year;
+          ((DateC *)&e->data.payload)->mon = month;
+          ((DateC *)&e->data.payload)->day = day;
+          e = (EntryC *) ((uintptr_t)e + e->size);
+          break;
+        default: // do nothing
+          break;
       }
-      strcpy(e->name, buf);
-      e->stuff.a = a;
-      e->stuff.b = b;
-      e->stuff.c = c;
-      e->len = ((uintptr_t)e->name + len) - (uintptr_t)e;
-      e = (Entry *) ((uintptr_t)e + e->len);
     }
     fclose(fp);
   }
 }
 
-int main(void){
+int main(int argc, char **argv){
+  if (argc != 2) {
+    printf ("Error: please specify a name you want to lookup.\n");
+    return 1;
+  }
   $ty:((Vector, <None | Some U32>)) ret;
   init();
-  char *str = {"wombat"};
-  $ty:((Vector, CString!)) args = {.p1 = block , .p2 = str};
-  ret = findStuff(args);
+  $ty:((Vector, CString!)) args = {.p1 = block , .p2 = argv[1]};
+  ret = findAgeByName(args);
   if (ret.p2.tag == TAG_ENUM_Some) {
-    printf("Wombat's b is %d.\n", ret.p2.Some);
+    printf("%s's age is %d.\n", argv[1], ret.p2.Some);
   } else {
-    printf("Wombat was not found.\n");
+    printf("%s was not found.\n", argv[1]);
   }
   return 0;
 }
