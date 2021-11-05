@@ -35,33 +35,37 @@ focus_buffer : all (a,b).(Vector, b!,
 next : (BItem, BTail!) -> <None BItem | Some BItem>
 
 -- Retrieve the read-only contents for the given item.
-read : (BItem!) -> Entry!
+read : BItem! -> Entry!
 
 -- End of BItem & BTail interface functions.
 
 -- Example-specific types and definitions.
 
 -- The data we wish to retrieve.
-type Stuff = {
-  a : U32,
-  b : U32,
-  c : U32
-}
+type Data =
+  < Person #TPerson | Addr #TAddr | Date #TDate >
 
--- Entries are abstract for now but we hope to bring in their definition
--- into Cogent eventually. The issues are: their length is variable and
--- they have a "flexible array member" as the final struct field,
--- meaning the array has fixed but unknown size.
-type Entry
+layout LData = variant (2b) { Person(0) : LPerson at 1B, Addr(1) : LAddr at 1B, Date(2) : LDate at 1B }
+
+type TPerson = { age : U32, len : U8, name : U8#[0] }  -- the name ends with \0, and len (of name) includes it.
+type TAddr   = { zip : U8 , len : U8, addr : U8#[0] }  -- the addr ends with \0, and len (of addr) includes it.
+type TDate   = { yr  : U8 , mon : U8, day  : U8 }
+
+layout LPerson = record { age : 4B, len : 1B at 4B, name : array[1B] at 5B }
+layout LAddr   = record { zip : 1B, len : 1B at 1B, addr : array[1B] at 2B }
+layout LDate   = record { yr  : 1B, mon : 1B at 1B, day  : 1B at 2B }
+
+type Entry =
+  { id   : U32
+  , size : U32  -- size of the entire Entry
+  , data : Data
+  } layout record { id : 4B, size : 4B at 4B, data : LData at 8B }
 
 -- An abstract type for naked character pointers.
 type CString
 
--- Retrieve the entry's name as
-get_name : (Entry!) -> CString!
-
--- Retrieve read-only stuff from a read-only entry.
-get_stuff : (Entry!) -> Stuff!
+-- user defined accessors; the Cogent getter/setters should not be used.
+get_Person_name : TPerson! -> CString!
 
 -- Test for string equality
 cstring_eq : (CString!, CString!) -> Bool
@@ -78,18 +82,6 @@ gen_next_item (r { acc = item , obsv = (tail, _) }) =
   | None item -> (item, Stop ())
   | Some item -> (item, Yield ())
 
--- We need this helper because we cannot compute this inline; binding
--- !-typed expressions is not prohibited by let-!.
---
-item_eq_name : (BItem!, CString!) -> Bool
-item_eq_name (item, name) =
- let e = read item in
- cstring_eq(name, get_name e)
-
-item_get_stuff_b : (BItem!) -> U32
-item_get_stuff_b item = let e = read item in
-  let stuff = get_stuff e in stuff.b
-
 -- During consumption, we determine whether or not the current item is
 -- the one we want to query. If so, we return its stuff. Otherwise, we
 -- ask for the next item.
@@ -98,19 +90,47 @@ cons_next_item :
   #{ obj : (), acc : BItem, obsv : (BTail!, CString!) } ->
   ConsumerResult U32 () BItem
 cons_next_item (r {acc = item , obsv = (_, needle) }) =
-  if item_eq_name (item, needle) !item then
-    let x = item_get_stuff_b item !item in
-    (item, Return x)
-  else (item, Next)
+  let (res, _) = (
+    let entry = read item
+    and data = get_Entry_data entry
+     in match_Data_Person[(), CString!, <Next | Stop | Return U32>]
+          #{scr=data, acc=(), obsv=needle, hit=do_Person, miss=do_not_Person}) !item
+   in (item, res)
+
+do_Person : (TPerson!, (), CString!) -> (<Next | Stop | Return U32>, ())
+do_Person (p, _, needle) =
+  let s = get_Person_name p
+  and r = cstring_eq (s, needle)
+  and age = p.age
+  in if r then (Return age, ())
+          else (Next, ())
+
+do_not_Person : (BoxedData_take_Person!, (), CString!) -> (<Next | Stop | Return U32>, ())
+do_not_Person (v, _, _) = (Next, ())
+
+
+type BoxedData
+type BoxedData_take_Person
+
+get_Entry_data : Entry! -> BoxedData!
+
+match_Data_Person : all (acc, obsv :< DS, r :< E). 
+ #{ scr  : BoxedData!
+  , acc  : acc
+  , obsv : obsv
+  , hit  : (TPerson!, acc, obsv) -> (r, acc)
+  , miss : (BoxedData_take_Person!, acc, obsv) -> (r, acc)
+  } -> (r, acc)
+
 
 -- Our main function for item and tail: we iterate using the FFI
 -- function which repeatedly calls the consumer followed by the
 -- generator until we have completed iteration of all items, or found
 -- a matching entry.
 --
-get_cee : #{obj : (BItem, BTail) , obsv : CString! } ->
+get_name_age : #{obj : (BItem, BTail) , obsv : CString! } ->
              (<None | Some U32>, BItem, BTail)
-get_cee #{obj = (item, tail) , obsv = needle } =
+get_name_age #{obj = (item, tail) , obsv = needle } =
   let (item, ret) =
      iterate_do [(), U32, (), BItem, (BTail!, CString!)]
                 #{ init = ()
@@ -126,7 +146,7 @@ get_cee #{obj = (item, tail) , obsv = needle } =
 
 -- Main entry function for the Cogent code.
 --
-findStuff : (Vector, CString!) -> (Vector, <None | Some U32>)
-findStuff (block, needle) =
-  let (res, block) = focus_buffer(block,needle,get_cee)
+findAgeByName : (Vector, CString!) -> (Vector, <None | Some U32>)
+findAgeByName (block, needle) =
+  let (res, block) = focus_buffer(block, needle, get_name_age)
   in (block, res)
