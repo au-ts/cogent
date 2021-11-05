@@ -1,0 +1,11 @@
+-- Fixed missing cases in a local routine of the Row module: it
+-- inexplicably did not handle all cases for computing common fields for
+-- subtyping constraints. See the issue tracker (#411) on github for
+-- more details.
+
+foo : <A | B | C > -> ()
+
+bar : () -> <A | B>
+
+quux : () -> ()
+quux x = foo (bar x)
