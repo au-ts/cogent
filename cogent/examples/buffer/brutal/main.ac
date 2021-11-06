@@ -21,8 +21,8 @@ struct __attribute__ ((__packed__)) PersonC {
 typedef struct PersonC PersonC;
 
 struct __attribute__ ((__packed__)) AddrC {
-  unsigned char zip;
   unsigned char len;
+  unsigned char zip;
   char addr[];
 };
 typedef struct AddrC AddrC;
@@ -115,7 +115,8 @@ $ty:(Bool) cstring_eq($ty:((CString!, CString!)) args) {
    return ret;
 }
 
-$ty:(CString!) get_Person_name($ty:(TPerson!) args) {
+$ty:(CString!) get_Person_name($ty:(TPersonL!) args) {
+// $ty:(CString!) get_Person_name($ty:(TPerson!) args) {
    // printf ("the name we got is: %s\n", ((PersonC *)args)->name);
    // printf ("the pointer to the payload person is: %p\n", (PersonC *)args);
    return ((PersonC *)args)->name;
@@ -129,18 +130,22 @@ $ty:(BoxedData!) get_Entry_data ($ty:(Entry!) args) {
 $ty:((r, acc)) $id:match_Data_Person ($ty:(#{ scr  : BoxedData!
                                             , acc  : acc
                                             , obsv : obsv
-                                            , hit  : (TPerson!, acc, obsv) -> (r, acc)
+                                            , hit  : (TPersonL!, acc, obsv) -> (r, acc)
+                                            // , hit  : (TPerson!, acc, obsv) -> (r, acc)
                                             , miss : (BoxedData_take_Person!, acc, obsv) -> (r, acc)
                                             }) args) {
   $ty:((r,acc)) ret;
   if ((int)args.scr->tag == 0) {
-    $ty:((TPerson!, acc, obsv)) fargs;
-    fargs.p1 = ($ty:(TPerson))(&args.scr->payload);
+    $ty:((TPersonL!, acc, obsv)) fargs;
+    // $ty:((TPerson!, acc, obsv)) fargs;
+    fargs.p1 = ($ty:(TPersonL!))(&args.scr->payload);
+    // fargs.p1 = ($ty:(TPerson!))(&args.scr->payload);
     // printf ("the pointer to the age is %p\n", &((PersonC *)fargs.p1)->age);
     // printf ("fargs.p1 = {age = %u, len = %u, name = %s}\n", ((PersonC *)fargs.p1)->age, ((PersonC *)fargs.p1)->len, ((PersonC *)fargs.p1)->name);
     fargs.p2 = args.acc;
     fargs.p3 = args.obsv;
-    ret = (($spec:((TPerson!, acc, obsv) -> (r, acc)))args.miss) (fargs);
+    ret = (($spec:((TPersonL!, acc, obsv) -> (r, acc)))args.miss) (fargs);
+    // ret = (($spec:((TPerson!, acc, obsv) -> (r, acc)))args.miss) (fargs);
   } else {
     $ty:((BoxedData_take_Person!, acc, obsv)) fargs;
     fargs.p1 = args.scr;

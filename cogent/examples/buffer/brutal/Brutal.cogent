@@ -47,13 +47,18 @@ type Data =
 
 layout LData = variant (2b) { Person(0) : LPerson at 1B, Addr(1) : LAddr at 1B, Date(2) : LDate at 1B }
 
-type TPerson = { age : U32, len : U8, name : U8#[0] }  -- the name ends with \0, and len (of name) includes it.
-type TAddr   = { zip : U8 , len : U8, addr : U8#[0] }  -- the addr ends with \0, and len (of addr) includes it.
-type TDate   = { yr  : U8 , mon : U8, day  : U8 }
+-- NOTE: The default layout of TPerson is not well aligned, thus
+-- we use an explicit layout that is indeed different from the
+-- compiler inferred layout.
+type TPerson = { len : U8, age : U32, name : U8#[0] }  -- the name ends with \0, and len (of name) includes it.
+type TAddr   = { len : U8, zip : U8 , addr : U8#[0] }  -- the addr ends with \0, and len (of addr) includes it.
+type TDate   = { yr  : U8, mon : U8 , day  : U8 }
 
 layout LPerson = record { age : 4B, len : 1B at 4B, name : array[1B] at 5B }
-layout LAddr   = record { zip : 1B, len : 1B at 1B, addr : array[1B] at 2B }
+layout LAddr   = record { len : 1B, zip : 1B at 1B, addr : array[1B] at 2B }
 layout LDate   = record { yr  : 1B, mon : 1B at 1B, day  : 1B at 2B }
+
+type TPersonL = TPerson layout LPerson
 
 type Entry =
   { id   : U32
@@ -65,7 +70,8 @@ type Entry =
 type CString
 
 -- user defined accessors; the Cogent getter/setters should not be used.
-get_Person_name : TPerson! -> CString!
+get_Person_name : TPersonL!  -> CString!
+-- get_Person_name : TPerson!  -> CString!
 
 -- Test for string equality
 cstring_eq : (CString!, CString!) -> Bool
@@ -97,7 +103,8 @@ cons_next_item (r {acc = item , obsv = (_, needle) }) =
           #{scr=data, acc=(), obsv=needle, hit=do_Person, miss=do_not_Person}) !item
    in (item, res)
 
-do_Person : (TPerson!, (), CString!) -> (<Next | Stop | Return U32>, ())
+do_Person : (TPersonL!, (), CString!) -> (<Next | Stop | Return U32>, ())
+-- do_Person : (TPerson!, (), CString!) -> (<Next | Stop | Return U32>, ())
 do_Person (p, _, needle) =
   let s = get_Person_name p
   and r = cstring_eq (s, needle)
@@ -109,7 +116,7 @@ do_not_Person : (BoxedData_take_Person!, (), CString!) -> (<Next | Stop | Return
 do_not_Person (v, _, _) = (Next, ())
 
 
-type BoxedData
+type BoxedData  -- The pointer the the variant with the layout!
 type BoxedData_take_Person
 
 get_Entry_data : Entry! -> BoxedData!
@@ -118,7 +125,8 @@ match_Data_Person : all (acc, obsv :< DS, r :< E).
  #{ scr  : BoxedData!
   , acc  : acc
   , obsv : obsv
-  , hit  : (TPerson!, acc, obsv) -> (r, acc)
+  , hit  : (TPersonL!, acc, obsv) -> (r, acc)
+  -- , hit  : (TPerson!, acc, obsv) -> (r, acc)
   , miss : (BoxedData_take_Person!, acc, obsv) -> (r, acc)
   } -> (r, acc)
 
