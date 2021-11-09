@@ -51,6 +51,7 @@
     - fail_ticket-356.cogent
     - fail_ticket-374.cogent
     - fail_ticket-399.cogent
+    - fail_ticket-411.cogent
   expected_result: fail
   flags:
     - -t

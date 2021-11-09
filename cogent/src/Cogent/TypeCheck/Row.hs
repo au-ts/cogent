@@ -184,8 +184,9 @@ pointwise :: [Entry t] -> [Entry t] -> [(Entry t, Entry t)] ->
 pointwise (e : es) (e' : es') rs
   | fname e == fname e' = pointwise es es' ((e,e') : rs)
   | otherwise = []
-pointwise [] _ rs = rs
-pointwise _  [] rs = rs
+pointwise [] [] rs = rs
+pointwise [] _ _ = [] -- invariant broken
+pointwise _ [] _ = [] -- invariant broken
 
 -- | Internel helper function for extracting common fields from a
 -- (in)complete record and an incomplete record.

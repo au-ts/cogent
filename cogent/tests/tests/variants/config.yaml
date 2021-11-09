@@ -1,6 +1,0 @@
-- test_name: variant-passs
-  files:
-    - pass_variant-common-row-subtyping.cogent
-  expected_result: pass
-  flags:
-    - "-t"
