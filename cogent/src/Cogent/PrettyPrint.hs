@@ -696,7 +696,7 @@ instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (Variant e vs) = keyword "variant" <+> parens (pretty e)
                                                  <+> record (map (\(f,_,i,e) -> tagname f <+> tupled [literal $ string $ show i] <> symbol ":" <+> pretty e) vs)
 #ifdef BUILTIN_ARRAYS
-  pretty (Array e s) = keyword "array" <+> parens (pretty e) <+> keyword "at" <+> pretty s
+  pretty (Array e s) = keyword "array" <+> brackets (pretty e)
 #endif
   pretty Ptr = keyword "pointer"
   pretty (LVar n) = dlvarname n
