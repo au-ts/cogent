@@ -33,3 +33,4 @@ vector_header
 vector_size
 vector_entry_size
 vector_nb_entries
+cogent_debug_str

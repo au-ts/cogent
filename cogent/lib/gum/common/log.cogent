@@ -10,6 +10,8 @@
 -- @TAG(DATA61_GPL)
 --
 
+include <gum/common/common.cogent>
+
 cogent_LOG_LEVEL: U32
 cogent_LOG_LEVEL = 0x0
 

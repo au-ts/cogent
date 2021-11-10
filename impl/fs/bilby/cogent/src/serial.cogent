@@ -17,9 +17,9 @@
 include <gum/common/wordarray.cogent>
 include <gum/common/array.cogent>
 include <gum/common/buffer.cogent>
-include <gum/common/vector.cogent>
 include <gum/common/crc32.cogent>
 include <gum/kernel/linux/errno.cogent>
+include "../src/vector.cogent"
 include "../src/ubi.cogent"
 #include "../src/debug.cogent.h"
 
