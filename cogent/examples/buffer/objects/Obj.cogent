@@ -9,7 +9,7 @@
 --
 
 include <gum/common/iterator.cogent>
-include <gum/common/vector.cogent>
+include <gum/common/vector_example.cogent>
 
 -- Common header object
 -- Designed akin to a "dependent record" with the first field

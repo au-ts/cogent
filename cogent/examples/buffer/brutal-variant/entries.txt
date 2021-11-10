@@ -1,0 +1,9 @@
+p 1 2405 Aristotle
+p 2 131 Charles de Gaulle
+a 3 2033 135 Anzac Pde. Kensington, NSW
+d 4 2021 12 24
+a 5 2000 24 York Str. Sydney
+p 6 56 J. K. Rowling
+a 7 2052 UNSW, Sydney
+d 8 2021 11 5
+p 9 58 Michael Jordan
