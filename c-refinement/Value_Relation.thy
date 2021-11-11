@@ -27,7 +27,8 @@ type_synonym funtyp = "char list"
 type_synonym ptrtyp = addr
 
 (* Placeholder. We will need to add proper abstract value representations later on. *)
-datatype atyp = UWA type "32 word" ptrtyp | TOther
+            (*  UUN n m represents the integer m on n bits *)
+datatype atyp = UUN nat (* size *) nat (* value *) | TOther
 
 type_synonym abstyp = atyp
 
