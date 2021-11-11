@@ -70,6 +70,9 @@ updSemInit =
   , "                     OF _ _ val_rel_bool_t_C_def[THEN meta_eq_to_obj_eq, THEN iffD1]]"
   , "end"
   , ""
+  , "(* Put manual type and value relations below here *)"
+  , "(* Put manual type and value relations above here *)"
+  , ""
   , "lemmas val_rel_simps[ValRelSimp] ="
   , "  val_rel_word"
   , "  val_rel_ptr_def"
@@ -109,10 +112,8 @@ setup cfile =
 
 localSetup :: String -> [String]
 localSetup cfile =
-  [ "(* Put manual type and value relations below here *)"
-  , "(* Put manual type and value relations above here *)"
-  , ""
-  ,	"local_setup \\<open> local_setup_val_rel_type_rel_put_them_in_buckets \"" ++ cfile ++ "\" [] \\<close>"
+  [ 
+   	"local_setup \\<open> local_setup_val_rel_type_rel_put_them_in_buckets \"" ++ cfile ++ "\" [] \\<close>"
   , "local_setup \\<open> local_setup_instantiate_cogent_C_heaps_store_them_in_buckets \"" ++ cfile ++ "\" \\<close>"
   ]
 
