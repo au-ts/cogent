@@ -1,0 +1,2 @@
+`make` to generate the theory file. 
+AllRefineAsmsSingleFile.thy discharges the assumptions of AllRefine about abstract functions.
