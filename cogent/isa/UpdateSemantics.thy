@@ -175,8 +175,6 @@ locale update_sem =
   and     abs_typing_escape   : "sigil_perm s \<noteq> Some ReadOnly \<Longrightarrow> 0, [], {} \<turnstile>* \<tau>s :\<kappa> k \<Longrightarrow> E \<in> k
                                   \<Longrightarrow> abs_typing \<Xi> av n \<tau>s s r w \<sigma> \<Longrightarrow> r = {}"
   and     abs_typing_valid : "abs_typing \<Xi> av n \<tau>s s r w \<sigma> \<Longrightarrow> p \<in> r \<union> w \<Longrightarrow> \<sigma> p \<noteq> None"
-  and     abs_typing_unique_repr   : "abs_typing \<Xi> av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_typing \<Xi> av n' \<tau>s' s' r' w' \<sigma>
-                                       \<Longrightarrow> type_repr (TCon n \<tau>s s) = type_repr (TCon n' \<tau>s' s')"                          
   and     abs_typing_repr : "abs_typing \<Xi> av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_repr av = (n, map type_repr \<tau>s)"
   and     abs_typing_frame: "frame \<sigma> u \<sigma>' u' \<Longrightarrow> abs_typing \<Xi> av n \<tau>s s r w \<sigma> \<Longrightarrow> r \<inter> u = {}
                               \<Longrightarrow> w \<inter> u = {} \<Longrightarrow> abs_typing \<Xi> av n \<tau>s s r w \<sigma>'"
