@@ -548,6 +548,7 @@ fun sigil_kind :: "sigil \<Rightarrow> kind" where
 inductive match_repr_layout :: "lrepr \<Rightarrow> ptr_layout \<Rightarrow> bool"
   where
   match_lrtvar :  "match_repr_layout (LRVar i) l"
+| match_lrcon :  "match_repr_layout (LRCon name ts) l"
 | match_lrprim : "(s = size_prim_layout t) \<Longrightarrow> match_repr_layout (LRPrim t) (LayBitRange (s, x))"
 | match_lrsum : "\<lbrakk> 
 \<comment> \<open>the order does not matter\<close>
@@ -574,7 +575,7 @@ inductive match_repr_layout :: "lrepr \<Rightarrow> ptr_layout \<Rightarrow> boo
 
 lemma match_repr_layout_simps:
   "\<And> l i. match_repr_layout (LRVar i) l"
-  
+  "\<And> l name ts. match_repr_layout (LRCon name ts) l"
   "\<And>t p. match_repr_layout (LRPrim t) (LayBitRange p) \<longleftrightarrow> fst p = size_prim_layout t"
   "\<And>ts ls x. match_repr_layout (LRSum ts) (LayVariant x ls) \<longleftrightarrow>
       set (map fst ts) = set (map fst ls)  \<and> 
