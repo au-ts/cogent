@@ -14,11 +14,12 @@ theory UpdateSemantics
   imports Cogent
 begin
 
-datatype ('f, 'a, 'l) uval = UPrim lit
-                           | UProduct "('f,'a,'l) uval" "('f,'a,'l) uval"
-                           | USum name "('f,'a,'l) uval" "(name \<times> repr) list"
-                           | URecord "(('f,'a,'l) uval \<times> repr) list"
+datatype ('f, 'a, 'b, 'l) uval = UPrim lit
+                           | UProduct "('f,'a,'b,'l) uval" "('f,'a,'b,'l) uval"
+                           | USum name "('f,'a,'b,'l) uval" "(name \<times> repr) list"
+                           | URecord "(('f,'a,'b,'l) uval \<times> repr) list"
                            | UAbstract "'a"
+                           | UDAbstract "'b"
                            | UFunction "'f expr" "type list"
                            | UAFunction "'f" "type list"
                            | UUnit
@@ -26,32 +27,32 @@ datatype ('f, 'a, 'l) uval = UPrim lit
 
 (* NB: The "type" in the store is just a tag used for the C proofs.
  *     The u_sem rules simply carry this tag along into the updated store. *)
-type_synonym ('f, 'a, 'l) store = "'l \<Rightarrow> ('f, 'a, 'l) uval option"
+type_synonym ('f, 'a, 'b, 'l) store = "'l \<Rightarrow> ('f, 'a, 'b, 'l) uval option"
 
 
-type_synonym ('f,'a,'l) ufundef = "('f,'a,'l) store \<times> ('f,'a,'l) uval
-                                 \<Rightarrow> ('f,'a,'l) store \<times> ('f,'a,'l) uval
+type_synonym ('f,'a,'b,'l) ufundef = "('f,'a,'b,'l) store \<times> ('f,'a,'b,'l) uval
+                                 \<Rightarrow> ('f,'a,'b,'l) store \<times> ('f,'a,'b,'l) uval
                                  \<Rightarrow> bool"
 
-type_synonym ('f, 'a, 'l) uabsfuns = "'f \<Rightarrow> ('f, 'a, 'l) ufundef"
+type_synonym ('f, 'a, 'b, 'l) uabsfuns = "'f \<Rightarrow> ('f, 'a, 'b, 'l) ufundef"
 
-definition eval_prim_u :: "prim_op \<Rightarrow> ('f, 'a, 'l) uval list \<Rightarrow> ('f, 'a, 'l) uval"
+definition eval_prim_u :: "prim_op \<Rightarrow> ('f, 'a, 'b, 'l) uval list \<Rightarrow> ('f, 'a, 'b, 'l) uval"
 where
   "eval_prim_u pop xs = UPrim (eval_prim_op pop (map (\<lambda>vv. case vv of UPrim v \<Rightarrow> v | _ \<Rightarrow> LBool False) xs))"
 
 
 
 
-inductive u_sem :: "('f,'a,'l) uabsfuns
-                  \<Rightarrow> ('f,'a,'l) uval env
-                  \<Rightarrow> ('f,'a,'l) store \<times> 'f expr
-                  \<Rightarrow> ('f,'a,'l) store \<times> ('f,'a,'l) uval
+inductive u_sem :: "('f,'a,'b,'l) uabsfuns
+                  \<Rightarrow> ('f,'a,'b,'l) uval env
+                  \<Rightarrow> ('f,'a,'b,'l) store \<times> 'f expr
+                  \<Rightarrow> ('f,'a,'b,'l) store \<times> ('f,'a,'b,'l) uval
                   \<Rightarrow> bool"
           ("_, _ \<turnstile> _ \<Down>! _" [30,0,0,20] 60)
-and       u_sem_all :: "('f,'a,'l) uabsfuns
-                      \<Rightarrow> ('f,'a,'l) uval env
-                      \<Rightarrow> ('f,'a,'l) store \<times> 'f expr list
-                      \<Rightarrow> ('f,'a,'l) store \<times> ('f,'a,'l) uval list
+and       u_sem_all :: "('f,'a,'b,'l) uabsfuns
+                      \<Rightarrow> ('f,'a,'b,'l) uval env
+                      \<Rightarrow> ('f,'a,'b,'l) store \<times> 'f expr list
+                      \<Rightarrow> ('f,'a,'b,'l) store \<times> ('f,'a,'b,'l) uval list
                       \<Rightarrow> bool"
           ("_, _ \<turnstile>* _ \<Down>! _" [30,0,0,20] 60)
 where
@@ -157,7 +158,7 @@ where
                      ; \<xi> , \<gamma> \<turnstile>* (\<sigma>', xs) \<Down>! (\<sigma>'', vs)
                      \<rbrakk> \<Longrightarrow>  \<xi> , \<gamma> \<turnstile>* (\<sigma>, x # xs) \<Down>! (\<sigma>'', v # vs)"
 
-definition frame :: "('f, 'a, 'l) store \<Rightarrow> 'l set \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow> 'l set \<Rightarrow> bool"
+definition frame :: "('f, 'a, 'b, 'l) store \<Rightarrow> 'l set \<Rightarrow> ('f, 'a, 'b, 'l) store \<Rightarrow> 'l set \<Rightarrow> bool"
            where
   "frame \<sigma> pi \<sigma>' po \<equiv> \<forall>p. (p \<in> pi \<and> p \<notin> po \<longrightarrow> \<sigma>' p = None)
                        \<and>  (p \<notin> pi \<and> p \<in> po \<longrightarrow> \<sigma>  p = None)
@@ -165,7 +166,7 @@ definition frame :: "('f, 'a, 'l) store \<Rightarrow> 'l set \<Rightarrow> ('f, 
 
 
 locale update_sem =
-  fixes abs_typing :: "'a \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> 'l set \<Rightarrow> 'l set \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow> bool"
+  fixes abs_typing :: "'a \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> 'l set \<Rightarrow> 'l set \<Rightarrow> ('f, 'a, 'b, 'l) store \<Rightarrow> bool"
   and   abs_repr   :: "'a \<Rightarrow> name \<times> repr list"
   assumes abs_typing_bang : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> abs_typing av n (map bang \<tau>s) (bang_sigil s) (r \<union> w) {} \<sigma>"
   and     abs_typing_noalias : "abs_typing av n \<tau>s s r w \<sigma> \<Longrightarrow> r \<inter> w = {}"
@@ -181,7 +182,7 @@ locale update_sem =
 
 context update_sem begin
 
-fun uval_repr :: "('f, 'a, 'l) uval \<Rightarrow> repr" where
+fun uval_repr :: "('f, 'a, 'b, 'l) uval \<Rightarrow> repr" where
   "uval_repr (UPrim lit) = RPrim (lit_type lit)"
 | "uval_repr (UProduct a b) = RProduct (uval_repr a) (uval_repr b)"
 | "uval_repr (USum a b reprs) = RSum reprs"
@@ -192,7 +193,7 @@ fun uval_repr :: "('f, 'a, 'l) uval \<Rightarrow> repr" where
 | "uval_repr (UUnit) = RUnit"
 | "uval_repr (UPtr p r) = RPtr r"
 
-fun uval_repr_deep :: "('f, 'a, 'l) uval \<Rightarrow> repr" where
+fun uval_repr_deep :: "('f, 'a, 'b, 'l) uval \<Rightarrow> repr" where
   "uval_repr_deep (UPrim lit) = RPrim (lit_type lit)"
 | "uval_repr_deep (UProduct a b) = RProduct (uval_repr_deep a) (uval_repr_deep b)"
 | "uval_repr_deep (USum a b reprs) = RSum reprs"
@@ -204,15 +205,15 @@ fun uval_repr_deep :: "('f, 'a, 'l) uval \<Rightarrow> repr" where
 | "uval_repr_deep (UPtr p r) = RPtr r"
 
 inductive uval_typing :: "('f \<Rightarrow> poly_type)
-                       \<Rightarrow> ('f, 'a, 'l) store
-                       \<Rightarrow> ('f, 'a, 'l) uval
+                       \<Rightarrow> ('f, 'a, 'b, 'l) store
+                       \<Rightarrow> ('f, 'a, 'b, 'l) uval
                        \<Rightarrow> type
                        \<Rightarrow> 'l set
                        \<Rightarrow> 'l set
                        \<Rightarrow> bool"  ("_, _ \<turnstile> _ :u _ \<langle>_, _\<rangle>" [30,0,0,0,20] 80)
 and uval_typing_record :: "('f \<Rightarrow> poly_type)
-                        \<Rightarrow> ('f, 'a, 'l) store
-                        \<Rightarrow> (('f, 'a, 'l) uval \<times> repr) list
+                        \<Rightarrow> ('f, 'a, 'b, 'l) store
+                        \<Rightarrow> (('f, 'a, 'b, 'l) uval \<times> repr) list
                         \<Rightarrow> (name \<times> type \<times> record_state) list
                         \<Rightarrow> 'l set
                         \<Rightarrow> 'l set
@@ -311,8 +312,8 @@ inductive_cases u_t_r_emptyE  [elim] : "\<Xi>, \<sigma> \<turnstile>* [] :ur \<t
 inductive_cases u_t_r_consE   [elim] : "\<Xi>, \<sigma> \<turnstile>* (x # xs) :ur \<tau>s \<langle>r, w\<rangle>"
 
 inductive uval_typing_all :: "('f \<Rightarrow> poly_type)
-                            \<Rightarrow> ('f, 'a, 'l) store
-                            \<Rightarrow> ('f, 'a, 'l) uval list
+                            \<Rightarrow> ('f, 'a, 'b, 'l) store
+                            \<Rightarrow> ('f, 'a, 'b, 'l) uval list
                             \<Rightarrow> type list
                             \<Rightarrow> 'l set
                             \<Rightarrow> 'l set
@@ -327,8 +328,8 @@ inductive uval_typing_all :: "('f \<Rightarrow> poly_type)
                     \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* (x # xs) :u (t # ts) \<langle>r \<union> r', w \<union> w'\<rangle>"
 
 inductive matches_ptrs :: "('f \<Rightarrow> poly_type)
-                         \<Rightarrow> ('f, 'a, 'l) store
-                         \<Rightarrow> ('f, 'a, 'l) uval env
+                         \<Rightarrow> ('f, 'a, 'b, 'l) store
+                         \<Rightarrow> ('f, 'a, 'b, 'l) uval env
                          \<Rightarrow> ctx
                          \<Rightarrow> 'l set
                          \<Rightarrow> 'l set
@@ -348,7 +349,7 @@ inductive matches_ptrs :: "('f \<Rightarrow> poly_type)
 
 inductive_cases matches_ptrs_consE: "\<Xi>, \<sigma> \<turnstile> \<gamma> matches (\<tau> # \<tau>s) \<langle> r , w \<rangle>"
 
-definition proc_env_matches_ptrs :: "(('f,'a,'l) uabsfuns) \<Rightarrow> ('f \<Rightarrow> poly_type) \<Rightarrow> bool"
+definition proc_env_matches_ptrs :: "(('f,'a,'b,'l) uabsfuns) \<Rightarrow> ('f \<Rightarrow> poly_type) \<Rightarrow> bool"
            ("_ matches-u _" [30,20] 60) where
   "\<xi> matches-u \<Xi> \<equiv> (\<forall> f. let (K, \<tau>i, \<tau>o) = \<Xi> f
                           in (\<forall> \<sigma> \<sigma>' \<tau>s v v' r w. list_all2 (kinding []) \<tau>s K
@@ -1587,7 +1588,7 @@ next
 
   obtain r' where "\<Xi>, \<sigma> \<turnstile>* fs :ur ts' \<langle>r', w\<rangle>"
       "r' \<subseteq> r"
-    using elims subty_trecord subtyping_simps(6) u_t_struct by meson
+    using elims subty_trecord subtyping_simps(7) u_t_struct by meson
 
   then show ?case
     using elims
@@ -1658,7 +1659,7 @@ next
   have field_is':
     "([] \<turnstile> t1 \<sqsubseteq> t2)"
     "(if [] \<turnstile> t1 :\<kappa> {D} then Present \<le> b2 else Present = b2)"
-    using field_is subtyping_simps(6) u_t_r_cons1.prems by auto
+    using field_is subtyping_simps(7) u_t_r_cons1.prems by auto
 
   have trec_subty: "[] \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts2' s"
     using u_t_r_cons1(9) field_is
@@ -1719,7 +1720,7 @@ next
   have field_is':
     "([] \<turnstile> t1 \<sqsubseteq> t2)"
     "(if [] \<turnstile> t1 :\<kappa> {D} then Taken \<le> b2 else Taken = b2)"
-    using field_is subtyping_simps(6) u_t_r_cons2.prems by auto
+    using field_is subtyping_simps(7) u_t_r_cons2.prems by auto
 
   have trec_subty: "[] \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts2' s"
     using u_t_r_cons2(7) field_is
@@ -2055,8 +2056,8 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
     next
       show "[] \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<tau>s t, b)) ts) wellformed"
         using typing_elims u_sem_con.prems Con
-        using instantiate_wellformed list_all2_kinding_wellformedD
-        by (metis expr.inject(6) instantiate.simps(6) spec_simps(1) specialise.simps(6) type_wellformed_pretty_def u_sem_con.hyps(3))
+        using instantiate_wellformed list_all2_kinding_wellformedD       
+        by (metis instantiate.simps(7)  type_wellformed_pretty_def)
     qed simp+
     then show ?thesis
       using r'_sub_r frame_w_w' spec_simps typing_elims

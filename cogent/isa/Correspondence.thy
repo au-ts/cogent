@@ -16,10 +16,10 @@ begin
 
 locale correspondence =
 val: value_sem  "val_abs_typing :: 'av \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool" +
-upd: update_sem "upd_abs_typing :: 'au \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> 'l set \<Rightarrow> 'l set \<Rightarrow> ('f, 'au, 'l) store \<Rightarrow> bool"
+upd: update_sem "upd_abs_typing :: 'au \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> 'l set \<Rightarrow> 'l set \<Rightarrow> ('f, 'au, 'bu, 'l) store \<Rightarrow> bool"
 for val_abs_typing and upd_abs_typing
 +
-fixes abs_upd_val :: "'au \<Rightarrow> 'av \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> 'l set \<Rightarrow> 'l set \<Rightarrow> ('f, 'au, 'l) store \<Rightarrow> bool"
+fixes abs_upd_val :: "'au \<Rightarrow> 'av \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> 'l set \<Rightarrow> 'l set \<Rightarrow> ('f, 'au, 'bu, 'l) store \<Rightarrow> bool"
 assumes abs_upd_val_to_vval_typing: "abs_upd_val u v n \<tau>s s r w \<sigma> \<Longrightarrow> val_abs_typing v n \<tau>s"
 and     abs_upd_val_to_uval_typing: "abs_upd_val u v n \<tau>s s r w \<sigma> \<Longrightarrow> upd_abs_typing u n \<tau>s s r w \<sigma>"
 and     abs_upd_val_bang : "\<lbrakk> abs_upd_val au av n \<tau>s s r w \<sigma>
@@ -31,17 +31,17 @@ context correspondence
 begin
 
 inductive upd_val_rel :: "('f \<Rightarrow> poly_type)
-                        \<Rightarrow> ('f, 'au, 'l) store
-                        \<Rightarrow> ('f, 'au, 'l) uval
-                        \<Rightarrow> ('f, 'av) vval
+                        \<Rightarrow> ('f, 'au, 'bu, 'l) store
+                        \<Rightarrow> ('f, 'au, 'bu, 'l) uval
+                        \<Rightarrow> ('f, 'av, 'bv) vval
                         \<Rightarrow> type
                         \<Rightarrow> 'l set
                         \<Rightarrow> 'l set
                         \<Rightarrow> bool"  ("_, _ \<turnstile> _ \<sim> _ : _ \<langle>_, _\<rangle>" [30,0,0,0,0,20] 80)
 and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
-                         \<Rightarrow> ('f, 'au, 'l) store
-                         \<Rightarrow> (('f, 'au, 'l) uval \<times> repr) list
-                         \<Rightarrow> ('f, 'av) vval list
+                         \<Rightarrow> ('f, 'au, 'bu, 'l) store
+                         \<Rightarrow> (('f, 'au, 'bu, 'l) uval \<times> repr) list
+                         \<Rightarrow> ('f, 'av, 'bv) vval list
                          \<Rightarrow> (name \<times> type \<times> record_state) list
                          \<Rightarrow> 'l set
                          \<Rightarrow> 'l set
@@ -71,6 +71,8 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
 | u_v_abstract : "\<lbrakk> abs_upd_val a a' n ts Unboxed r w \<sigma>
                   ; [] \<turnstile>* ts wellformed
                   \<rbrakk> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UAbstract a \<sim> VAbstract a' : TCon n ts Unboxed \<langle>r, w\<rangle>"
+
+
 
 | u_v_function : "\<lbrakk> \<Xi> , ks , [ Some a ] \<turnstile> f : b
                   ; list_all2 (kinding []) ts ks
@@ -133,6 +135,7 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
 lemma upd_val_rel_to_vval_typing:
 shows "\<Xi>, \<sigma> \<turnstile>  u  \<sim> v  :  \<tau>  \<langle>r, w\<rangle> \<Longrightarrow> val.vval_typing \<Xi> v \<tau>"
 and   "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> val.vval_typing_record \<Xi> vs \<tau>s"
+  
 proof (induct rule: upd_val_rel_upd_val_rel_record.inducts)
      case u_v_abstract then show ?case by (auto intro!: val.vval_typing_vval_typing_record.intros
                                                         abs_upd_val_to_vval_typing)
@@ -142,10 +145,18 @@ next case u_v_p_abs_w  then show ?case by (auto intro!: val.vval_typing_vval_typ
                                                         abs_upd_val_to_vval_typing)
 qed (auto intro!: val.vval_typing_vval_typing_record.intros)
 
+declare [[show_types]]
 
 lemma upd_val_rel_to_uval_typing:
+  
 shows "\<Xi>, \<sigma> \<turnstile>  u  \<sim> v  :  \<tau>  \<langle>r, w\<rangle> \<Longrightarrow> upd.uval_typing \<Xi> \<sigma> u \<tau> r w"
 and   "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> upd.uval_typing_record \<Xi> \<sigma> us \<tau>s r w"
+   apply(induct u v \<tau> r w us vs \<tau>s rule: upd_val_rel_upd_val_rel_record.inducts)
+(* ?x1.0, ?x2.0 \<turnstile> ?x3.0 \<sim> ?x4.0 : ?x5.0 \<langle>?x6.0, ?x7.0\<rangle> \<Longrightarrow> 
+?P1.0 ?x1.0 ?x2.0 ?x3.0 ?x4.0 ?x5.0 ?x6.0 ?x7.0
+  ?x8.0, ?x9.0 \<turnstile>* ?x10.0 \<sim> ?x11.0 :r ?x12.0 \<langle>?x13.0, ?x14.0\<rangle> \<Longrightarrow>
+*)
+  thm upd_val_rel_upd_val_rel_record.inducts
 proof (induct rule: upd_val_rel_upd_val_rel_record.inducts)
   case u_v_abstract
   then show ?case
@@ -197,9 +208,9 @@ lemma u_v_p_abs_w': "\<lbrakk> s = Boxed Writable ptrl
 
 
 inductive upd_val_rel_all :: "('f \<Rightarrow> poly_type)
-                            \<Rightarrow> ('f, 'au, 'l) store
-                            \<Rightarrow> ('f, 'au, 'l) uval list
-                            \<Rightarrow> ('f, 'av) vval list
+                            \<Rightarrow> ('f, 'au, 'bu, 'l) store
+                            \<Rightarrow> ('f, 'au, 'bu, 'l) uval list
+                            \<Rightarrow> ('f, 'av, 'bv) vval list
                             \<Rightarrow> type list
                             \<Rightarrow> 'l set
                             \<Rightarrow> 'l set
@@ -230,9 +241,9 @@ case u_v_all_cons  then show ?case by (auto intro: upd.uval_typing_all.intros
 qed
 
 inductive u_v_matches :: "('f \<Rightarrow> poly_type)
-                        \<Rightarrow> ('f, 'au, 'l) store
-                        \<Rightarrow> ('f, 'au, 'l) uval env
-                        \<Rightarrow> ('f, 'av) vval env
+                        \<Rightarrow> ('f, 'au, 'bu, 'l) store
+                        \<Rightarrow> ('f, 'au, 'bu, 'l) uval env
+                        \<Rightarrow> ('f, 'av, 'bv) vval env
                         \<Rightarrow> ctx
                         \<Rightarrow> 'l set
                         \<Rightarrow> 'l set
@@ -271,9 +282,9 @@ case u_v_matches_some  then show ?case by (auto intro: upd.matches_ptrs_some
                                                 simp: upd_val_rel_to_uval_typing)
 qed
 
-definition proc_env_u_v_matches :: "(('f, 'au, 'l) uabsfuns)
+definition proc_env_u_v_matches :: "(('f, 'au, 'bu, 'l) uabsfuns)
 
-                                  \<Rightarrow> (('f, 'av)    vabsfuns)
+                                  \<Rightarrow> (('f, 'av, 'bv)    vabsfuns)
                                   \<Rightarrow> ('f \<Rightarrow> poly_type)
                                   \<Rightarrow> bool"
            ("_ \<sim> _ matches-u-v _" [30,20] 60) where

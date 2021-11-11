@@ -290,6 +290,9 @@ focus_buffer : all (a,b).(Vector, b!,
 datatype type = TVar index
               | TVarBang index
               | TCon name "type list" sigil
+               (* do we need dependent records as well?
+and dependent arrays? (to be used only inside TDCon)
+  *)
               | TDCon name name name "type list" sigil
               | TFun type type
               | TPrim prim_type
@@ -341,6 +344,7 @@ datatype 'f expr = Var index
                  | Take "'f expr" field "'f expr"
                  | Split "'f expr" "'f expr"
                  | Promote type "'f expr"
+                 | DAFun 'f  "type list"
 
 section {* Kinds *}
 
