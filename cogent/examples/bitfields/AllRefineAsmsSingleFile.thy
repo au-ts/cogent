@@ -1,3 +1,48 @@
+(* 
+
+In this file, the refinement statement between the C and the shallow embeddings is
+simplified by discharging the assumptions about abstract functions.
+
+
+
+* Abstract types
+
+There are 2 abstract types, U2 and U4, which are compiled to C structures with a single U8 field.
+In the shallow embedding, U2 and U4 are embedded as '2 word' and '4 word'.
+The update semantics and value semantics handle general Un, for any natural number n.
+More precisely, there is a constructor UUN or VUN which takes two natural numbers as input: the 
+second one is the value, while the first one is the number of bits on which the value should fit 
+(which is enforced by the typing rule).
+
+
+The value relation between the C embedding and the update semantics is in CorresSetup: it enforces
+in particular that the C value fits in the specified number of bits (2 or 4).
+
+
+* Abstract functions
+
+In the original cogent code, there are 4 abstract functions:
+- u2_to_u8
+- u4_to_u8
+- u8_to_u4
+- u8_to_u2
+
+Downcasting involves an explicit truncation in C. In the shallow embedding, these functions are
+translated as word castings.
+In the value and update semantics, two general functions are defined: un_from_u8 and un_to_u8,
+which handle any Un, not only U2 or U4.
+
+* Plan of the file
+
+1. Update semantics: abstract functions and typing rules
+2. Value semantics: abstract functions and typing rules
+3. Correspondence between C and the update semantics
+4. Correspondence between the update and value semantics
+5. Correspondence between the value semantics and the shallow embedding
+6. Functional correctness of 'foo'
+
+*)
+
 theory AllRefineAsmsSingleFile
   imports
   NameUn 
@@ -40,7 +85,7 @@ Generated_TypeProof.abbreviated_type_defs Generated_Deep_Normal.abbreviated_type
 )+
   done
 
-section "Abstract functions specification for the update semantics"
+section "1. Update semantics: abstract functions and typing rules"
  
 
 definition uun_from_u8 ::"nat \<Rightarrow> (funtyp, abstyp, ptrtyp) ufundef"
@@ -79,11 +124,7 @@ lemma \<xi>_0_simps:
   apply (clarsimp simp: \<xi>0_def fun_eq_iff)+
   done
 
-subsection "Preservation for abstract functions"
-
-
-
-section "Cast Locale"
+subsection "Typing rules for the update semantics"
 
 locale CastUpdate 
 begin
@@ -129,15 +170,29 @@ sublocale CastUpdate \<subseteq> update_sem_init un_abs_typing_u un_abs_repr
 
 
 
-section "Abstract functions specifications for the monomorphic value semantics"
+section "2. Value semantics: abstract functions and typing rules"
 
 
-
-section "Cast Locale"
 
 type_synonym funtyp = "char list"
 datatype vatyp = VUN nat (* size *) nat (* value *) | VTOther "unit"
 type_synonym vabstyp = vatyp
+
+definition vun_to_u8 :: "nat \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> bool"
+  where
+"vun_to_u8 n x y = 
+  (\<exists> v1 v2. x = VAbstract (VUN n v1) \<and> y = VPrim (LU8 v2) \<and> v2 = of_nat v1)"
+
+
+
+definition vun_from_u8 :: "nat \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> bool"
+  where
+"vun_from_u8 n x y = 
+  (\<exists> v1 v2. x = VPrim (LU8 v1) \<and> y = VAbstract (VUN n v2) \<and> v2 = (unat v1) AND 2^n - 1)"
+
+
+
+subsection "Typing rules for the value semantics"
 
 locale CastValue 
 begin
@@ -152,8 +207,9 @@ lemma un_abs_typing_v_elims:
   by (unfold un_abs_typing_v_def[abs_def]; clarsimp split: vatyp.splits type.splits prim_type.splits)+
 
 
-
 end (* of context *)
+
+
 
 sublocale CastValue \<subseteq> value_sem un_abs_typing_v
   apply (unfold un_abs_typing_v_def[abs_def])
@@ -161,42 +217,32 @@ sublocale CastValue \<subseteq> value_sem un_abs_typing_v
   apply (clarsimp split: vatyp.splits )
   done
 
+sublocale CastValue \<subseteq> monomorph_sem un_abs_typing_v
+  by (unfold_locales)
 
-section "Cast Methods"
 
-subsection "vun_to_u8"
 
-definition vun_to_u8 :: "nat \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> bool"
-  where
-"vun_to_u8 n x y = 
-  (\<exists> v1 v2. x = VAbstract (VUN n v1) \<and> y = VPrim (LU8 v2) \<and> v2 = of_nat v1)"
 
-lemma (in CastValue) vun_to_u8_preservation:
+
+context CastValue begin
+
+
+
+
+
+subsection "Preservation for abstract functions"
+
+lemma vun_to_u8_preservation:
   "\<lbrakk>vval_typing \<Xi>' v (TCon (name_un n) [] Unboxed); vun_to_u8 n v v'\<rbrakk>
     \<Longrightarrow> vval_typing \<Xi>' v' (TPrim (Num U8))"
   by (fastforce simp: vun_to_u8_def)
 
 
-
-subsection "vun_from_u8"
-
-definition vun_from_u8 :: "nat \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> bool"
-  where
-"vun_from_u8 n x y = 
-  (\<exists> v1 v2. x = VPrim (LU8 v1) \<and> y = VAbstract (VUN n v2) \<and> v2 = (unat v1) AND 2^n - 1)"
-
-lemma (in CastValue) vun_from_u8_preservation:
+lemma vun_from_u8_preservation:
   "\<lbrakk>vval_typing \<Xi>' v (TPrim (Num U8)); vun_from_u8 n v v'\<rbrakk>
     \<Longrightarrow> vval_typing \<Xi>' v' (TCon (name_un n) [] Unboxed)"
   by(fastforce intro:v_t_abstract simp add:un_abs_typing_v_def bitAND_nat_def vun_from_u8_def)
 
-
-sublocale CastValue \<subseteq> monomorph_sem un_abs_typing_v
-  by (unfold_locales)
-
-context CastValue begin
-
-text "If user defines for \<xi>n, we can derive \<xi>i for i < n" 
 
 definition \<xi>m0 :: "funtyp \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> bool "
   where
@@ -206,10 +252,6 @@ definition \<xi>m0 :: "funtyp \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow>
    else if f = ''u2_to_u8'' then vun_to_u8 2 x y
    else if f = ''u8_to_u2'' then vun_from_u8 2 x y
    else False)"
-
-subsection "Preservation for abstract functions"
-
-text "If user proves for \<xi>n, we can derive \<xi>i for i < n" 
 
 lemma \<xi>m0_matches_\<Xi>:
   "proc_env_matches \<xi>m0  \<Xi>"
@@ -231,24 +273,41 @@ clarsimp simp add:subst_wellformed_def)
 
 
 
+
+subsection "Monomorphisation of abstract functions"
+
+
+lemma  vun_from_u8_monoexpr_correct:
+  "\<And>v v'.
+       vun_from_u8 n (rename_val rename' (monoval v)) v'
+       \<Longrightarrow> \<exists>v''. v' = rename_val rename' (monoval v'') \<and> vun_from_u8 n v v''"
+  apply (clarsimp simp: vun_from_u8_def)
+  apply (case_tac v; clarsimp)
+  done
+
+lemma vun_to_u8_monoexpr_correct:
+  "\<And>v v'.
+       vun_to_u8 n (rename_val rename' (monoval v)) v'
+       \<Longrightarrow> \<exists>v''. v' = rename_val rename' (monoval v'') \<and> vun_to_u8 n v v''"
+  apply (clarsimp simp: vun_to_u8_def)
+  apply (case_tac v; clarsimp)
+  done
+
+lemma rename_mono_prog_\<xi>m0_\<xi>m0:
+  "rename_mono_prog rename \<Xi> \<xi>m0 \<xi>m0"   
+  unfolding rename_mono_prog_def  \<xi>m0_def
+  apply clarsimp
+  apply (intro conjI impI; clarsimp?)
+    apply (subst (asm) rename_def,
+           clarsimp simp: assoc_lookup.simps 
+                    vun_to_u8_monoexpr_correct vun_from_u8_monoexpr_correct
+                    split: if_splits)+
+  done
+
 end (* of context *)
 
-section "Abstract functions specifications for the polymorphic value semantics"
 
-text "If user defines \<xi>n, we can derive \<xi>i for i < n" 
-
-definition \<xi>p0 :: "funtyp \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow> bool"
-  where
-"\<xi>p0 f x y =
-    (if f = ''u4_to_u8'' then vun_to_u8 4 x y
-   else if f = ''u8_to_u4'' then vun_from_u8 4 x y
-   else if f = ''u2_to_u8'' then vun_to_u8 2 x y
-   else if f = ''u8_to_u2'' then vun_from_u8 2 x y
-   else False)"
-
-
-
-section "Correspondence between abstract functions in the update semantics and C"
+section "3. Correspondence between C and the update semantics"
 
 context Generated begin
 
@@ -262,7 +321,7 @@ sublocale CastUpdate \<subseteq> update_sem_init un_abs_typing_u un_abs_repr
   by (unfold_locales)
 
 
-section "Simplification of corres definition for abstract functions"
+subsection "Auxiliary lemma: simplification of corres definition for abstract functions"
 
 context update_sem_init begin
 
@@ -298,15 +357,6 @@ lemma absfun_corres:
    apply (rule u_sem_var)
   apply simp
   done
-
-lemma abs_fun_rel_def':
-  "abs_fun_rel \<Xi>' srel afun_name \<xi>' afun_mon \<sigma> st x x'
-    = (proc_ctx_wellformed \<Xi>' \<longrightarrow> \<xi>' matches-u \<Xi>' \<longrightarrow> (\<sigma>,st) \<in> srel \<longrightarrow>
-        (\<forall>r' w'. val_rel x x' \<and> \<Xi>', \<sigma> \<turnstile> x :u fst (snd (snd (snd (\<Xi>' afun_name)))) \<langle>r', w'\<rangle>
-        \<longrightarrow> \<lbrace>\<lambda>s0. s0 = st\<rbrace> 
-              afun_mon x' 
-            \<lbrace>\<lambda>y' s'. \<exists>\<sigma>' y. \<xi>' afun_name (\<sigma>, x) (\<sigma>', y) \<and> (\<sigma>',s') \<in> srel \<and> val_rel y y'\<rbrace>!))" 
-  by (fastforce  simp: abs_fun_rel_def validNF_def valid_def no_fail_def)
 
 end (* of context *)
 
@@ -399,9 +449,9 @@ lemma u8_to_u2_corres:
 end (* of context *)
 
 
-section "Correspondence between abstract functions in the update and value semantics"
+section "4. Correspondence between the update and value semantics"
 
-section "Cast Locale Definition"
+subsection "Cast Locale Definition"
 
 locale Cast = 
   upd: CastUpdate +
@@ -458,9 +508,6 @@ context Cast begin
 
 
 
-section "Cast Methods"
-
-subsection "un_from_u8"
 
 lemma uvun_from_u8_monocorrespond_upward_propagation:
   "\<And>\<sigma> \<sigma>' au av v v' r w.
@@ -500,12 +547,6 @@ lemma uvun_to_u8_monocorrespond_upward_propagation:
   apply (simp add:un_abs_upd_val_def)
   apply(case_tac a';simp)
   done
-
-
-
-
-
-
 end 
 sublocale Cast \<subseteq> correspondence_init upd.un_abs_repr val.un_abs_typing_v upd.un_abs_typing_u un_abs_upd_val
   by (unfold_locales)
@@ -534,40 +575,9 @@ uvun_from_u8_monocorrespond_upward_propagation[where n = 4,  simplified, simplif
 
 end (* of context *)
 
-section "Monomorphisation of abstract functions"
 
-context CastValue begin
 
-lemma  vun_from_u8_monoexpr_correct:
-  "\<And>v v'.
-       vun_from_u8 n (rename_val rename' (monoval v)) v'
-       \<Longrightarrow> \<exists>v''. v' = rename_val rename' (monoval v'') \<and> vun_from_u8 n v v''"
-  apply (clarsimp simp: vun_from_u8_def)
-  apply (case_tac v; clarsimp)
-  done
-
-lemma vun_to_u8_monoexpr_correct:
-  "\<And>v v'.
-       vun_to_u8 n (rename_val rename' (monoval v)) v'
-       \<Longrightarrow> \<exists>v''. v' = rename_val rename' (monoval v'') \<and> vun_to_u8 n v v''"
-  apply (clarsimp simp: vun_to_u8_def)
-  apply (case_tac v; clarsimp)
-  done
-
-lemma rename_mono_prog_\<xi>m0_\<xi>p0:
-  "rename_mono_prog rename \<Xi> \<xi>m0 \<xi>p0"   
-  unfolding rename_mono_prog_def \<xi>m0_def \<xi>p0_def
-  apply clarsimp
-  apply (intro conjI impI; clarsimp?)
-    apply (subst (asm) rename_def,
-           clarsimp simp: assoc_lookup.simps 
-                    vun_to_u8_monoexpr_correct vun_from_u8_monoexpr_correct
-                    split: if_splits)+
-  done
-
-end (* of context *)
-
-section "Correspondence between shallow and polymorphic value semantics"
+section "5. Correspondence between the value semantics and the shallow embedding"
 
 sublocale CastValue \<subseteq> shallow un_abs_typing_v
   by (unfold_locales)
@@ -626,13 +636,13 @@ sublocale CastValue \<subseteq> shallow un_abs_typing_v
   by (unfold_locales)
 
 
-(* these are not explicitly needed, since they are sorried by cogent ! ! *)
+(* these are not explicitly needed, since they are sorried  ! ! *)
 
 lemma (in CastValue) scorres_u2_to_u8:
   "scorres (u2_to_u8 :: 2 word \<Rightarrow> 8 word)
-     (AFun ''u2_to_u8'' ts ls) \<gamma> \<xi>p0"
+     (AFun ''u2_to_u8'' ts ls) \<gamma> \<xi>m0"
  apply (clarsimp simp: scorres_def)
-  apply (erule v_sem_afunE; clarsimp simp add:\<xi>p0_def)
+  apply (erule v_sem_afunE; clarsimp simp add:\<xi>m0_def)
   apply (erule notE)
   unfolding vun_to_u8_def su2_to_u8_def valRel_U2
   apply (clarsimp split: if_splits)  
@@ -640,9 +650,9 @@ lemma (in CastValue) scorres_u2_to_u8:
 
 lemma (in CastValue) scorres_u8_to_u2:
   "scorres (u8_to_u2 :: 8 word \<Rightarrow> 2 word)
-     (AFun ''u8_to_u2'' ts ls) \<gamma> \<xi>p0"
+     (AFun ''u8_to_u2'' ts ls) \<gamma> \<xi>m0"
   apply (clarsimp simp: scorres_def)
-  apply (erule v_sem_afunE; clarsimp simp add:\<xi>p0_def)
+  apply (erule v_sem_afunE; clarsimp simp add:\<xi>m0_def)
   apply (erule notE)
   unfolding vun_from_u8_def su8_to_u2_def valRel_U2
   apply (clarsimp)    
@@ -656,9 +666,9 @@ lemma (in CastValue) scorres_u8_to_u2:
 
 lemma (in CastValue) scorres_u4_to_u8:
   "scorres (u4_to_u8 :: 4 word \<Rightarrow> 8 word)
-     (AFun ''u4_to_u8'' ts ls) \<gamma> \<xi>p0"
+     (AFun ''u4_to_u8'' ts ls) \<gamma> \<xi>m0"
     apply (clarsimp simp: scorres_def)
-  apply (erule v_sem_afunE; clarsimp simp add:\<xi>p0_def)
+  apply (erule v_sem_afunE; clarsimp simp add:\<xi>m0_def)
   apply (erule notE)
   unfolding vun_to_u8_def su4_to_u8_def valRel_U4
   apply (clarsimp)  
@@ -666,9 +676,9 @@ lemma (in CastValue) scorres_u4_to_u8:
 
 lemma (in CastValue) scorres_u8_to_u4:
   "scorres (u8_to_u4 :: 8 word \<Rightarrow> 4 word)
-     (AFun ''u8_to_u4'' ts ls) \<gamma> \<xi>p0"
+     (AFun ''u8_to_u4'' ts ls) \<gamma> \<xi>m0"
   apply (clarsimp simp: scorres_def)
-  apply (erule v_sem_afunE; clarsimp simp add:\<xi>p0_def)
+  apply (erule v_sem_afunE; clarsimp simp add:\<xi>m0_def)
   apply (erule notE)
   unfolding vun_from_u8_def su8_to_u4_def valRel_U4
   apply (clarsimp)    
@@ -679,7 +689,7 @@ lemma (in CastValue) scorres_u8_to_u4:
   apply(simp add:ucast_def)
   by (simp add: int_word_uint)
 
-section "All refine"
+section "6. Functional correctness of 'foo'"
 
 definition foo_spec :: "R\<^sub>T \<Rightarrow> R\<^sub>T"
   where "foo_spec f = 
@@ -710,7 +720,7 @@ lemmas corres_shallow_C_foo_concrete =  corres_shallow_C_foo[folded \<Xi>_def, s
   OF upd.u8_to_u4_corres[simplified], simplified, simplified \<Xi>_simps, simplified
 , OF upd.u2_to_u8_corres[simplified], simplified, simplified \<Xi>_simps, simplified
 , OF upd.u8_to_u2_corres[simplified], simplified, simplified \<Xi>_simps, simplified
-, OF correspondence_init_axioms val.rename_mono_prog_\<xi>m0_\<xi>p0
+, OF correspondence_init_axioms val.rename_mono_prog_\<xi>m0_\<xi>m0
  _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>,
 simplified, simplified foo_shallow_correct
 ]
