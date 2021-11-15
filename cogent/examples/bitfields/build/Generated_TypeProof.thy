@@ -64,7 +64,7 @@ where
 definition
   foo :: "string Cogent.expr"
 where
-  "foo \<equiv> Let (Var 0) (LetBang (set [0]) (Member (Var 0) 0) (If (Var 0) (Take (Var 1) 2 (Let (App (AFun ''u4_to_u8'' [] []) (Var 0)) (Let (Lit (LU8 12)) (Let (Prim (BitAnd U8) [Var 1, Var 0]) (Let (App (AFun ''u8_to_u4'' [] []) (Var 0)) (Put (Var 5) 2 (Var 0))))))) (Take (Var 1) 1 (Let (App (AFun ''u2_to_u8'' [] []) (Var 0)) (Let (Lit (LU8 1)) (Let (Prim (Plus U8) [Var 1, Var 0]) (Let (App (AFun ''u8_to_u2'' [] []) (Var 0)) (Put (Var 5) 1 (Var 0)))))))))"
+  "foo \<equiv> Let (Var 0) (LetBang (set [0]) (Member (Var 0) 0) (If (Var 0) (LetBang (set [1]) (Let (Member (Var 1) 2) (Let (App (AFun ''u4_to_u8'' [] []) (Var 0)) (Let (Lit (LU8 12)) (Let (Prim (BitAnd U8) [Var 1, Var 0]) (App (AFun ''u8_to_u4'' [] []) (Var 0)))))) (Put (Var 2) 2 (Var 0))) (LetBang (set [1]) (Let (Member (Var 1) 1) (Let (App (AFun ''u2_to_u8'' [] []) (Var 0)) (Let (Lit (LU8 1)) (Let (Prim (Plus U8) [Var 1, Var 0]) (App (AFun ''u8_to_u2'' [] []) (Var 0)))))) (Put (Var 2) 1 (Var 0)))))"
 
 ML \<open>
 val Cogent_functions = ["id4", "id2", "foo"]
@@ -86,7 +86,7 @@ definition
   "id2_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''U2'' [] (Boxed Writable None))] TyTrLeaf"
 
 definition
-  "foo_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some abbreviatedType1] (TyTrSplit (Cons (Some TSK_NS) (Cons None [])) [] TyTrLeaf [Some (TPrim Bool)] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None []))) [] TyTrLeaf [] (TyTrSplit (Cons None (Cons (Some TSK_S) (Cons None []))) [] (TyTrSplit (Cons None (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some (TCon ''U4'' [] Unboxed), Some (TRecord [(''f1'', (TPrim Bool, Present)), (''f2'', (TCon ''U2'' [] Unboxed, Present)), (''f3'', (TCon ''U4'' [] Unboxed, Taken))] (Boxed Writable (Some (LayRecord [(''f1'', LayBitRange (Suc 0, 0)), (''f2'', LayBitRange (2, Suc 0)), (''f3'', LayBitRange (4, 4))]))))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 3 None) []))) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 3 None) [])))) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons None (Cons (Some TSK_R) (append (replicate 3 None) []))))) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 3 None) (Cons (Some TSK_R) (append (replicate 3 None) [])))) [] TyTrLeaf [Some (TCon ''U4'' [] Unboxed)] TyTrLeaf))))) [] (TyTrSplit (Cons None (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some (TCon ''U2'' [] Unboxed), Some (TRecord [(''f1'', (TPrim Bool, Present)), (''f2'', (TCon ''U2'' [] Unboxed, Taken)), (''f3'', (TCon ''U4'' [] Unboxed, Present))] (Boxed Writable (Some (LayRecord [(''f1'', LayBitRange (Suc 0, 0)), (''f2'', LayBitRange (2, Suc 0)), (''f3'', LayBitRange (4, 4))]))))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 3 None) []))) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 3 None) [])))) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons None (Cons (Some TSK_R) (append (replicate 3 None) []))))) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 3 None) (Cons (Some TSK_R) (append (replicate 3 None) [])))) [] TyTrLeaf [Some (TCon ''U2'' [] Unboxed)] TyTrLeaf))))))))"
+  "foo_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some abbreviatedType1] (TyTrSplit (Cons (Some TSK_NS) (Cons None [])) [] TyTrLeaf [Some (TPrim Bool)] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None []))) [] TyTrLeaf [] (TyTrSplit (Cons None (Cons (Some TSK_S) (Cons None []))) [] (TyTrSplit (Cons None (Cons (Some TSK_NS) (Cons None []))) [] (TyTrSplit (Cons None (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some (TCon ''U4'' [] Unboxed)] (TyTrSplit (Cons (Some TSK_L) (append (replicate 3 None) [])) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_R) (append (replicate 4 None) [])) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (append (replicate 4 None) []))) [] TyTrLeaf [Some (TPrim (Num U8))] TyTrLeaf)))) [Some (TCon ''U4'' [] Unboxed)] TyTrLeaf) [] (TyTrSplit (Cons None (Cons (Some TSK_NS) (Cons None []))) [] (TyTrSplit (Cons None (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some (TCon ''U2'' [] Unboxed)] (TyTrSplit (Cons (Some TSK_L) (append (replicate 3 None) [])) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_R) (append (replicate 4 None) [])) [] TyTrLeaf [Some (TPrim (Num U8))] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (append (replicate 4 None) []))) [] TyTrLeaf [Some (TPrim (Num U8))] TyTrLeaf)))) [Some (TCon ''U2'' [] Unboxed)] TyTrLeaf))))"
 
 ML \<open> open TTyping_Tactics \<close>
 
@@ -169,45 +169,45 @@ val typing_helper_7_script : tac list = [
 
 
 lemma typing_helper_7[unfolded abbreviated_type_defs] :
-  "kinding 0 [] {} (TRecord [(''f1'', (TPrim Bool, Present)), (''f2'', (TCon ''U2'' [] Unboxed, Present)), (''f3'', (TCon ''U4'' [] Unboxed, Taken))] (Boxed Writable (Some (LayRecord [(''f1'', LayBitRange (Suc 0, 0)), (''f2'', LayBitRange (2, Suc 0)), (''f3'', LayBitRange (4, 4))])))) {E}"
+  "kinding 0 [] {} (TPrim (Num U8)) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_7_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_8_script : tac list = [
-(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def})
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def})
 ] \<close>
 
 
 lemma typing_helper_8[unfolded abbreviated_type_defs] :
-  "kinding 0 [] {} (TPrim (Num U8)) {E, S, D}"
+  "type_wellformed 0 0 {} (TCon ''U4'' [] Unboxed)"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_8_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_9_script : tac list = [
-(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def})
-] \<close>
-
-
-lemma typing_helper_9[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 0 {} (TCon ''U4'' [] Unboxed)"
-  apply (unfold abbreviated_type_defs)?
-  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_9_script |> EVERY \<close>)
-  done
-
-ML_quiet \<open>
-val typing_helper_10_script : tac list = [
 (RTac @{thm typing_subst}),
 (SimpSolveTac ([],[])),
 (SimpTac ([],[(nth @{thms HOL.simp_thms} (25-1)),(nth @{thms HOL.simp_thms} (26-1))]))
 ] \<close>
 
 
-lemma typing_helper_10[unfolded abbreviated_type_defs] :
+lemma typing_helper_9[unfolded abbreviated_type_defs] :
   "subst_wellformed 0 [] {} [] [] 0 [] {}"
+  apply (unfold abbreviated_type_defs)?
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_9_script |> EVERY \<close>)
+  done
+
+ML_quiet \<open>
+val typing_helper_10_script : tac list = [
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def})
+] \<close>
+
+
+lemma typing_helper_10[unfolded abbreviated_type_defs] :
+  "type_wellformed 0 0 {} (TFun (TCon ''U4'' [] Unboxed) (TPrim (Num U8)))"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_10_script |> EVERY \<close>)
   done
@@ -219,7 +219,7 @@ val typing_helper_11_script : tac list = [
 
 
 lemma typing_helper_11[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 0 {} (TFun (TCon ''U4'' [] Unboxed) (TPrim (Num U8)))"
+  "type_wellformed 0 0 {} (TPrim (Num U8))"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_11_script |> EVERY \<close>)
   done
@@ -231,7 +231,7 @@ val typing_helper_12_script : tac list = [
 
 
 lemma typing_helper_12[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 0 {} (TPrim (Num U8))"
+  "type_wellformed 0 0 {} (TFun (TPrim (Num U8)) (TCon ''U4'' [] Unboxed))"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_12_script |> EVERY \<close>)
   done
@@ -243,43 +243,43 @@ val typing_helper_13_script : tac list = [
 
 
 lemma typing_helper_13[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 0 {} (TFun (TPrim (Num U8)) (TCon ''U4'' [] Unboxed))"
+  "type_wellformed 0 0 {} abbreviatedType1"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_13_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_14_script : tac list = [
-(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def})
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def})
 ] \<close>
 
 
 lemma typing_helper_14[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 0 {} (TRecord [(''f1'', (TPrim Bool, Present)), (''f2'', (TCon ''U2'' [] Unboxed, Present)), (''f3'', (TCon ''U4'' [] Unboxed, Taken))] (Boxed Writable (Some (LayRecord [(''f1'', LayBitRange (Suc 0, 0)), (''f2'', LayBitRange (2, Suc 0)), (''f3'', LayBitRange (4, 4))]))))"
+  "kinding 0 [] {} (TCon ''U2'' [] Unboxed) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_14_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_15_script : tac list = [
-(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def})
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def})
 ] \<close>
 
 
 lemma typing_helper_15[unfolded abbreviated_type_defs] :
-  "kinding 0 [] {} (TCon ''U2'' [] Unboxed) {E, S, D}"
+  "type_wellformed 0 0 {} (TCon ''U2'' [] Unboxed)"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_15_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_16_script : tac list = [
-(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def})
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def})
 ] \<close>
 
 
 lemma typing_helper_16[unfolded abbreviated_type_defs] :
-  "kinding 0 [] {} (TRecord [(''f1'', (TPrim Bool, Present)), (''f2'', (TCon ''U2'' [] Unboxed, Taken)), (''f3'', (TCon ''U4'' [] Unboxed, Present))] (Boxed Writable (Some (LayRecord [(''f1'', LayBitRange (Suc 0, 0)), (''f2'', LayBitRange (2, Suc 0)), (''f3'', LayBitRange (4, 4))])))) {E}"
+  "type_wellformed 0 0 {} (TFun (TCon ''U2'' [] Unboxed) (TPrim (Num U8)))"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_16_script |> EVERY \<close>)
   done
@@ -291,45 +291,9 @@ val typing_helper_17_script : tac list = [
 
 
 lemma typing_helper_17[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 0 {} (TCon ''U2'' [] Unboxed)"
-  apply (unfold abbreviated_type_defs)?
-  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_17_script |> EVERY \<close>)
-  done
-
-ML_quiet \<open>
-val typing_helper_18_script : tac list = [
-(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def})
-] \<close>
-
-
-lemma typing_helper_18[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 0 {} (TFun (TCon ''U2'' [] Unboxed) (TPrim (Num U8)))"
-  apply (unfold abbreviated_type_defs)?
-  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_18_script |> EVERY \<close>)
-  done
-
-ML_quiet \<open>
-val typing_helper_19_script : tac list = [
-(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def})
-] \<close>
-
-
-lemma typing_helper_19[unfolded abbreviated_type_defs] :
   "type_wellformed 0 0 {} (TFun (TPrim (Num U8)) (TCon ''U2'' [] Unboxed))"
   apply (unfold abbreviated_type_defs)?
-  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_19_script |> EVERY \<close>)
-  done
-
-ML_quiet \<open>
-val typing_helper_20_script : tac list = [
-(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def})
-] \<close>
-
-
-lemma typing_helper_20[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 0 {} (TRecord [(''f1'', (TPrim Bool, Present)), (''f2'', (TCon ''U2'' [] Unboxed, Taken)), (''f3'', (TCon ''U4'' [] Unboxed, Present))] (Boxed Writable (Some (LayRecord [(''f1'', LayBitRange (Suc 0, 0)), (''f2'', LayBitRange (2, Suc 0)), (''f3'', LayBitRange (4, 4))]))))"
-  apply (unfold abbreviated_type_defs)?
-  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_20_script |> EVERY \<close>)
+  apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_17_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
@@ -407,69 +371,73 @@ StepDown,
 StepUp,
 StepDown,
 StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_4})]),
+StepUp,
+StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_6})]),
+StepUp,
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_6})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_member}),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_4}]),(SimpSolveTac ([],[])),(RTac @{thm typing_helper_4}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(SimpSolveTac ([],[]))]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_7})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_8})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm u4_to_u8_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_9}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_10}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_6}]),(SimpSolveTac ([],[]))]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_7})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_lit'}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(SimpSolveTac ([],[]))]),
+StepDown,
+StepDown,
 Val (KindingTacs [(RTac @{thm typing_helper_7})]),
 StepUp,
 Val (TypingTacs []),
-Val (KindingTacs [(RTac @{thm typing_helper_6})]),
-StepDown,
-StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_8})]),
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_11})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm u8_to_u4_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_9}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_12}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_7}]),(SimpSolveTac ([],[]))]),
 StepUp,
-Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_9})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm u4_to_u8_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_10}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_11}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_6}]),(SimpSolveTac ([],[]))]),
+StepUp,
+StepUp,
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_put'}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_8})],NONE,SOME [(RTac @{thm split_comp.left}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_13})],NONE]),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_3}]),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(SimpSolveTac ([],[@{thm Product_Type.prod.inject}])),(RTac @{thm typing_helper_6}),(SimpSolveTac ([],[])),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_6}]),(SimpSolveTac ([],[])),(SimpSolveTac ([],[]))]),
+Val (KindingTacs [(RTac @{thm typing_helper_6})]),
+StepUp,
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_8})]),
+Val (KindingTacs [(RTac @{thm typing_helper_4})]),
+StepUp,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+StepUp,
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_member}),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_4}]),(SimpSolveTac ([],[])),(RTac @{thm typing_helper_4}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(SimpSolveTac ([],[]))]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_7})]),
+StepUp,
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_15})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm u2_to_u8_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_9}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_16}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_14}]),(SimpSolveTac ([],[]))]),
+StepDown,
+StepDown,
+Val (KindingTacs [(RTac @{thm typing_helper_7})]),
 StepUp,
 Val (TypingTacs [(RTac @{thm typing_lit'}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(SimpSolveTac ([],[]))]),
 StepDown,
 StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_8})]),
+Val (KindingTacs [(RTac @{thm typing_helper_7})]),
 StepUp,
 Val (TypingTacs []),
-StepDown,
-StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_6})]),
-StepUp,
-Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_12})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm u8_to_u4_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_10}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_13}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_8}]),(SimpSolveTac ([],[]))]),
-Val (TypingTacs [(RTac @{thm typing_put'}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_9})],NONE,SOME [(RTac @{thm split_comp.left}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_14})],NONE]),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_7}]),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(SimpSolveTac ([],[@{thm Product_Type.prod.inject}])),(RTac @{thm typing_helper_6}),(SimpSolveTac ([],[])),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_6}]),(SimpSolveTac ([],[])),(SimpSolveTac ([],[]))]),
+Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_11})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm u8_to_u2_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_9}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_17}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_7}]),(SimpSolveTac ([],[]))]),
 StepUp,
 StepUp,
 StepUp,
 StepUp,
-StepUp,
-StepDown,
-StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_15})]),
-Val (KindingTacs [(RTac @{thm typing_helper_16})]),
-StepUp,
-Val (TypingTacs []),
-Val (KindingTacs [(RTac @{thm typing_helper_15})]),
-StepDown,
-StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_8})]),
-StepUp,
-Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_17})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm u2_to_u8_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_10}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_18}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_15}]),(SimpSolveTac ([],[]))]),
-StepDown,
-StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_8})]),
-StepUp,
-Val (TypingTacs [(RTac @{thm typing_lit'}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(SimpSolveTac ([],[]))]),
-StepDown,
-StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_8})]),
-StepUp,
-Val (TypingTacs []),
-StepDown,
-StepDown,
-Val (KindingTacs [(RTac @{thm typing_helper_15})]),
-StepUp,
-Val (TypingTacs [(RTac @{thm typing_app}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_12})],NONE]),(RTac @{thm typing_afun'}),(SimpTac ([@{thm \<Xi>_def},@{thm u8_to_u2_type_def[unfolded abbreviated_type_defs]}],[])),(RTac @{thm typing_helper_10}),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_19}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac []),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_8}]),(SimpSolveTac ([],[]))]),
-Val (TypingTacs [(RTac @{thm typing_put'}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_17})],NONE,SOME [(RTac @{thm split_comp.left}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_20})],NONE]),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_16}]),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(SimpSolveTac ([],[@{thm Product_Type.prod.inject}])),(RTac @{thm typing_helper_15}),(SimpSolveTac ([],[])),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_15}]),(SimpSolveTac ([],[])),(SimpSolveTac ([],[]))]),
-StepUp,
-StepUp,
-StepUp,
-StepUp,
+Val (TypingTacs [(RTac @{thm typing_put'}),(SplitsTac [SOME [(RTac @{thm split_comp.right}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_15})],NONE,SOME [(RTac @{thm split_comp.left}),(RTac @{thm type_wellformed_prettyI}),(SimpTac ([],@{thms type_wellformed.simps})),(RTac @{thm typing_helper_13})],NONE]),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_3}]),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(SimpSolveTac ([],[])),(SimpSolveTac ([],[@{thm Product_Type.prod.inject}])),(RTac @{thm typing_helper_14}),(SimpSolveTac ([],[])),(RTac @{thm typing_var}),(SimpTac ([@{thm empty_def}],[])),(WeakeningTac [@{thm typing_helper_14}]),(SimpSolveTac ([],[])),(SimpSolveTac ([],[]))]),
+Val (KindingTacs [(RTac @{thm typing_helper_14})]),
 StepUp,
 StepUp,
 Val (KindingTacs [(RTac @{thm typing_helper_5})]),

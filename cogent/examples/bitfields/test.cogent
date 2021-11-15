@@ -17,9 +17,6 @@ layout L = record { f1 : 1b, f2 : 2b at 1b, f3 : 4b at 4b }
 -- NOTE that the first bit is the least significant bit in a byte
 
 
--- bracket : all (t :< DSE). (t -> U8, U8 -> t, U8 -> U8, t) -> t
--- bracket (fr, to, do, x) = to (do (fr x))
-
 u4_to_u8 : #U4 -> U8
 u8_to_u4 : U8 -> #U4
 
@@ -30,10 +27,8 @@ type RL = R layout L
 
 foo : RL -> RL
 foo r = if r.f1 !r then
-          let r {f3 = v} = r
-          and v = u8_to_u4 (u4_to_u8 v .&. 0x0c)
-           in r {f3 = v}
+          let v = u8_to_u4 (u4_to_u8 r.f3 .&. 0x0c) !r in
+          r {f3 = v}
         else
-          let r {f2 = u} = r
-          and u = u8_to_u2 (u2_to_u8 u + 1)
-           in r {f2 = u}
+          let v = u8_to_u2 (u2_to_u8 r.f2 + 1) !r in
+          r {f2 = v}

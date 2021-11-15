@@ -25,15 +25,13 @@ where
   "foo ds\<^sub>0 \<equiv>
     let ds\<^sub>1 = R.f1\<^sub>f ds\<^sub>0
     in if ds\<^sub>1
-      then let v = R.f3\<^sub>f ds\<^sub>0;
-          v = u8_to_u4 ((AND) (u4_to_u8 v) (12 :: 8 word))
+      then let v = u8_to_u4 ((AND) (u4_to_u8 (R.f3\<^sub>f ds\<^sub>0)) (12 :: 8 word))
         in ds\<^sub>0
             \<lparr>R.f3\<^sub>f :=
               v\<rparr>
-      else let u = R.f2\<^sub>f ds\<^sub>0;
-          u = u8_to_u2 ((+) (u2_to_u8 u) (1 :: 8 word))
+      else let v = u8_to_u2 ((+) (u2_to_u8 (R.f2\<^sub>f ds\<^sub>0)) (1 :: 8 word))
         in ds\<^sub>0
             \<lparr>R.f2\<^sub>f :=
-              u\<rparr>"
+              v\<rparr>"
 
 end

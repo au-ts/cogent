@@ -63,7 +63,7 @@ where
 definition
   foo :: "string Cogent.expr"
 where
-  "foo \<equiv> Let (Var 0) (LetBang (set [0]) (Member (Var 0) 0) (If (Var 0) (Take (Var 1) 2 (Let (App (AFun ''u4_to_u8'' [] []) (Var 0)) (Let (Lit (LU8 12)) (Let (Prim (BitAnd U8) [Var 1, Var 0]) (Let (App (AFun ''u8_to_u4'' [] []) (Var 0)) (Put (Var 5) 2 (Var 0))))))) (Take (Var 1) 1 (Let (App (AFun ''u2_to_u8'' [] []) (Var 0)) (Let (Lit (LU8 1)) (Let (Prim (Plus U8) [Var 1, Var 0]) (Let (App (AFun ''u8_to_u2'' [] []) (Var 0)) (Put (Var 5) 1 (Var 0)))))))))"
+  "foo \<equiv> Let (Var 0) (LetBang (set [0]) (Member (Var 0) 0) (If (Var 0) (LetBang (set [1]) (Let (Member (Var 1) 2) (Let (App (AFun ''u4_to_u8'' [] []) (Var 0)) (Let (Lit (LU8 12)) (Let (Prim (BitAnd U8) [Var 1, Var 0]) (App (AFun ''u8_to_u4'' [] []) (Var 0)))))) (Put (Var 2) 2 (Var 0))) (LetBang (set [1]) (Let (Member (Var 1) 1) (Let (App (AFun ''u2_to_u8'' [] []) (Var 0)) (Let (Lit (LU8 1)) (Let (Prim (Plus U8) [Var 1, Var 0]) (App (AFun ''u8_to_u2'' [] []) (Var 0)))))) (Put (Var 2) 1 (Var 0)))))"
 
 ML \<open>
 val Cogent_functions = ["id4", "id2", "foo"]
