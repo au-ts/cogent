@@ -322,29 +322,30 @@ fun cast_to :: "num_type \<Rightarrow> lit \<Rightarrow> lit option" where
 
 section {* Expressions *}
 
-datatype 'f expr = Var index
+
+datatype ('f, 'g) expr = Var index
                  | AFun 'f  "type list"
-                 | Fun "'f expr" "type list"
-                 | Prim prim_op "'f expr list"
-                 | App "'f expr" "'f expr"
-                 | Con "(name \<times> type \<times> variant_state) list" name "'f expr"
-                 | Struct "type list" "'f expr list"
-                 | Member "'f expr" field
+                 | Fun "('f, 'g) expr" "type list"
+                 | Prim prim_op "('f, 'g) expr list"
+                 | App "('f, 'g) expr" "('f, 'g) expr"
+                 | Con "(name \<times> type \<times> variant_state) list" name "('f, 'g) expr"
+                 | Struct "type list" "('f, 'g) expr list"
+                 | Member "('f, 'g) expr" field
                  | Unit
                  | Lit lit
                  | SLit string
-                 | Cast num_type "'f expr"
-                 | Tuple "'f expr" "'f expr"
-                 | Put "'f expr" field "'f expr"
-                 | Let "'f expr" "'f expr"
-                 | LetBang "index set" "'f expr" "'f expr"
-                 | Case "'f expr" name "'f expr" "'f expr"
-                 | Esac "'f expr" name
-                 | If "'f expr" "'f expr" "'f expr"
-                 | Take "'f expr" field "'f expr"
-                 | Split "'f expr" "'f expr"
-                 | Promote type "'f expr"
-                 | DAFun 'f  "type list"
+                 | Cast num_type "('f, 'g) expr"
+                 | Tuple "('f, 'g) expr" "('f, 'g) expr"
+                 | Put "('f, 'g) expr" field "('f, 'g) expr"
+                 | Let "('f, 'g) expr" "('f, 'g) expr"
+                 | LetBang "index set" "('f, 'g) expr" "('f, 'g) expr"
+                 | Case "('f, 'g) expr" name "('f, 'g) expr" "('f, 'g) expr"
+                 | Esac "('f, 'g) expr" name
+                 | If "('f, 'g) expr" "('f, 'g) expr" "('f, 'g) expr"
+                 | Take "('f, 'g) expr" field "('f, 'g) expr"
+                 | Split "('f, 'g) expr" "('f, 'g) expr"
+                 | Promote type "('f, 'g) expr"
+                 | DAFun 'g "nat \<times> (type list list)"
 
 section {* Kinds *}
 
@@ -482,7 +483,7 @@ fun instantiate :: "type substitution \<Rightarrow> type \<Rightarrow> type" whe
 | "instantiate \<delta> (TRecord ts s) = TRecord (map (\<lambda> (n, t, b). (n, instantiate \<delta> t, b)) ts) s"
 | "instantiate \<delta> (TUnit)        = TUnit"
 
-fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr" where
+fun specialise :: "type substitution \<Rightarrow> ('f, 'g) expr \<Rightarrow> ('f, 'g) expr" where
   "specialise \<delta> (Var i)           = Var i"
 | "specialise \<delta> (Fun f ts)        = Fun f (map (instantiate \<delta>) ts)"
 | "specialise \<delta> (AFun f ts)       = AFun f (map (instantiate \<delta>) ts)"
@@ -505,6 +506,7 @@ fun specialise :: "type substitution \<Rightarrow> 'f expr \<Rightarrow> 'f expr
 | "specialise \<delta> (Take e f e')     = Take (specialise \<delta> e) f (specialise \<delta> e')"
 | "specialise \<delta> (Split v va)      = Split (specialise \<delta> v) (specialise \<delta> va)"
 | "specialise \<delta> (Promote t x)     = Promote (instantiate \<delta> t) (specialise \<delta> x)"
+| "specialise \<delta> (DAFun g tsl)     = DAFun g (fst tsl, (map (map (instantiate \<delta>)) (snd tsl)))"
 
 section {* Subtyping *}
 
@@ -723,14 +725,15 @@ lemma eval_prim_op_lit_type:
 
 section {* Typing rules *}
 
-inductive typing :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> 'f expr \<Rightarrow> type \<Rightarrow> bool"
-          ("_, _, _ \<turnstile> _ : _" [30,0,0,0,20] 60)
-      and typing_all :: "('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> 'f expr list \<Rightarrow> type list \<Rightarrow> bool"
-          ("_, _, _ \<turnstile>* _ : _" [30,0,0,0,20] 60) where
+
+inductive typing :: "('g \<Rightarrow> poly_type) \<Rightarrow> ('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> ('f, 'g) expr \<Rightarrow> type \<Rightarrow> bool"
+          ("_, _, _, _ \<turnstile> _ : _" [30,0,0,0,20] 60)
+      and typing_all :: "('g \<Rightarrow> poly_type) \<Rightarrow> ('f \<Rightarrow> poly_type) \<Rightarrow> kind env \<Rightarrow> ctx \<Rightarrow> ('f, 'g) expr list \<Rightarrow> type list \<Rightarrow> bool"
+          ("_, _, _, _ \<turnstile>* _ : _" [30,0,0,0,20] 60) where
 
 typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length \<Gamma>) i t
                    ; i < length \<Gamma>
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Var i : t"
 
 | typing_afun   : "\<lbrakk> \<Xi> f = (K', t, u)
                    ; t' = instantiate ts t
@@ -738,158 +741,167 @@ typing_var    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto>w singleton (length
                    ; list_all2 (kinding K) ts K'
                    ; K' \<turnstile> TFun t u wellformed
                    ; K \<turnstile> \<Gamma> consumed
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : TFun t' u'"
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : TFun t' u'"
 
-| typing_fun    : "\<lbrakk> \<Xi>, K', [Some t] \<turnstile> f : u
+| typing_dafun   : "\<lbrakk> \<Xi>\<^sub>d f = (K', t, u)
+                    ; ts = tsl ! n
+                    ; t' = instantiate ts t
+                    ; u' = instantiate ts u
+                    ; list_all2 (kinding K) ts K'
+                   ; K' \<turnstile> TFun t u wellformed
+                   ; K \<turnstile> \<Gamma> consumed
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> DAFun f (n, tsl) : TFun t' u'"
+
+| typing_fun    : "\<lbrakk> \<Xi>\<^sub>d, \<Xi>, K', [Some t] \<turnstile> f : u
                    ; t' = instantiate ts t
                    ; u' = instantiate ts u
                    ; K \<turnstile> \<Gamma> consumed
                    ; K' \<turnstile> t wellformed
                    ; list_all2 (kinding K) ts K'
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : TFun t' u'"
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : TFun t' u'"
 
 | typing_app    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> a : TFun x y
-                   ; \<Xi>, K, \<Gamma>2 \<turnstile> b : x
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> App a b : y"
+                   ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>1 \<turnstile> a : TFun x y
+                   ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>2 \<turnstile> b : x
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> App a b : y"
 
-| typing_cast   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)
+| typing_cast   : "\<lbrakk> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)
                    ; upcast_valid \<tau> \<tau>'
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Cast \<tau>' e : TPrim (Num \<tau>')"
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Cast \<tau>' e : TPrim (Num \<tau>')"
 
 | typing_tuple  : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> t : T
-                   ; \<Xi>, K, \<Gamma>2 \<turnstile> u : U
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Tuple t u : TProduct T U"
+                   ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>1 \<turnstile> t : T
+                   ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>2 \<turnstile> u : U
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Tuple t u : TProduct T U"
 
 | typing_split  : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> x : TProduct t u
-                   ; \<Xi>, K, (Some t)#(Some u)#\<Gamma>2 \<turnstile> y : t'
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Split x y : t'"
+                   ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>1 \<turnstile> x : TProduct t u
+                   ; \<Xi>\<^sub>d, \<Xi>, K, (Some t)#(Some u)#\<Gamma>2 \<turnstile> y : t'
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Split x y : t'"
 
 | typing_let    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> x : t
-                   ; \<Xi>, K, (Some t # \<Gamma>2) \<turnstile> y : u
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Let x y : u"
+                   ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>1 \<turnstile> x : t
+                   ; \<Xi>\<^sub>d, \<Xi>, K, (Some t # \<Gamma>2) \<turnstile> y : u
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Let x y : u"
 
 | typing_letb   : "\<lbrakk> K, is \<turnstile> \<Gamma> \<leadsto>b \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> x : t
-                   ; \<Xi>, K, (Some t # \<Gamma>2) \<turnstile> y : u
+                   ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>1 \<turnstile> x : t
+                   ; \<Xi>\<^sub>d, \<Xi>, K, (Some t # \<Gamma>2) \<turnstile> y : u
                    ; K \<turnstile> t :\<kappa> k
                    ; E \<in> k
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> LetBang is x y : u"
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> LetBang is x y : u"
 
-| typing_con    : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t
+| typing_con    : "\<lbrakk> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> x : t
                    ; (tag, t, Unchecked) \<in> set ts
                    ; K \<turnstile> TSum ts wellformed
                    ; ts = ts'
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Con ts tag x : TSum ts'"
 
 | typing_case   : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> x : TSum ts
+                   ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>1 \<turnstile> x : TSum ts
                    ; (tag, t, Unchecked) \<in> set ts
-                   ; \<Xi>, K, (Some t # \<Gamma>2) \<turnstile> a : u
-                   ; \<Xi>, K, (Some (TSum (tagged_list_update tag (t, Checked) ts)) # \<Gamma>2) \<turnstile> b : u
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Case x tag a b : u"
+                   ; \<Xi>\<^sub>d, \<Xi>, K, (Some t # \<Gamma>2) \<turnstile> a : u
+                   ; \<Xi>\<^sub>d, \<Xi>, K, (Some (TSum (tagged_list_update tag (t, Checked) ts)) # \<Gamma>2) \<turnstile> b : u
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Case x tag a b : u"
 
-| typing_esac   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : TSum ts
+| typing_esac   : "\<lbrakk> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> x : TSum ts
                    ; [(n, t, Unchecked)] = filter ((=) Unchecked \<circ> snd \<circ> snd) ts
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Esac x n : t"
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Esac x n : t"
 
 | typing_if     : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> x : TPrim Bool
-                   ; \<Xi>, K, \<Gamma>2 \<turnstile> a : t
-                   ; \<Xi>, K, \<Gamma>2 \<turnstile> b : t
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> If x a b : t"
+                   ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>1 \<turnstile> x : TPrim Bool
+                   ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>2 \<turnstile> a : t
+                   ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>2 \<turnstile> b : t
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> If x a b : t"
 
-| typing_prim   : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* args : map TPrim ts
+| typing_prim   : "\<lbrakk> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile>* args : map TPrim ts
                    ; prim_op_type oper = (ts,t)
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Prim oper args : TPrim t"
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Prim oper args : TPrim t"
 
 | typing_lit    : "\<lbrakk> K \<turnstile> \<Gamma> consumed
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Lit l : TPrim (lit_type l)"
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Lit l : TPrim (lit_type l)"
 
 | typing_slit   : "\<lbrakk> K \<turnstile> \<Gamma> consumed
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> SLit s : TPrim String"
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> SLit s : TPrim String"
 
 | typing_unit   : "\<lbrakk> K \<turnstile> \<Gamma> consumed
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Unit : TUnit"
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Unit : TUnit"
 
-| typing_struct : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile>* es : ts
+| typing_struct : "\<lbrakk> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile>* es : ts
                    ; distinct ns
                    ; length ns = length ts
                    ; ts' = zip ns (zip ts (replicate (length ts) Present))
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : TRecord ts' Unboxed"
 
-| typing_member : "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> e : TRecord ts s
+| typing_member : "\<lbrakk> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> e : TRecord ts s
                    ; K \<turnstile> TRecord ts s :\<kappa> k
                    ; S \<in> k
                    ; f < length ts
                    ; ts ! f = (n, t, Present)
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Member e f : t"
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Member e f : t"
 
 | typing_take   : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
+                   ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
                    ; sigil_perm s \<noteq> Some ReadOnly
                    ; f < length ts
                    ; ts ! f = (n, t, Present)
                    ; K \<turnstile> t :\<kappa> k
                    ; S \<in> k \<or> taken = Taken
-                   ; \<Xi>, K, (Some t # Some (TRecord (ts [f := (n,t,taken)]) s) # \<Gamma>2) \<turnstile> e' : u
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Take e f e' : u"
+                   ; \<Xi>\<^sub>d, \<Xi>, K, (Some t # Some (TRecord (ts [f := (n,t,taken)]) s) # \<Gamma>2) \<turnstile> e' : u
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Take e f e' : u"
 
 | typing_put    : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                   ; \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
+                   ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>1 \<turnstile> e : TRecord ts s
                    ; sigil_perm s \<noteq> Some ReadOnly
                    ; f < length ts
                    ; ts ! f = (n, t, taken)
                    ; K \<turnstile> t :\<kappa> k
                    ; D \<in> k \<or> taken = Taken
-                   ; \<Xi>, K, \<Gamma>2 \<turnstile> e' : t
-                   \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord (ts [f := (n,t,Present)]) s"
+                   ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>2 \<turnstile> e' : t
+                   \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Put e f e' : TRecord (ts [f := (n,t,Present)]) s"
 
-| typing_promote: "\<lbrakk> \<Xi>, K, \<Gamma> \<turnstile> x : t' ; K \<turnstile> t' \<sqsubseteq> t \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile> Promote t x : t"
+| typing_promote: "\<lbrakk> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> x : t' ; K \<turnstile> t' \<sqsubseteq> t \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Promote t x : t"
 
-| typing_all_empty : "\<Gamma> = empty n \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* [] : []"
+| typing_all_empty : "\<Gamma> = empty n \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile>* [] : []"
 
 | typing_all_cons  : "\<lbrakk> K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
-                      ; \<Xi>, K, \<Gamma>1 \<turnstile>  e  : t
-                      ; \<Xi>, K, \<Gamma>2 \<turnstile>* es : ts
-                      \<rbrakk> \<Longrightarrow> \<Xi>, K, \<Gamma> \<turnstile>* (e # es) : (t # ts)"
+                      ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>1 \<turnstile>  e  : t
+                      ; \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>2 \<turnstile>* es : ts
+                      \<rbrakk> \<Longrightarrow> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile>* (e # es) : (t # ts)"
 
 
-inductive_cases typing_num     [elim]: "\<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)"
-inductive_cases typing_bool    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> e : TPrim Bool"
-inductive_cases typing_varE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Var i : \<tau>"
-inductive_cases typing_appE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> App x y : \<tau>"
-inductive_cases typing_litE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Lit l : \<tau>"
-inductive_cases typing_slitE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> SLit l : \<tau>"
-inductive_cases typing_funE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Fun f ts : \<tau>"
-inductive_cases typing_afunE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> AFun f ts : \<tau>"
-inductive_cases typing_ifE     [elim]: "\<Xi>, K, \<Gamma> \<turnstile> If c t e : \<tau>"
-inductive_cases typing_conE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Con ts t e : \<tau>"
-inductive_cases typing_unitE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Unit : \<tau>"
-inductive_cases typing_primE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Prim p es : \<tau>"
-inductive_cases typing_memberE [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Member e f : \<tau>"
-inductive_cases typing_tupleE  [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Tuple a b : \<tau>"
-inductive_cases typing_caseE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Case x t m n : \<tau>"
-inductive_cases typing_esacE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Esac e t : \<tau>"
-inductive_cases typing_castE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Cast t e : \<tau>"
-inductive_cases typing_letE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Let a b : \<tau>"
-inductive_cases typing_structE [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Struct ts es : \<tau>"
-inductive_cases typing_letbE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> LetBang vs a b : \<tau>"
-inductive_cases typing_takeE   [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Take x f e : \<tau>"
-inductive_cases typing_putE    [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Put x f e : \<tau>"
-inductive_cases typing_splitE  [elim]: "\<Xi>, K, \<Gamma> \<turnstile> Split x e : \<tau>"
-inductive_cases typing_promoteE[elim]: "\<Xi>, K, \<Gamma> \<turnstile> Promote \<tau>' x : \<tau>"
-inductive_cases typing_all_emptyE [elim]: "\<Xi>, K, \<Gamma> \<turnstile>* []       : \<tau>s"
-inductive_cases typing_all_consE  [elim]: "\<Xi>, K, \<Gamma> \<turnstile>* (x # xs) : \<tau>s"
+inductive_cases typing_num     [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)"
+inductive_cases typing_bool    [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> e : TPrim Bool"
+inductive_cases typing_varE    [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Var i : \<tau>"
+inductive_cases typing_appE    [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> App x y : \<tau>"
+inductive_cases typing_litE    [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Lit l : \<tau>"
+inductive_cases typing_slitE   [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> SLit l : \<tau>"
+inductive_cases typing_funE    [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Fun f ts : \<tau>"
+inductive_cases typing_afunE   [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> AFun f ts : \<tau>"
+inductive_cases typing_ifE     [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> If c t e : \<tau>"
+inductive_cases typing_conE    [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Con ts t e : \<tau>"
+inductive_cases typing_unitE   [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Unit : \<tau>"
+inductive_cases typing_primE   [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Prim p es : \<tau>"
+inductive_cases typing_memberE [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Member e f : \<tau>"
+inductive_cases typing_tupleE  [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Tuple a b : \<tau>"
+inductive_cases typing_caseE   [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Case x t m n : \<tau>"
+inductive_cases typing_esacE   [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Esac e t : \<tau>"
+inductive_cases typing_castE   [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Cast t e : \<tau>"
+inductive_cases typing_letE    [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Let a b : \<tau>"
+inductive_cases typing_structE [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Struct ts es : \<tau>"
+inductive_cases typing_letbE   [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> LetBang vs a b : \<tau>"
+inductive_cases typing_takeE   [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Take x f e : \<tau>"
+inductive_cases typing_putE    [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Put x f e : \<tau>"
+inductive_cases typing_splitE  [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Split x e : \<tau>"
+inductive_cases typing_promoteE[elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile> Promote \<tau>' x : \<tau>"
+inductive_cases typing_all_emptyE [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile>* []       : \<tau>s"
+inductive_cases typing_all_consE  [elim]: "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile>* (x # xs) : \<tau>s"
 
 section {* Syntax structural judgements *}
 
 subsection {* A-normal form *}
 
-inductive atom ::"'f expr \<Rightarrow> bool" where
+inductive atom ::"('f, 'g) expr \<Rightarrow> bool" where
   "atom (Var x)"
 | "atom (Fun f ts)"
 | "atom (AFun f ts)"
@@ -908,7 +920,7 @@ inductive atom ::"'f expr \<Rightarrow> bool" where
 | "atom (App (AFun f ts) (Var b))"
 | "atom (Put (Var x) f (Var y))"
 
-inductive a_normal :: "'f expr \<Rightarrow> bool" where
+inductive a_normal :: "('f, 'g) expr \<Rightarrow> bool" where
   "\<lbrakk> atom x \<rbrakk> \<Longrightarrow> a_normal x"
 | "\<lbrakk> atom x ; a_normal y \<rbrakk> \<Longrightarrow> a_normal (Let x y)"
 | "\<lbrakk> a_normal x ; a_normal y \<rbrakk> \<Longrightarrow> a_normal (LetBang is x y)"
@@ -1599,8 +1611,8 @@ section {* Typing lemmas *}
 lemma typing_all_Cons1I:
   assumes
     "K \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2"
-    "\<exists>ta tsa. ts = ta # tsa \<and> \<Xi>, K, \<Gamma>1 \<turnstile>  e : ta \<and> \<Xi>, K, \<Gamma>2 \<turnstile>* es : tsa"
-  shows "\<Xi>, K, \<Gamma> \<turnstile>* (e # es) : ts"
+    "\<exists>ta tsa. ts = ta # tsa \<and> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>1 \<turnstile>  e : ta \<and> \<Xi>\<^sub>d, \<Xi>, K, \<Gamma>2 \<turnstile>* es : tsa"
+  shows "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile>* (e # es) : ts"
   using assms
   by (force intro: typing_all_cons)
 
@@ -2120,13 +2132,16 @@ using assms by (auto simp add: weakening_def dest: list_all2_nthD)
 
 
 lemma typing_to_wellformed:
-shows "\<Xi>, K, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> K \<turnstile>  t  wellformed"
-and   "\<Xi>, K, \<Gamma> \<turnstile>* es : ts \<Longrightarrow> K \<turnstile>* ts wellformed"
+shows "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile>  e  : t  \<Longrightarrow> K \<turnstile>  t  wellformed"
+and   "\<Xi>\<^sub>d, \<Xi>, K, \<Gamma> \<turnstile>* es : ts \<Longrightarrow> K \<turnstile>* ts wellformed"
 proof (induct rule: typing_typing_all.inducts)
   case typing_var then show ?case
     by (fastforce dest: weakening_nth elim: weakening_comp.cases simp add: kinding_defs empty_def)
 next case typing_afun then show ?case
     by (clarsimp simp add: kinding_defs instantiate_wellformed list_all2_kinding_wellformedD list_all2_lengthD)
+next case typing_dafun then show ?case
+    by (clarsimp simp add: kinding_defs instantiate_wellformed list_all2_kinding_wellformedD list_all2_lengthD)
+
 next case typing_fun then show ?case
     by (clarsimp simp add: kinding_defs instantiate_wellformed list_all2_kinding_wellformedD list_all2_lengthD)
 next case typing_esac then show ?case
@@ -2184,21 +2199,21 @@ subsection {* Specialisation *}
 
 lemma specialisation:
 assumes well_kinded: "list_all2 (kinding K') \<delta> K"
-shows "\<Xi> , K , \<Gamma> \<turnstile>  e  : \<tau>  \<Longrightarrow> \<Xi> , K' , instantiate_ctx \<delta> \<Gamma> \<turnstile> specialise \<delta> e : instantiate \<delta> \<tau> "
-and   "\<Xi> , K , \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow> \<Xi> , K' , instantiate_ctx \<delta> \<Gamma> \<turnstile>* map (specialise \<delta>) es : map (instantiate \<delta>) \<tau>s"
+shows "\<Xi>\<^sub>d , \<Xi> , K , \<Gamma> \<turnstile>  e  : \<tau>  \<Longrightarrow> \<Xi>\<^sub>d , \<Xi> , K' , instantiate_ctx \<delta> \<Gamma> \<turnstile> specialise \<delta> e : instantiate \<delta> \<tau> "
+and   "\<Xi>\<^sub>d , \<Xi> , K , \<Gamma> \<turnstile>* es : \<tau>s \<Longrightarrow> \<Xi>\<^sub>d , \<Xi> , K' , instantiate_ctx \<delta> \<Gamma> \<turnstile>* map (specialise \<delta>) es : map (instantiate \<delta>) \<tau>s"
   using assms
 proof (induct rule: typing_typing_all.inducts)
   have f1: "(\<lambda>(c, p). (c, case p of (t, b) \<Rightarrow> (instantiate \<delta> t, b))) = (\<lambda>(c, t, b). (c, instantiate \<delta> t, b))"
     by force
-  case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi> x ts tag t a u b)
-  then have "\<Xi>, K', instantiate_ctx \<delta> \<Gamma> \<turnstile> Case (specialise \<delta> x) tag (specialise \<delta> a) (specialise \<delta> b) : instantiate \<delta> u"
+  case (typing_case K \<Gamma> \<Gamma>1 \<Gamma>2 \<Xi>\<^sub>d \<Xi> x ts tag t a u b)
+  then have "\<Xi>\<^sub>d, \<Xi>, K', instantiate_ctx \<delta> \<Gamma> \<turnstile> Case (specialise \<delta> x) tag (specialise \<delta> a) (specialise \<delta> b) : instantiate \<delta> u"
   proof (intro typing_typing_all.typing_case)
-    have "\<Xi>, K', instantiate_ctx \<delta> (Some (TSum (tagged_list_update tag (t, Checked) ts)) # \<Gamma>2) \<turnstile> specialise \<delta> b : instantiate \<delta> u"
+    have "\<Xi>\<^sub>d, \<Xi>, K', instantiate_ctx \<delta> (Some (TSum (tagged_list_update tag (t, Checked) ts)) # \<Gamma>2) \<turnstile> specialise \<delta> b : instantiate \<delta> u"
       using typing_case.hyps(8) typing_case.prems by blast
     moreover have "(map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) (tagged_list_update tag (t, Checked) ts)) = (tagged_list_update tag (instantiate \<delta> t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts))"
       using case_prod_conv f1 tagged_list_update_map_over1[where f = id and g = "\<lambda>_ (t,b). (instantiate \<delta> t, b)", simplified]
       by metis
-    ultimately show "\<Xi>, K', Some (TSum (tagged_list_update tag (instantiate \<delta> t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts))) # instantiate_ctx \<delta> \<Gamma>2 \<turnstile> specialise \<delta> b : instantiate \<delta> u"
+    ultimately show "\<Xi>\<^sub>d, \<Xi>, K', Some (TSum (tagged_list_update tag (instantiate \<delta> t, Checked) (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts))) # instantiate_ctx \<delta> \<Gamma>2 \<turnstile> specialise \<delta> b : instantiate \<delta> u"
       by clarsimp
   qed (force intro: instantiate_ctx_split)+
   then show ?case by simp
@@ -2209,7 +2224,15 @@ next case (typing_afun \<Xi> f ks t u K ts ks)
   ultimately show ?case by (auto intro!: list_all2_substitutivity
         typing_typing_all.typing_afun [simplified]
         instantiate_ctx_consumed)
-next case (typing_fun \<Xi> K t f u t' ts u' ks \<Gamma>)
+next case (typing_dafun \<Xi> f ks t u K ts ks)
+  then also have "instantiate \<delta> (instantiate ts t) = instantiate (map (instantiate \<delta>) ts) t"
+    and "instantiate \<delta> (instantiate ts u) = instantiate (map (instantiate \<delta>) ts) u"
+    by (auto dest: list_all2_lengthD intro!: instantiate_instantiate kinding_simps)
+  ultimately show ?case by (auto intro!: list_all2_substitutivity
+        typing_typing_all.typing_afun [simplified]
+        instantiate_ctx_consumed)
+
+next case (typing_fun \<Xi>\<^sub>d \<Xi> K t f u t' ts u' ks \<Gamma>)
   then also have "instantiate \<delta> (instantiate ts t) = instantiate (map (instantiate \<delta>) ts) t"
     and  "instantiate \<delta> (instantiate ts u) = instantiate (map (instantiate \<delta>) ts) u"
     by (force dest: list_all2_lengthD intro: instantiate_instantiate dest!: typing_to_wellformed)+
@@ -2217,7 +2240,7 @@ next case (typing_fun \<Xi> K t f u t' ts u' ks \<Gamma>)
         typing_typing_all.typing_fun [simplified]
         instantiate_ctx_consumed)
 next
-  case (typing_con \<Xi> K \<Gamma> x t tag ts ts')
+  case (typing_con \<Xi>\<^sub>d \<Xi> K \<Gamma> x t tag ts ts')
   then show ?case
   proof (clarsimp, intro typing_typing_all.intros)
   next show "K' \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<delta> t, b)) ts') wellformed"
@@ -2247,7 +2270,7 @@ qed (force intro!: typing_struct_instantiate
 
 
 
-fun expr_size :: "'f expr \<Rightarrow> nat" where
+fun expr_size :: "('f, 'g) expr \<Rightarrow> nat" where
   "expr_size (Let a b) = Suc ((expr_size a) + (expr_size b))"
 | "expr_size (LetBang vs a b) = Suc ((expr_size a) + (expr_size b))"
 | "expr_size (Fun f ts) = Suc (expr_size f)"
@@ -2270,6 +2293,7 @@ fun expr_size :: "'f expr \<Rightarrow> nat" where
 | "expr_size (Case x v a b) = Suc ((expr_size x) + (expr_size a) + (expr_size b))"
 | "expr_size (Take x f y) = Suc ((expr_size x) + (expr_size y))"
 | "expr_size (Promote t x) = Suc (expr_size x)"
+| "expr_size (DAFun v va) = 0" 
 
 lemma specialise_size [simp]:
   shows "expr_size (specialise \<tau>s x) = expr_size x"
