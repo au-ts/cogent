@@ -4,12 +4,31 @@ theory NameUn
 "HOL-Library.Char_ord"
 begin    
 
-
 fun string_of_nat :: "nat \<Rightarrow> string"
 where
   "string_of_nat n = (if n < 10 then [char_of (48 + n)] else 
      string_of_nat (n div 10) @ [char_of (48 + (n mod 10))])"
 declare string_of_nat.simps [simp del]
+
+(*
+fun nat_of_string :: "string \<Rightarrow> nat"
+  where
+  "nat_of_string [h] = (of_char h - 48)"
+| "nat_of_string (h # q) = (of_char h - 48) * 10 + nat_of_string q"
+| "nat_of_string [] = 0" *)
+
+fun nat_of_string_acc :: "nat \<Rightarrow> string \<Rightarrow> nat"
+  where
+(*  "nat_of_string n [h] = (of_char h - 48)" *)
+  "nat_of_string_acc n (h # q) = nat_of_string_acc (n * 10 + (of_char h - 48))  q"
+| "nat_of_string_acc n [] = n" 
+
+abbreviation "nat_of_string \<equiv> nat_of_string_acc 0"
+
+lemma nat_of_string_acc_concat : "nat_of_string_acc n (l @ q) = nat_of_string_acc (nat_of_string_acc n l) q"
+  by(induct l arbitrary: q n;simp)
+  
+
 
 lemma string_of_nat_lt10[simp] : "n < 10 \<Longrightarrow> string_of_nat n =
 [char_of (48 + n)]"
@@ -61,30 +80,17 @@ lemma string_of_nat_ind' : "(\<And>k n. k > 0 \<Longrightarrow> n < 10 \<Longrig
   apply simp
   done
 
-  
-
-lemma string_of_nat_inj': " string_of_nat n = string_of_nat m \<longrightarrow> n = m"
-  apply (induct n arbitrary: m rule:string_of_nat_ind' )
+lemma nat_of_string_string_of_nat[simp]: "nat_of_string (string_of_nat n) = n"
+  apply (induct n rule:string_of_nat_ind' )
    apply simp
-   apply(rename_tac k n m')
-   apply (induct_tac m' rule: string_of_nat_10_div)
-  apply(intro impI)
-   apply simp
-   apply (case_tac ka)
-    apply (simp add:string_of_nat_never_nil)
-   apply simp
-  apply (induct_tac m rule: string_of_nat_10_div)
-  apply(intro impI)
+   apply(rename_tac k n)
+   apply(simp add:nat_of_string_acc_concat)
   apply simp
-  apply(case_tac k)
-   apply simp
-  apply simp
-  using string_of_nat_never_nil
-  by metis
+  done
 
 lemma string_of_nat_inj: " string_of_nat n = string_of_nat m \<Longrightarrow> n = m"
-  using string_of_nat_inj'
-  by blast
+  using nat_of_string_string_of_nat
+  by metis
 
 
 
