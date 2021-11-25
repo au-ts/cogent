@@ -49,7 +49,7 @@ fun mk_heap_rel ctxt (uvals:uval list) other prims =
   val rhs'' = mk_conjcts (ty_nm_Cs @ other)
 
   (* FIXME later: hey, Yutaka. rhs is a bit stupid.*)
-  val rhs= if (rhs' = []) orelse (rhs'' = []) then @{term "True"} else rhs'' @ rhs' |>mk_HOL_conjs ;
+  val rhs= if (rhs' = []) andalso (rhs'' = []) then @{term "True"} else rhs'' @ rhs' |>mk_HOL_conjs ;
   val heap_rel = Free ("heap_rel", dummyT);
   val lhs = strip_atype @{term "\<lambda> heap_rel . heap_rel \<sigma> h"} $ heap_rel |> strip_atype;
  in
