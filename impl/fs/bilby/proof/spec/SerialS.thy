@@ -263,6 +263,7 @@ lemma bounded_le_length:
 lemmas serialise_le64_simps = ArrA.make_def ElemA.make_def ElemAO.make_def ArrayUseValueP.defs
                               setu8_def[unfolded sanitizers] wordarray_make bounded_def
                              serialise_u8_def[unfolded tuple_simps sanitizers]
+
 (*
 lemma serialise_le64_ret:
 assumes valid_offs:
@@ -295,6 +296,7 @@ shows
                  apply ((simp add: serialise_le64_simps) , unat_arith?)+
  done
 *)
+
 lemma take_irrelevance:
   "P (xs!(unat (x + y))) \<Longrightarrow> unat (x + y) < unat z \<Longrightarrow>
    P ((take (unat z) xs)!(unat (x + y)))" 
@@ -434,7 +436,7 @@ where
  @ [Obj.otype\<^sub>f obj] \<comment> \<open> End 24 bytes \<close>"
 
 lemma ObjHeader_inverse:
-  "pObjHeader (sObjHeader obj@xs) 0 = (obj\<lparr> Obj.ounion\<^sub>f := undefined, Obj.offs\<^sub>f := 0\<rparr>) "
+  "pObjHeader (sObjHeader obj@xs) 0 = (obj\<lparr> Obj.ounion\<^sub>f := undefined, Obj.offs\<^sub>f := 0 \<rparr>) "
    apply(clarsimp simp: pObjHeader_def sObjHeader_def)
    apply(clarsimp simp: Obj.defs)
    apply(clarsimp simp: ple32_word_rcat_eq length_sle32 length_sle64)
@@ -595,7 +597,7 @@ where
    let obj = pObjHeader data offs
    in obj \<lparr>ounion\<^sub>f:= pObjUnion (take (unat offs + unat (Obj.len\<^sub>f obj)) data) (otype\<^sub>f  obj) (Obj.len\<^sub>f obj) (offs+bilbyFsObjHeaderSize)\<rparr>"
 
-text {* This could be implemented in Cogent instead *}
+text \<open> This could be implemented in Cogent instead \<close>
 definition serialise_size_summary_Obj :: "ObjSummary\<^sub>T \<Rightarrow> U32"
 where
  "serialise_size_summary_Obj summary \<equiv>
@@ -675,7 +677,7 @@ proof -
     "deserialise_le32 (buf, offs) = (ple32 (\<alpha>wa $ data\<^sub>f buf) offs)"  
     "deserialise_le32 (buf, offs+4) = (ple32 (\<alpha>wa $ data\<^sub>f buf) (offs + 4))"  
     "deserialise_le32 (buf, offs+16) = (ple32 (\<alpha>wa $ data\<^sub>f buf) (offs + 16))"
-ML_prf{*
+ML_prf \<open>
 fun solve_deserialise_le32 ctxt = 
   let 
   val add_simp = Simplifier.add_simp;
@@ -694,10 +696,9 @@ fun solve_deserialise_le32 ctxt =
     DETERM (ple32 THEN  simp_unat_plus )
     THEN (simp_bounded THEN ple32_take THEN simp_unat_plus)
   end
-*}
+\<close>
     using wf bound no_of
-    by - (tactic {* solve_deserialise_le32  @{context} *})+
-    
+    by - (tactic \<open> solve_deserialise_le32  @{context} \<close>)+
   show ?thesis
   unfolding deserialise_ObjHeader_def[unfolded tuple_simps sanitizers]
   apply (clarsimp simp:Let_def err[simplified eInval_def])
@@ -863,8 +864,9 @@ lemma buf_sub_slice_absorb:
       by (simp add: buf_sub_slice_len_simplified take_prefix drop_prefix)
    qed
 
+
 lemma serialise_u8_ret':
-    notes  wa_modify_ret = wordarray_modify_ret[rotated - 1, simplified Let_def]
+    notes  wa_modify_ret = wordarray_modify_ret[rotated - 1, simplified Let_def ArrayUseValueP.defs]
     assumes no_of: "offs < offs + 1"
        and len_ge: "unat offs + 1 \<le> length (\<alpha>wa (data\<^sub>f buf))"
     shows "serialise_u8 (buf, offs, v) = 
@@ -873,17 +875,18 @@ lemma serialise_u8_ret':
     have offs_sub: "(unat (offs + 1) - unat offs) = 1" using no_of by unat_arith
     have no_of_unat: " unat offs < unat (offs + 1)" using no_of by (simp add: word_less_nat_alt)
     show ?thesis
-    unfolding serialise_u8_def[unfolded sanitizers] Let_def
+    unfolding serialise_u8_def[unfolded sanitizers]
   using no_of len_ge
   apply simp
-  apply (rule wa_modify_ret[where index="offs" and varr="(data\<^sub>f buf)"])
+  apply (rule wa_modify_ret[where index="offs" and varr="(data\<^sub>f buf)" and modifier="setu8"])
    prefer 2
    apply (unat_arith)
-  apply (simp_all  add:ArrA.defs ElemAO.defs  ElemA.defs
+  apply (simp_all add:ArrA.defs ElemAO.defs ElemA.defs
                   setu8_def[unfolded tuple_simps sanitizers] wordarray_make buf_simps
                   min_absorb1 min_absorb2)
   apply (rule arg_cong[where f="\<lambda>v. Buffer.data\<^sub>f_update v buf"])
   apply (rule ext)
+
   apply (rule arg_cong[where f="WordArrayT.make"])
   apply (simp only: list_eq_iff_nth_eq)
   apply (clarsimp simp: buf_sub_slice_length)
@@ -908,8 +911,8 @@ lemma serialise_u8_ret':
   apply (subgoal_tac "i = Suc (unat offs + x2)")
    apply simp
   apply unat_arith
- done
- qed
+  done
+qed
 
 lemma serialise_ObjHeader_ret:
   assumes no_overflow: "offs \<le> offs + bilbyFsObjHeaderSize"
@@ -1243,7 +1246,7 @@ proof -
   unfolding deserialise_ObjInode_def[unfolded tuple_simps sanitizers] 
   by (fastforce 
      intro: suc err
-     split: R.split
+     split: Result.split
      simp: eInval_def eNoMem_def binNot_NOT Let_def bilbyFsOidMaskAll_def des_le32
       bilbyFsOidMaskInode_def word32Max_def pObjInode_def ObjInode.make_def des_le64)
 qed
@@ -1281,7 +1284,7 @@ proof -
   unfolding deserialise_ObjSuper_def[unfolded tuple_simps sanitizers] 
   by (fastforce 
      intro: suc err[unfolded eNoMem_def] 
-     split: R.split 
+     split: Result.split 
      simp: pObjSuper_def ObjSuper.make_def des_le32 des_le64)
 qed
 
@@ -1491,7 +1494,7 @@ lemma deserialise_ObjPad_ret:
     P (Success (ex, out, offs'))"
   shows "P (deserialise_ObjPad (ex, buf, offs, olen))"
   unfolding deserialise_ObjPad_def[unfolded tuple_simps sanitizers]
-  by (auto simp: Let_def err[unfolded eInval_def] suc[unfolded bilbyFsObjHeaderSize_def] split: R.split)
+  by (auto simp: Let_def err[unfolded eInval_def] suc[unfolded bilbyFsObjHeaderSize_def] split: Result.split)
 
 lemma no_offs_overflow:
   assumes wellformed_buf: "wellformed_buf buf"
@@ -1634,7 +1637,7 @@ proof -
     apply (subst (asm) not_less)+
     apply (rule deserialise_wordarray_U8_ret)
      apply (clarsimp simp add: err)
-    apply(clarsimp simp add: err eNoMem_def Let_def prod.case_eq_if split: R.splits)
+    apply(clarsimp simp add: err eNoMem_def Let_def prod.case_eq_if split: Result.splits)
     apply (erule impE)
      apply (rule no_offs_overflow[OF wellformed_buf no_buf_overflow])
     using off_less_end_offs bound apply fastforce
@@ -1686,8 +1689,8 @@ proof -
         "unat (ucast (ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6)) :: 32 word) = 
               unat (ple16 (\<alpha>wa (data\<^sub>f buf)) (offs + 6))")
        prefer 2 
-       apply (fastforce intro: uint_up_ucast simp: eq_nat_nat_iff unat_def is_up) 
-      apply (rule suc)  
+       apply (fastforce intro: uint_up_ucast simp: eq_nat_nat_iff unat_def is_up)
+      apply (rule suc)
            apply (simp_all add: Let_def pObjDentry_def ObjDentry.make_def bilbyFsMaxNameLen_def)
     using bound apply unat_arith
     using wellformed_buf[unfolded wellformed_buf_def]  no_buf_overflow[unfolded bilbyFsMaxEbSize_def]
@@ -2285,14 +2288,15 @@ lemma deserialise_Array_ObjDentry_ret:
   apply (subgoal_tac "unat nb_dentry + 1 = unat (nb_dentry+1) ")
    apply (clarsimp simp: prod.case_eq_if id_def Let_def split: LoopResult.splits)
    apply (subgoal_tac "a = ArrayT.make (replicate (unat (nb_dentry + 1)) (Option.None ()))", simp)
-    apply (cut_tac ex=ex' in array_map_loop_deserialise_ObjDentry_ret[OF assms(1-5), where to = nb_dentry])
+    apply (cut_tac ex=ex' in array_map_loop_deserialise_ObjDentry_ret[simplified ArrayMapP.defs, OF assms(1-5), where to = nb_dentry])
     apply (clarsimp simp: Let_def err split: LoopResult.splits)
-    apply (rename_tac offslist a ex'' offs')
-    apply (rule suc)
-     apply simp+
+     apply (rename_tac offslist a ex'' offs')
+     apply (rule suc)
+     apply simp+  
    apply (metis array_make')
   apply unat_arith
- done
+  done
+
 
 lemma word_add_diff_assoc:
  "(a::'a:: len0 word) + b - c = a + (b - c)"
@@ -2362,7 +2366,7 @@ lemma deserialise_ObjDentarr_ret:
    apply (clarsimp simp: Let_def err[unfolded eInval_def])
    apply (subgoal_tac "\<exists>v. olen - bilbyFsObjHeaderSize = v \<and> bilbyFsObjDentarrHeaderSize + bilbyFsObjDentryHeaderSize \<le> v")
     apply (erule exE)
-    apply (erule conjE)
+   apply (erule conjE)
     apply (rule deserialise_Array_ObjDentry_ret[OF assms(1,2), where st_offs=st_offs,
              simplified])
          using offs_bound apply simp
@@ -2376,8 +2380,8 @@ lemma deserialise_ObjDentarr_ret:
                          (rule word_plus_mono_right; simp)
     subgoal for v _ e by (fastforce intro: err)
    subgoal for v ex arr offs' offslist
-    apply (case_tac "R.Success (ex, arr, offs')", simp_all)
-    apply (clarsimp simp: Let_def err[unfolded eNoMem_def] split: R.split)
+    apply (case_tac "Result.Success (ex, arr, offs')", simp_all)
+    apply (clarsimp simp: Let_def err[unfolded eNoMem_def] split: Result.split)
     apply (rule suc)
         subgoal
         apply (simp add: pObjDentarr_def Let_def)
@@ -2692,12 +2696,12 @@ lemma deserialise_Obj_ret:
   notes bilbyFsObjHeaderSize_def[simp]
   shows "P (deserialise_Obj (ex, buf, offs))"
   unfolding deserialise_Obj_def[unfolded tuple_simps sanitizers]
-  apply (clarsimp simp: err eNoMem_def split: R.split)
+  apply (clarsimp simp: err eNoMem_def split: Result.split)
   apply (rule deserialise_ObjHeader_ret[OF wf bound no_of])
    apply (simp add: err)
   apply simp
   apply (rule deserialise_ObjUnion_ret[OF wf buf_len])
-      apply (simp)
+        apply (simp)
      apply (clarsimp, drule sym[where t="pObjHeader (\<alpha>wa (data\<^sub>f buf)) offs"])
      apply (clarsimp simp  add: is_valid_ObjHeader_def)
     apply simp
@@ -2731,7 +2735,7 @@ lemma deserialise_Obj_ret:
    apply (case_tac "pObjHeader (\<alpha>wa (data\<^sub>f buf)) offs", case_tac obj, simp)
    apply (case_tac "pObjHeader (\<alpha>wa (data\<^sub>f buf)) offs", case_tac obj, simp)
    apply (simp add: plus_no_overflow_unat_lift)+
- done
+    done
 
 lemma pObjHeader_take:
  "is_valid_ObjHeader (pObjHeader xs (ObjAddr.offs\<^sub>f oaddr)) xs \<Longrightarrow>

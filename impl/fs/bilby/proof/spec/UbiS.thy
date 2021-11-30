@@ -10,8 +10,7 @@
 
 theory UbiS
 imports "../adt/BilbyT"
-"../adt/BufferT"
-  "BilbyFsConsts.BilbyFs_Shallow_Desugar_Tuples"
+        "../adt/BufferT"
 begin
 
 type_synonym ubi_leb = "U8 list"

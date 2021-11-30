@@ -19,16 +19,17 @@ begin
 lemmas vfs_inode_simps = vfs_inode_set_flags_ret vfs_inode_set_mode_ret vfs_inode_set_gid_ret vfs_inode_set_uid_ret
 vfs_inode_set_ctime_ret vfs_inode_set_mtime_ret vfs_inode_set_nlink_ret vfs_inode_set_size_ret vfs_inode_set_ino_ret
 
+
 text{* iget_res is the value-relation for the spec-SS correspondence for the function iget*}
 definition
- iget_res :: "afs_state \<Rightarrow> ((VfsT.VfsInode) \<times> (unit,ErrCode) R\<^sub>T) \<Rightarrow> FsopIgetRR\<^sub>T \<times> (32 word, unit) R \<Rightarrow> bool"
+ iget_res :: "afs_state \<Rightarrow> ((VfsT.VfsInode) \<times> (unit,ErrCode) R\<^sub>T) \<Rightarrow> FsopIgetRR\<^sub>T \<times> (32 word, unit) Result \<Rightarrow> bool"
 where
  "iget_res afs_data \<equiv> (\<lambda>((avnode), ra) (fsr, rc). 
      ra = rc \<and> afs_fsop_rel afs_data (FsopIgetRR.fs_st\<^sub>f fsr)
        \<and> (let vnode = \<alpha>inode (FsopIgetRR.vnode\<^sub>f fsr) in
           avnode = vnode))"
      
-lemmas iget_simps = FsopIgetP.defs  FsopIgetRR.defs
+lemmas iget_simps = FsopIgetP.defs FsopIgetRR.defs
 lemmas ObjUnion_simps =  ObjUnion.simps
  
 lemma rel_afs_fsop_matchD:
@@ -93,13 +94,13 @@ shows
          (afs_iget afs_data inum (\<alpha>inode vnode)) (fsop_iget (FsopIgetP.make ex fs_st inum vnode))"
 unfolding afs_iget_def fsop_iget_def[simplified tuple_simps sanitizers]
 using [[goals_limit=1]]
-  apply(rule cogent_corres_conc_let_exec)
+  apply(rule cogent_corres_conc_let_exec[simplified Let_def])
   apply clarsimp
   apply(rule ostore_read_ret)
       apply (simp add: iget_simps  afs_fsop_rel_inv_ostoreD[OF rel])
      using rel apply (simp add: iget_simps afs_fsop_rel_simps)
     apply (simp add: iget_simps  afs_fsop_rel_inv_\<alpha>_ostoreD[OF rel])
-   apply (simp only: prod.case_eq_if prod.sel R.simps iget_simps FsopIgetP.simps )
+         apply (simp only: prod.case_eq_if prod.sel Result.simps iget_simps FsopIgetP.simps)
    apply (frule (2) ostore_obj_means_inum_valid[OF rel])
    apply (simp)
    apply(rule cogent_corres_conc_let_exec)
@@ -110,7 +111,7 @@ using [[goals_limit=1]]
            eInval_def monadic_simps nondet_error_def afs_fsop_rel_simps cogent_corres_def iget_res_def)
    apply (simp add:  Let_def iget_simps prod.case_eq_if)
    using rel 
-   apply (clarsimp simp:  iget_simps read_afs_inode_def o_def prod.case_eq_if
+   apply (clarsimp simp: iget_simps read_afs_inode_def o_def prod.case_eq_if
           eInval_def monadic_simps nondet_error_def afs_fsop_rel_simps cogent_corres_def iget_res_def)
    apply(simp add: extract_inode_from_union_def[unfolded tuple_simps sanitizers, simplified ObjUnion_simps Let_def])
    apply(simp split: ObjUnion.splits)
@@ -121,7 +122,7 @@ using [[goals_limit=1]]
      apply fastforce
     apply (erule afs_inv_steps_updated_afsD)
    apply(clarsimp simp: afs_inode_to_vnode_def vfs_inode_simps  )
-   apply(erule_tac t=" y" in ssubst)
+   apply(erule_tac t="y" in ssubst)
    apply(clarsimp simp only:   afs_inode_to_vnode_def obj_inode_to_afs_inode_def 
          Let_def  time_conv_to_OSTimeSpec vfs_inode_simps)
    apply (simp add: obj_inode_to_afs_inode_def obj_oinode_def vfs_inode_simps)
@@ -139,6 +140,6 @@ using [[goals_limit=1]]
   apply (clarsimp simp: error_code_simps)
   apply (frule (2) ostore_obj_means_inum_valid[OF rel])
   apply fastforce
- done
+  done
 
 end

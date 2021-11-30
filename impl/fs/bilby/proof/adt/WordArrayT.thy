@@ -97,7 +97,7 @@ where
    "\<And>P. \<lbrakk> unat index < List.length (\<alpha>wa varr);
        let r = modifier (ElemAO.make ((\<alpha>wa varr)!unat index) vacc obs) in
        P (ArrA.make (WordArrayT.make ((\<alpha>wa varr)[unat index:=ElemA.elem\<^sub>f r])) (ElemA.acc\<^sub>f r)) \<rbrakk> \<Longrightarrow>
-        P (wordarray_modify (ArrayUseValueP.make varr index modifier vacc obs))"
+        P (wordarray_modify (\<lparr>ArrayUseValueP.arr\<^sub>f = varr, idx\<^sub>f =  index, f\<^sub>f = modifier, acc\<^sub>f = vacc, obsv\<^sub>f = obs \<rparr>))"
 (* Alternative that does not use WordArray.make
   and wordarray_modify_ret:
    "\<And>P. \<lbrakk> unat index < List.length (\<alpha>wa varr);

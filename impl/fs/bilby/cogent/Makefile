@@ -21,6 +21,7 @@ OUTPUT=bilbyfs
 SRC=src/fsop.cogent
 DEFNS=data/defns.txt
 PROOF_ID=BilbyFs
+ISA_RESV_VARS=data/isavars.txt
 
 # GCC version
 GCCVER=$(shell gcc -dumpversion)
@@ -149,6 +150,7 @@ hs:
                 --cpp-args="-std=c99 \$$CPPIN -o \$$CPPOUT -E -P $(EXTRA_CFLAGS)" \
                 --dist-dir=$(DIST_DIR) \
                 --infer-c-funcs="$(ACFILES)" \
+								--isabelle-var-avoidance="$(ISA_RESV_VARS)" \
 								--ext-types="$(VERIF_TYPES)" \
                 --proof-name=$(PROOF_ID) \
                 --proof-input-c="wrapper_pp_inferred.c" \

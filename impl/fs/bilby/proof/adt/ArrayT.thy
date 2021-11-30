@@ -9,11 +9,14 @@
  *)
 
 theory ArrayT
+
 imports "../lib/TypBucket"
         "../adt/BilbyT"
         "../adt/WordArrayT"
         "../lib/Loops"
+
 begin
+
 
 consts \<alpha>a :: "'a Array \<Rightarrow> 'a Option\<^sub>T list"
 consts make :: "'a Option\<^sub>T list \<Rightarrow> 'a Array"
@@ -44,20 +47,16 @@ where
        xs ([],Iterate xacc)"
 
 definition 
-arr_iterate_ex_no_break_body :: "(('a, 'acc, 'obsv) ElemAO \<Rightarrow> ('acc \<times> ('a, unit) R))
-   \<Rightarrow> 'a Option\<^sub>T \<Rightarrow> 'a Option\<^sub>T list \<times> 'acc \<Rightarrow> 'obsv \<Rightarrow> 'a Option\<^sub>T list \<times> 'acc"
-where
-"arr_iterate_ex_no_break_body body \<equiv>
-  (\<lambda>el (ys,acc) obs. 
-     (case el of
-       Option.None _ \<Rightarrow> (ys@[Option.None ()], acc)
+ arr_iterate_ex_no_break_body :: "(('a, 'acc, 'obsv) ElemAO \<Rightarrow> ('acc \<times> (unit, 'a) R\<^sub>T))
+   \<Rightarrow> 'a Option\<^sub>T \<Rightarrow> 'a Option\<^sub>T list \<times> 'acc \<Rightarrow> 'obsv \<Rightarrow> 'a Option\<^sub>T list \<times> 'acc" where
+ "arr_iterate_ex_no_break_body \<equiv> \<lambda> body el (ys, acc) obs.
+     case el of
+        Option.None _ \<Rightarrow> (ys@[Option.None ()], acc)
       | Option.Some tval \<Rightarrow>
-      (let (acc, r) = body(ElemAO.make  tval acc obs)
-       in
-         (case r of
-        Success _ \<Rightarrow> (ys@[Option.None ()],acc)
-       | Error a \<Rightarrow> 
-         (ys @[Option.Some a],acc)))))"
+        (let (acc, r) = body (ElemAO.make  tval acc obs)
+          in case r of
+               Result.Success _ \<Rightarrow> (ys @ [ Option.None () :: 'a Option\<^sub>T], acc)
+             | Result.Error   a \<Rightarrow> (ys @ [ Option.Some a ], acc))"
 
 definition
  "array_iterate_ex_no_break body xs accx obs \<equiv>
@@ -100,12 +99,12 @@ axiomatization where
   and
   array_nb_elem_ret:
    "unat (array_nb_elem arrx) = \<alpha>_array_nb_elem (\<alpha>a arrx)"
-  and 
+  and
   array_modify_ret:
    "\<And>P r arr'. \<lbrakk> unat index < length (\<alpha>a arr);
        r = modifier (OptElemA.make ((\<alpha>a arr)!unat index)  acc);
        arr' = ArrayT.make ((\<alpha>a arr)[unat index:= OptElemA.oelem\<^sub>f r]);
-       P (ArrA.make arr' (OptElemA.acc\<^sub>f r)) \<rbrakk> \<Longrightarrow>
+       P (\<lparr> ArrA.arr\<^sub>f = arr', acc\<^sub>f = (OptElemA.acc\<^sub>f r) \<rparr>) \<rbrakk> \<Longrightarrow>
         P (array_modify (ArrayModifyP.make arr index modifier acc))"
       (* arr' = snd (select (arr,{v. \<alpha>a v = (\<alpha>a arr)[unat index:=Some (OptElemA.oelem\<^sub>f r)]})); *)
 (*

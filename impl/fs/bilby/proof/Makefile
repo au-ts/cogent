@@ -17,7 +17,7 @@ all: cogent
 
 cogent:
 	cogent --shallow-consts-desugar-tuples --shallow-desugar-tuples --proof-name=BilbyFs \
-				--fno-simplify-shallow-tuples \
+				--isabelle-var-avoidance=../cogent/data/isavars.txt \
 				--dist-dir="impl" --root-dir="$(BUILD_ENV_MK_DIR)" $(COGENT_FLAGS) \
 				../cogent/src/fsop.cogent
 sync: cogent
