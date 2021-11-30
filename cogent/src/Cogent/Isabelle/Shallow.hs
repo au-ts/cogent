@@ -108,8 +108,6 @@ unfoldSynsShallowM t = do
     tdfs <- asks typeSynDefs
     return $ IN.unfoldSynsShallow tdfs t
 
-isaReservedNames = ["o", "value", "from"]
-
 shallowTVar :: Int -> String
 shallowTVar v = [chr $ ord 'a' + fromIntegral v]
 
@@ -179,9 +177,8 @@ shallowPrimOp CS.Complement _ = __impossible "shallowPrimOp"
 snm :: NameMod
 -- TODO: Ideally this is how we'd manipulate isabelle names
 -- snm = unIsabelleName . mkIsabelleName
-snm nm = case nm `elem` isaReservedNames of
-  True -> nm ++ I.subSym ++ "r"
-  _ -> case stripPrefix D.freshVarPrefix nm of
+snm nm =
+  case stripPrefix D.freshVarPrefix nm of
     Just nb -> "ds" ++ subSymStr nb
     Nothing -> case stripPrefix N.freshVarPrefix nm of
       Just nb -> "an" ++ subSymStr nb
@@ -190,7 +187,9 @@ snm nm = case nm `elem` isaReservedNames of
         True  -> dropWhile (== '_') nm ++ subSymStr "d"
         False -> case "_" `isSuffixOf` nm of
           True  -> nm ++ subSymStr "x"
-          False -> nm
+          False -> case nm `elem` __cogent_isa_vars_avoided of
+            True  -> nm ++ I.subSym ++ "r"
+            False -> nm
 
 list2 a b = [a,b]
 
@@ -405,7 +404,7 @@ shallowExpr (TE te (Cast  t e)) = do
 shallowAlt :: (Show b,Eq b) => (TagName,VarName,TypedExpr t v VarName b) -> SG b (Term,Term)
 shallowAlt (tag,n,e) = do
     e' <- shallowExpr e
-    pure (TermApp (mkId tag) (mkId n),e')
+    pure (TermApp (mkId tag) (mkId $ snm n),e')
 
 -- | Expand type synonyms in all parts where it is required by takeFlatCase.
 -- This is the type of the outermost escrut and the type of the Esac.

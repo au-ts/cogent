@@ -197,6 +197,7 @@ add_flag_include p = modifyIORef __cogent_include_ref (++[p])
 set_flag_inferCFunc = writeIORef __cogent_infer_c_func_files_ref
 set_flag_inferCType = writeIORef __cogent_infer_c_type_files_ref
 set_flag_interactive = writeIORef __cogent_interactive_ref True
+set_flag_isabelleVarAvoidance = writeIORef __cogent_isabelle_var_avoidance_file_ref . Just
 set_flag_nameCache = writeIORef __cogent_name_cache_ref . Just
 set_flag_O Nothing = return ()
 set_flag_O (Just n :: Maybe String)
@@ -714,6 +715,13 @@ __cogent_interactive_ref :: IORef Bool
 {-# NOINLINE __cogent_interactive_ref #-}
 __cogent_interactive_ref = unsafePerformIO $ newIORef False
 
+__cogent_isabelle_var_avoidance_file :: Maybe FilePath
+__cogent_isabelle_var_avoidance_file = unsafePerformIO $ readIORef __cogent_isabelle_var_avoidance_file_ref
+
+__cogent_isabelle_var_avoidance_file_ref :: IORef (Maybe FilePath)
+{-# NOINLINE __cogent_isabelle_var_avoidance_file_ref #-}
+__cogent_isabelle_var_avoidance_file_ref = unsafePerformIO $ newIORef Nothing
+
 __cogent_name_cache :: Maybe FilePath
 __cogent_name_cache = unsafePerformIO $ readIORef __cogent_name_cache_ref
 
@@ -922,6 +930,12 @@ __cogent_dump_handle :: IORef Handle
 {-# NOINLINE __cogent_dump_handle #-}
 __cogent_dump_handle = unsafePerformIO $ newIORef stderr
 
+__cogent_isa_vars_avoided :: [String]
+__cogent_isa_vars_avoided = unsafePerformIO $ readIORef __cogent_isa_vars_avoided_ref
+
+__cogent_isa_vars_avoided_ref :: IORef [String]
+{-# NOINLINE __cogent_isa_vars_avoided_ref #-}
+__cogent_isa_vars_avoided_ref = unsafePerformIO $ newIORef []
 
 -- Bad hacks
 __cogent_type_proof_sorry_before :: Maybe String

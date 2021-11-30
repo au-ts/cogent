@@ -70,6 +70,7 @@ import           Data.Binary                      (decodeFileOrFail, encodeFile)
 import           Data.Char                        (isSpace)
 import           Data.Either                      (fromLeft, isLeft)
 import           Data.Foldable                    (fold, foldrM)
+import           Data.IORef                       (writeIORef)
 import           Data.List                        as L (find, intersect, isPrefixOf, nub, partition)
 import           Data.Map                         (empty, fromList)
 import           Data.Maybe                       (fromJust, isJust)
@@ -460,6 +461,7 @@ flags =
   , Option []         ["ext-types"]      1 (ReqArg set_flag_extTypes "FILE")               "give external type names to C parser"
   , Option []         ["infer-c-funcs"]  1 (ReqArg (set_flag_inferCFunc . words) "FILE..") "infer Cogent abstract function definitions"
   , Option []         ["infer-c-types"]  1 (ReqArg (set_flag_inferCType . words) "FILE..") "infer Cogent abstract type definitions"
+  , Option []         ["isabelle-var-avoidance"] 1 (ReqArg (set_flag_isabelleVarAvoidance) "FILE")  "variable names that should be avoided when generation Isabelle embeddings"
   , Option []         ["name-cache"]     1 (ReqArg set_flag_nameCache "FILE")              "specify the name cache file to use"
   , Option []         ["proof-input-c"]  1 (ReqArg set_flag_proofInputC "FILE")            "specify input C file to generate proofs (default to the same base name as input Cogent file)"
   , Option []         ["type-proof-timing"] 3 (NoArg set_flag_proofTiming)                  "Log type proof timings in the generated isabelle embedding to ~/TypeProofTacticTiming.json"
@@ -976,6 +978,8 @@ parseArgs args = case getOpt' Permute options args of
 
     genShallow cmds source stg defns typedefs fts constdefs log (False,False,False,False,False,False,False,False) = return empty
     genShallow cmds source stg defns typedefs fts constdefs log (sh,sc,ks,sh_tup,ks_tup,tup_proof,shhs,shhs_tup) = do
+      isaResvNames <- concat <$> flip mapM __cogent_isabelle_var_avoidance_file simpleLineParser
+      writeIORef __cogent_isa_vars_avoided_ref isaResvNames
           -- Isabelle files
       let shfile = mkThyFileName source (__cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
           ssfile = mkThyFileName source (__cogent_suffix_of_shallow_shared)
