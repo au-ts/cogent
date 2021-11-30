@@ -698,21 +698,21 @@ parseArgs args = case getOpt' Permute options args of
           let tsyndefs = filterTypeDefs desugared'
           case IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts tsyndefs of
             Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
-            Right (constdefs,_) ->
-              genShallow cmds source stg desugared' typedefs fts constdefs log
-                ( Shallow       stg   `elem` cmds
-                , SCorres       stg   `elem` cmds
-                , ShallowConsts stg   `elem` cmds
-                , ShallowTuples       `elem` cmds
-                , ShallowConstsTuples `elem` cmds
-                , ShallowTuplesProof  `elem` cmds
-                , HsShallow           `elem` cmds
-                , HsShallowTuples     `elem` cmds)
-          when (TableShallow `elem` cmds) $
-            putProgressLn ("Generating shallow table...") >> putStrLn (printTable $ st desugared')
-          when (Compile (succ stg) `elem` cmds) $
-            normal cmds desugared' ctygen' pragmas' source tced tcst typedefs fts constdefs buildinfo log
-          exitSuccessWithBuildInfo cmds buildinfo
+            Right (constdefs,_) -> do
+              _ <- genShallow cmds source stg desugared' typedefs fts constdefs log
+                     ( Shallow       stg   `elem` cmds
+                     , SCorres       stg   `elem` cmds
+                     , ShallowConsts stg   `elem` cmds
+                     , ShallowTuples       `elem` cmds
+                     , ShallowConstsTuples `elem` cmds
+                     , ShallowTuplesProof  `elem` cmds
+                     , HsShallow           `elem` cmds
+                     , HsShallowTuples     `elem` cmds)
+              when (TableShallow `elem` cmds) $
+                putProgressLn ("Generating shallow table...") >> putStrLn (printTable $ st desugared')
+              when (Compile (succ stg) `elem` cmds) $
+                normal cmds desugared' ctygen' pragmas' source tced tcst typedefs fts constdefs buildinfo log
+              exitSuccessWithBuildInfo cmds buildinfo
 
     normal cmds desugared ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log = do
       let stg = STGNormal
@@ -751,7 +751,7 @@ parseArgs args = case getOpt' Permute options args of
         let nfed'' = IN.unfoldSynsInDefs nfed'
         output npfile $ flip LJ.hPutDoc $ normalProof thy shallowTypeNames nfed'' log
       when (Compile (succ stg) `elem` cmds) $
-        simpl cmds nfed' ctygen pragmas' source tced tcst typedefs fts constdefs tsyndefs buildinfo log
+        simpl cmds nfed' ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
 
     simpl cmds nfed ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log = do
