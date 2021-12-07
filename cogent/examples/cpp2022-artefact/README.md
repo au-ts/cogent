@@ -117,7 +117,7 @@ To build the example, use the command:
 
 To run the example, go into the **loops** folder and use the command:
 
-`$ L4V_ARCH=ARM isabelle jedit -d $COGENT_DIR -d $AC_DIR -d . -l CogentCRefinement BinarySearch.thy`
+`$ L4V_ARCH=ARM isabelle jedit -d $COGENT_DIR -d $AC_DIR -d build -l CogentCRefinement BinarySearch.thy`
 
 ---
 
