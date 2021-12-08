@@ -30,26 +30,26 @@ record ('a, 'b, 'c) WordArrayPutP =
 
 type_synonym  WordArrayIndex = "32 word"
 
-type_synonym 'a WordArrayPutP\<^sub>T = "('a WordArray, 32 word, 'a) WordArrayPutP"
+type_synonym 'a WordArrayPutP\<^sub>T = "('a WordArray,  WordArrayIndex, 'a) WordArrayPutP"
 
 type_synonym ('a, 'acc, 'obsv) ElemAO\<^sub>T = "('a, 'acc, 'obsv) ElemAO"
 
-type_synonym ('a, 'acc, 'obsv) WordArrayFoldNoBreakF = "('a, 'acc, 'obsv) ElemAO \<Rightarrow> 'acc"
+type_synonym ('a, 'acc, 'obsv) WordArrayFoldNoBreakF = "('a, 'acc, 'obsv) ElemAO\<^sub>T \<Rightarrow> 'acc"
 
-type_synonym ('a, 'acc, 'obsv) WordArrayFoldNoBreakP\<^sub>T = "('a WordArray, 32 word, 32 word, ('a, 'acc, 'obsv) ElemAO \<Rightarrow> 'acc, 'acc, 'obsv) WordArrayMapNoBreakP"
+type_synonym ('a, 'acc, 'obsv) WordArrayFoldNoBreakP\<^sub>T = "('a WordArray,  WordArrayIndex,  WordArrayIndex, ('a, 'acc, 'obsv) WordArrayFoldNoBreakF, 'acc, 'obsv) WordArrayMapNoBreakP"
 
-type_synonym ('a, 'acc, 'obsv) WordArrayMapNoBreakF = "('a, 'acc, 'obsv) ElemAO \<Rightarrow> 'a \<times> 'acc"
+type_synonym ('a, 'acc, 'obsv) WordArrayMapNoBreakF = "('a, 'acc, 'obsv) ElemAO\<^sub>T \<Rightarrow> 'a \<times> 'acc"
 
-type_synonym ('a, 'acc, 'obsv) WordArrayMapNoBreakP\<^sub>T = "('a WordArray, 32 word, 32 word, ('a, 'acc, 'obsv) ElemAO \<Rightarrow> 'a \<times> 'acc, 'acc, 'obsv) WordArrayMapNoBreakP"
+type_synonym ('a, 'acc, 'obsv) WordArrayMapNoBreakP\<^sub>T = "('a WordArray,  WordArrayIndex,  WordArrayIndex, ('a, 'acc, 'obsv) WordArrayMapNoBreakF, 'acc, 'obsv) WordArrayMapNoBreakP"
 
-consts wordarray_get :: "'a WordArray \<times> 32 word \<Rightarrow> 'a"
+consts wordarray_get :: "'a WordArray \<times>  WordArrayIndex \<Rightarrow> 'a"
 
 consts wordarray_length :: "'a WordArray \<Rightarrow> 32 word"
 
-consts wordarray_put2 :: "('a WordArray, 32 word, 'a) WordArrayPutP \<Rightarrow> 'a WordArray"
+consts wordarray_put2 :: "'a WordArrayPutP\<^sub>T \<Rightarrow> 'a WordArray"
 
-consts wordarray_fold_no_break :: "('a WordArray, 32 word, 32 word, ('a, 'acc, 'obsv) ElemAO \<Rightarrow> 'acc, 'acc, 'obsv) WordArrayMapNoBreakP \<Rightarrow> 'acc"
+consts wordarray_fold_no_break :: "('a, 'acc, 'obsv) WordArrayFoldNoBreakP\<^sub>T \<Rightarrow> 'acc"
 
-consts wordarray_map_no_break :: "('a WordArray, 32 word, 32 word, ('a, 'acc, 'obsv) ElemAO \<Rightarrow> 'a \<times> 'acc, 'acc, 'obsv) WordArrayMapNoBreakP \<Rightarrow> 'a WordArray \<times> 'acc"
+consts wordarray_map_no_break :: "('a, 'acc, 'obsv) WordArrayMapNoBreakP\<^sub>T \<Rightarrow> 'a WordArray \<times> 'acc"
 
 end

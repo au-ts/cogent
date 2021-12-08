@@ -8,19 +8,19 @@ imports "Generated_ShallowShared_Tuples"
 begin
 
 definition
-  wordarray_put32 :: "(32 word WordArray, 32 word, 32 word) WordArrayGetP \<Rightarrow> 32 word WordArray"
+  wordarray_put32 :: "32 word WordArrayPutP\<^sub>T \<Rightarrow> 32 word WordArray"
 where
   "wordarray_put32 ds\<^sub>0 \<equiv>
-    (wordarray_put :: (32 word WordArray, 32 word, 32 word) WordArrayGetP \<Rightarrow> 32 word WordArray) ds\<^sub>0"
+    (wordarray_put :: 32 word WordArrayPutP\<^sub>T \<Rightarrow> 32 word WordArray) ds\<^sub>0"
 
 definition
-  expstop :: "(32 word, 32 word) StepParam \<Rightarrow> bool"
+  expstop :: "(32 word, 32 word) StepParam\<^sub>T \<Rightarrow> bool"
 where
   "expstop ds\<^sub>0 \<equiv>
     False"
 
 definition
-  log2stop :: "(64 word \<times> 64 word, 64 word) StepParam \<Rightarrow> bool"
+  log2stop :: "(64 word \<times> 64 word, 64 word) StepParam\<^sub>T \<Rightarrow> bool"
 where
   "log2stop ds\<^sub>0 \<equiv>
     let acc = StepParam.acc\<^sub>f ds\<^sub>0;
@@ -29,7 +29,7 @@ where
     in (>=) a obsv"
 
 definition
-  searchStop :: "(32 word \<times> 32 word \<times> bool, 32 word WordArray \<times> 32 word) StepParam \<Rightarrow> bool"
+  searchStop :: "(32 word \<times> 32 word \<times> bool, 32 word WordArray \<times> 32 word) StepParam\<^sub>T \<Rightarrow> bool"
 where
   "searchStop ds\<^sub>0 \<equiv>
     let acc = StepParam.acc\<^sub>f ds\<^sub>0;
@@ -41,7 +41,7 @@ where
         else False"
 
 definition
-  expstep :: "(32 word, 32 word) StepParam \<Rightarrow> 32 word"
+  expstep :: "(32 word, 32 word) StepParam\<^sub>T \<Rightarrow> 32 word"
 where
   "expstep ds\<^sub>0 \<equiv>
     let acc = StepParam.acc\<^sub>f ds\<^sub>0;
@@ -49,7 +49,7 @@ where
     in (*) acc obsv"
 
 definition
-  log2step :: "(64 word \<times> 64 word, 64 word) StepParam \<Rightarrow> 64 word \<times> 64 word"
+  log2step :: "(64 word \<times> 64 word, 64 word) StepParam\<^sub>T \<Rightarrow> 64 word \<times> 64 word"
 where
   "log2step ds\<^sub>0 \<equiv>
     let acc = StepParam.acc\<^sub>f ds\<^sub>0;
@@ -58,7 +58,7 @@ where
         (+) b (1 :: 64 word) )"
 
 definition
-  searchNext :: "(32 word \<times> 32 word \<times> bool, 32 word WordArray \<times> 32 word) StepParam \<Rightarrow> 32 word \<times> 32 word \<times> bool"
+  searchNext :: "(32 word \<times> 32 word \<times> bool, 32 word WordArray \<times> 32 word) StepParam\<^sub>T \<Rightarrow> 32 word \<times> 32 word \<times> bool"
 where
   "searchNext ds\<^sub>0 \<equiv>
     let acc = StepParam.acc\<^sub>f ds\<^sub>0;
@@ -71,7 +71,7 @@ where
           idx\<^sub>f = m,
           val\<^sub>f = (0 :: 32 word)
         \<rparr>;
-      x = (wordarray_get :: (32 word WordArray, 32 word, 32 word) WordArrayGetP \<Rightarrow> 32 word) args
+      x = (wordarray_get :: 32 word WordArrayGetP\<^sub>T \<Rightarrow> 32 word) args
     in if (<) x v
       then ( (+) m (1 :: 32 word), r,
           b )
@@ -92,7 +92,7 @@ where
           acc\<^sub>f = ( (0 :: 32 word),
             len, False ), obsv\<^sub>f = (
             arr, v ) \<rparr>;
-      ds\<^sub>3 = (repeat :: (64 word, (32 word \<times> 32 word \<times> bool, 32 word WordArray \<times> 32 word) StepParam \<Rightarrow> bool, (32 word \<times> 32 word \<times> bool, 32 word WordArray \<times> 32 word) StepParam \<Rightarrow> 32 word \<times> 32 word \<times> bool, 32 word \<times> 32 word \<times> bool, 32 word WordArray \<times> 32 word) RepParam \<Rightarrow> 32 word \<times> 32 word \<times> bool) args;
+      ds\<^sub>3 = (repeat :: (32 word \<times> 32 word \<times> bool, 32 word WordArray \<times> 32 word) RepParam\<^sub>T \<Rightarrow> 32 word \<times> 32 word \<times> bool) args;
       (l,_,b) = ds\<^sub>3
     in if b then l else len"
 
@@ -107,7 +107,7 @@ where
           step\<^sub>f = expstep,
           acc\<^sub>f = (1 :: 32 word),
           obsv\<^sub>f = a \<rparr>
-    in (repeat :: (64 word, (32 word, 32 word) StepParam \<Rightarrow> bool, (32 word, 32 word) StepParam \<Rightarrow> 32 word, 32 word, 32 word) RepParam \<Rightarrow> 32 word) args"
+    in (repeat :: (32 word, 32 word) RepParam\<^sub>T \<Rightarrow> 32 word) args"
 
 definition
   mylog2 :: "64 word \<Rightarrow> 64 word"
@@ -121,14 +121,14 @@ where
             (0 :: 64 word) ),
           obsv\<^sub>f = ds\<^sub>0
         \<rparr>;
-      ds\<^sub>1 = (repeat :: (64 word, (64 word \<times> 64 word, 64 word) StepParam \<Rightarrow> bool, (64 word \<times> 64 word, 64 word) StepParam \<Rightarrow> 64 word \<times> 64 word, 64 word \<times> 64 word, 64 word) RepParam \<Rightarrow> 64 word \<times> 64 word) args;
+      ds\<^sub>1 = (repeat :: (64 word \<times> 64 word, 64 word) RepParam\<^sub>T \<Rightarrow> 64 word \<times> 64 word) args;
       (_,b) = ds\<^sub>1
     in b"
 
 definition
-  wordarray_get_opt32 :: "(32 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 32 word) Opt"
+  wordarray_get_opt32 :: "32 word WordArrayGetOP\<^sub>T \<Rightarrow> 32 word Opt\<^sub>T"
 where
   "wordarray_get_opt32 ds\<^sub>0 \<equiv>
-    (wordarray_get_opt :: (32 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 32 word) Opt) ds\<^sub>0"
+    (wordarray_get_opt :: 32 word WordArrayGetOP\<^sub>T \<Rightarrow> 32 word Opt\<^sub>T) ds\<^sub>0"
 
 end

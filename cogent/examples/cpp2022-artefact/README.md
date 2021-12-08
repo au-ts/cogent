@@ -7,6 +7,8 @@ Cogent from this [branch](https://github.com/au-ts/cogent/tree/uabsfuns-decl-fix
 
 The work that is being presented are all the files in **loops**, **sum-example** and the file _bilby/adt/WordArray\_Shallow.thy_.
 
+Note that for MacOS users, some of the make files depend on the GNU version of **sed**, i.e. **gsed** on MacOS.
+
 ## Install Isabelle2019
 
 Follow the instructions for installing.
