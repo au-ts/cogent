@@ -28,6 +28,7 @@ section "Monomorphisation lemmas"
 
 context value_sem begin
 
+
 lemma vrepeat_bod_monoexpr_correct:
   "\<lbrakk>proc_ctx_wellformed \<Xi>';
     \<xi>' matches \<Xi>';
@@ -103,6 +104,8 @@ lemma vrepeat_bod_monoexpr_correct:
   apply (case_tac v; clarsimp)
   apply (intro exI conjI; assumption)
   done
+
+text "Refinement from polymorphic to monomorphic for the the generic loop (Theorem 2.7)"
 
 lemma prepeat_monoexpr_correct:
   "\<And>v v'.

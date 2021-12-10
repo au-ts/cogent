@@ -8,9 +8,10 @@ sublocale WordArray \<subseteq> Generated_cogent_shallow _ upd.wa_abs_repr val.w
 
 context WordArray begin
 
+text "Overall refinement theorem (Theorem 2.11) for binary search with FFI assumptions discharged"
 thm corres_shallow_C_binarySearch_concrete
 
-section "record simps"
+section "Record Simplifications"
 
 fun t0_unmake
   where
@@ -41,7 +42,7 @@ lemma t1_make_simps:
   apply (clarsimp split: prod.splits simp: valRel_records)+
   done
 
-section "word simps"
+section "Word Simplifications"
 
 lemma unat_ucast_of_nat:
   "x \<le> unat (max_word :: 32 word) \<Longrightarrow> unat (UCAST(32 \<rightarrow> 64) (of_nat (x))) = x"
@@ -55,7 +56,7 @@ lemma unatSuc_comm:
   apply (simp add: add.commute)
   done
 
-section "midpoint lemmas"
+section "Midpoint Lemmas"
 
 lemma midpoint_alt:
   "a < b \<Longrightarrow> (a ::nat) + (b - a) div 2 = (a + b) div 2"
@@ -71,7 +72,7 @@ lemma midpoint_bounds_upper:
   apply simp
   done
 
-section "search_stop simps"
+section "Simplification Definitions and Lemmas for searchStop"
 
 definition search_stop0
   where
@@ -103,7 +104,7 @@ lemma search_stop2_simp:
   apply (clarsimp simp: fun_eq_iff valRel_records split: prod.splits)
   done
 
-section "search_next simps"
+section "Simplification Definitions and Lemmas for searchNext"
 
 lemma searchNext_simps:
   "(\<lambda>a (b, c). t0_unmake (Generated_Shallow_Desugar.searchNext \<lparr>StepParam.acc\<^sub>f = t0_make a, obsv\<^sub>f = \<lparr>T1.p1\<^sub>f = SWA b, p2\<^sub>f = c\<rparr>\<rparr>))
@@ -208,7 +209,7 @@ lemma search_next1_simp2:
   apply (subst midpoint_alt; simp add: word_less_nat_alt)
   done
 
-section "repeat simps"
+section "Simplification Lemmas for the Repeat Loop"
 
 lemma repeatatm_simps:
   "repeatatm n f1 f2 \<lparr>T0.p1\<^sub>f = a, p2\<^sub>f = b, p3\<^sub>f = c\<rparr> \<lparr>T1.p1\<^sub>f = d, p2\<^sub>f = e\<rparr> 
@@ -263,7 +264,7 @@ lemma repeatatm_nat_simp:
   apply clarsimp
   done
 
-section "binary search nat lemmas"
+section "Binary Search Lemmas on Lists of Natural Numbers"
 
 lemma binary_search_range_shrink:
   "\<lbrakk>repeatatm n search_stop4 search_next1 (i, j, b) (xs, v) = (l, h, b'); 
@@ -387,7 +388,9 @@ lemma binary_search_completes_tight:
   apply simp
   done
 
-section "binary search functional correctness theorem"
+section "Binary Search Functional Correctness Theorem"
+
+text "Shallow binary search functional correctness theorem (Theorem 5.1)"
 
 theorem binary_search_correct:
   "\<lbrakk>sorted xs; i = unat (Generated_Shallow_Desugar.binarySearch \<lparr>T1.p1\<^sub>f = SWA xs, p2\<^sub>f = v\<rparr>);
@@ -492,11 +495,6 @@ where
         valid_array s' p \<and>
         w = w' \<and>
         (\<forall>i < l. heap_w32 s (arr +\<^sub>p uint i) = heap_w32 s' (arr +\<^sub>p uint i)))"
-
-lemma 
-  "unat ((of_nat (size_of (TYPE(32 word)))) :: ptrtyp) = size_of (TYPE(32 word))"
-  apply simp
-  done
 
 abbreviation  "uv\<^sub>m \<equiv> prod.fst \<circ> inputs"
 
@@ -641,6 +639,8 @@ lemma WordArray_u32_C_eq_simps:
    apply clarsimp
   apply clarsimp
   by (metis WordArray_u32_C_idupdates(1))
+
+text "Correctness of the the C binary search (Corollary 5.2)"
 
 corollary binary_search_C_correct:
   "\<lbrakk>sorted (arrlist (s, p));

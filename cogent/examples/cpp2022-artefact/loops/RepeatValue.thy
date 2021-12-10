@@ -80,6 +80,8 @@ lemma vrepeat_bod_preservation:
   apply (drule meta_mp; simp)
   done
 
+text "Type preservation for the generic loop (Theorem 2.1)"
+
 lemma vrepeat_preservation:
   "\<And>v v'.
        \<lbrakk>proc_ctx_wellformed \<Xi>';

@@ -55,6 +55,9 @@ definition swa_get_opt :: "('a WordArray, 32 word) WordArrayGetOP \<Rightarrow> 
    in if i < length arr then Something (arr ! i) else Nothing ())"
 end (* of overloading *)
 
+
+text "Definition 2.8 for word arrays"
+
 overloading
   valRel_WordArrayWord \<equiv> valRel
 begin
@@ -79,6 +82,8 @@ sublocale WordArrayValue \<subseteq> shallow wa_abs_typing_v
   by (unfold_locales)
 
 context WordArrayValue begin
+
+text "Shallow to polymorphic refinement for the word array operations"
 
 lemma wordarray_length_scorres:
   "\<xi> ''wordarray_length'' =  vwa_length 

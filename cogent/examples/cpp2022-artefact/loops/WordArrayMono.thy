@@ -7,6 +7,8 @@ begin
 
 section "Word Array Methods"
 
+text "Refinement from polymorphic to monomorphic value for all word array operations (Theorem 2.7)"
+
 subsection "wordarray_length"
 
 lemma (in WordArrayValue) vwa_length_monoexpr_correct:

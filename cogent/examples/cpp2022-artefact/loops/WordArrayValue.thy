@@ -28,7 +28,9 @@ locale WordArrayValue =
   l0: level0_value
 begin
 
-  definition "wa_abs_typing_v \<Xi>' a name \<tau>s \<equiv>
+text "Definition 3.1"
+
+definition "wa_abs_typing_v \<Xi>' a name \<tau>s \<equiv>
     (case a of
       VWA t xs \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [t] \<and> 
       no_tvars t \<and> no_tfun t \<and> no_taken t \<and> no_tcon t \<and> no_theap t \<and>
@@ -49,6 +51,8 @@ lemma wa_abs_typing_v_update:
   by (clarsimp simp: wa_abs_typing_v_def  nth_list_update)
 
 end (* of context *)
+
+text "Discharging abstract type constraints (Definition 2.12)" 
 
 sublocale WordArrayValue \<subseteq> value_sem wa_abs_typing_v
   apply (unfold wa_abs_typing_v_def[abs_def])
@@ -84,6 +88,8 @@ qed (fastforce elim!: v_t_tfunE v_t_tprimE v_t_tsumE v_t_tproductE v_t_tunitE
                 simp: find_None_iff)+
 
 section "Word Array Methods"
+
+text "Type preservation for all word array methods (Theorem 2.1)"
 
 subsection "wordarray_length"
 

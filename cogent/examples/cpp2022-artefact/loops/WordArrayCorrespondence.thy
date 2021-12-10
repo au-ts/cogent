@@ -16,22 +16,6 @@ theory WordArrayCorrespondence
     CogentTypingHelper
 begin
 
-(*
-section "Abbreviations"
-
-abbreviation "foldmap_funarg_type \<Xi>' x 
-  \<equiv> (funarg_type \<circ> present_type \<circ> (\<lambda>xs. xs ! 3) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> \<Xi>') x"
-
-abbreviation "foldmap_funret_type \<Xi>' x 
-  \<equiv> (funret_type \<circ> present_type \<circ> (\<lambda>xs. xs ! 3) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> \<Xi>') x"
-
-abbreviation "foldmap_acc_type \<Xi>' x 
-  \<equiv> (present_type \<circ> (\<lambda>xs. xs ! 4) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> \<Xi>') x"
-
-abbreviation "foldmap_obsv_type \<Xi>' x 
-  \<equiv> (present_type \<circ> (\<lambda>xs. xs ! 5) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> \<Xi>') x"
-*)
-
 section "Base Level Locale"
 
 locale level0 =
@@ -57,7 +41,9 @@ locale WordArray =
   val: WordArrayValue
 begin
 
-  definition  "wa_abs_upd_val \<Xi>' au av name \<tau>s sig (r :: ptrtyp set) (w :: ptrtyp set) \<sigma> \<equiv>
+text "Definition 3.5"
+
+definition "wa_abs_upd_val \<Xi>' au av name \<tau>s sig (r :: ptrtyp set) (w :: ptrtyp set) \<sigma> \<equiv>
     upd.wa_abs_typing_u \<Xi>' au name \<tau>s sig r w \<sigma> \<and> val.wa_abs_typing_v \<Xi>' av name \<tau>s \<and>
     (case au of
       UWA t len arr \<Rightarrow>
@@ -202,6 +188,8 @@ qed (fastforce elim!: u_v_tfunE u_v_tprimE u_v_tsumE u_v_tproductE u_v_tunitE
 
 section "Word Array Methods"
 
+text "Refinement from value to update for all word array operations (Theorem 2.5)"
+
 subsection "wordarray_length"
 
 lemma uvwa_length_monocorrespond_upward_propagation:
@@ -271,9 +259,9 @@ lemma uvwa_get_monocorrespond_upward_propagation:
   apply (erule (3) val.no_tfun_imp_no_vfuns[OF _ _ _ upd_val_rel_to_vval_typing(1)])
   done
 
-section "wordarray_put"
+subsection "wordarray_put"
 
-subsection "wordarray_get"
+text "Theorem 3.7"
 
 lemma uvwa_put_monocorrespond_upward_propagation:
   "\<And>\<sigma> \<sigma>' au av v v' r w.

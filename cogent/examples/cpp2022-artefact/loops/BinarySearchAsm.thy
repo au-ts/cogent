@@ -83,13 +83,14 @@ lemma \<xi>_1_simps:
   apply (clarsimp simp: \<xi>1_def fun_eq_iff)+
   done
 
-subsection "Preservation for abstract functions"
-
+subsection "Type preservation and frame relation for abstract functions"
 
 sublocale WordArrayUpdate \<subseteq> update_sem_init wa_abs_typing_u wa_abs_repr 
   by (unfold_locales)
 
 context WordArrayUpdate begin
+
+text "Type preservation and frame relation for all abstract functions (Theorem 2.2)"
 
 text "If user proves for \<xi>n, we can derive \<xi>i for i < n" 
 
@@ -186,7 +187,9 @@ definition \<xi>m1 :: "funtyp \<Rightarrow> (funtyp, vabstyp) vval \<Rightarrow>
    else if f = ''repeat_2'' then vrepeat \<Xi> \<xi>m0 (acctyp \<Xi> f) (obsvtyp \<Xi> f) x y
    else \<xi>m0 f x y)"
 
-subsection "Preservation for abstract functions"
+subsection "Type preservation for abstract functions"
+
+text "Type preservation for all abstract functions (Theorem 2.1)."
 
 text "If user proves for \<xi>n, we can derive \<xi>i for i < n" 
 
@@ -309,6 +312,8 @@ section "Correspondence between abstract functions in the update semantics and C
 
 context Generated begin
 
+text "Refinement from update to C for instantiations of the generic loop (Theorem 2.4)"
+
 lemma repeat_0'_simp:
   "repeat_0' = crepeat t6_C.n_C t6_C.stop_C t6_C.step_C t6_C.acc_C t6_C.obsv_C t3_C.acc_C t3_C.acc_C_update t3_C.obsv_C_update dispatch_t4' dispatch_t5'"
   unfolding crepeat_def[polish] repeat_0'_def[simplified L2polish, polish]
@@ -396,6 +401,8 @@ sublocale WordArrayUpdate \<subseteq> update_sem_init wa_abs_typing_u wa_abs_rep
   by (unfold_locales)
 
 context WordArrayUpdate begin
+
+text "Refinement from update to C for all word array operations and generic loop (Theorem 2.4)"
 
 lemma wordarray_length_0_corres:
   "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
@@ -498,6 +505,7 @@ lemma wordarray_put_0_simp:
   apply (clarsimp simp: unknown_bind_ignore heap_simp is_valid_simp)
   done
 
+(* Theorem 3.6 *)
 lemma wordarray_put_0_corres:
   "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
         \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v';
@@ -523,9 +531,10 @@ end (* of context *)
 section "Correspondence between abstract functions in the update and value semantics"
 sublocale WordArray \<subseteq> correspondence_init upd.wa_abs_repr val.wa_abs_typing_v upd.wa_abs_typing_u wa_abs_upd_val
   by (unfold_locales)
-term \<xi>m0
 
 context WordArray begin
+
+text "Refinement from value to update semantics for all abstract functions (Theorem 2.5)"
 
 lemma \<xi>_0_\<xi>m0_matchesuv_\<Xi>:
   "proc_env_u_v_matches \<xi>_0 val.\<xi>m0  \<Xi>"
@@ -564,6 +573,8 @@ section "Monomorphisation of abstract functions"
 
 context WordArrayValue begin
 
+text "Monomorphisation for all all abstract functions (Theorem 2.7)"
+
 lemma rename_mono_prog_\<xi>m0_\<xi>p0:
   "rename_mono_prog rename \<Xi> \<xi>m0 \<xi>p0"
   unfolding rename_mono_prog_def \<xi>m0_def \<xi>p0_def
@@ -600,6 +611,8 @@ section "Correspondence between shallow and polymorphic value semantics"
 sublocale WordArrayValue \<subseteq> shallow wa_abs_typing_v
   by (unfold_locales)
 
+text "Shallow to polymorphic refinement (Theorem 2.9) for the word array operations"
+
 lemma (in WordArrayValue) scorres_repeat:
   "scorres repeat (AFun ''repeat'' ts) \<gamma> \<xi>p1"
   by (rule repeat_scorres[OF \<xi>p0_le_\<xi>p1]; simp add: \<xi>p1_def fun_eq_iff)
@@ -612,6 +625,8 @@ section "All refine"
 
 sublocale WordArray \<subseteq> Generated_cogent_shallow _ upd.wa_abs_repr val.wa_abs_typing_v upd.wa_abs_typing_u wa_abs_upd_val
   by (unfold_locales)
+
+text "Overall refinement theorems (Theorem 2.11) with FFI assumptions discharged"
 
 lemmas (in WordArray) corres_shallow_C_log2step_concrete = corres_shallow_C_log2step
   [OF correspondence_init_axioms val.rename_mono_prog_\<xi>m0_\<xi>p0 _ _ proc_ctx_wellformed_\<Xi> val.\<xi>m0_matches_\<Xi>]

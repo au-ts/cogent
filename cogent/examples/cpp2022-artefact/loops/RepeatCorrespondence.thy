@@ -167,6 +167,8 @@ lemma uvrepeat_bod_upward_propagation:
 
 section "Mono-correspondence and upward propagation"
 
+text "Refinement from value to update for the generic loop (Theorem 2.5)"
+
 lemma uvrepeat_monocorrespond_upward_propagation:
   "\<And>\<sigma> \<sigma>' au av v v' r w.
        \<lbrakk>proc_ctx_wellformed \<Xi>';

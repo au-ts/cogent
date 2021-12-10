@@ -745,6 +745,8 @@ shows
         (simp add: \<Gamma>i \<Xi>name \<xi>''name valrela valrelc a1C_a1U a1C_o1U o1C_o1U o1C_a1U d0corres[simplified] d1corres[simplified])?)
   done
 
+text "Refinement from update to C for the generic loop (Theorem 2.4)"
+
 lemmas crepeat_corres_bang_fun_funall = crepeat_corres_bang_all
   [where fstop = "UFunction _ _" and fstep = "UFunction _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_fun typing_mono_app_cogent_fun]

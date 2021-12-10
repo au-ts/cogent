@@ -108,6 +108,8 @@ lemma urepeat_bod_preservation:
   apply (rule frame_trans; simp?)
   done
 
+text "Type preservation and frame relation for the generic loop (Theorem 2.2)"
+
 lemma urepeat_preservation:
   "\<And>\<sigma> \<sigma>' v v' r w.
        \<lbrakk>proc_ctx_wellformed \<Xi>';

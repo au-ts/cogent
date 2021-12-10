@@ -23,6 +23,8 @@ section "Repeat loop scorres"
 
 context shallow begin
 
+text "Refinement from shallow to polymorphic for the generic loop (Theorem 2.9)"
+
 lemma vrepeat_bod_scorres:
   "\<lbrakk>rel_leq \<xi>' \<xi>'';
     valRel \<xi>'' (x ::(64 word, ('c, 'd) StepParam \<Rightarrow> bool,  ('c, 'd) StepParam \<Rightarrow> 'c, 'c, 'd) RepParam)

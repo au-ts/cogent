@@ -93,11 +93,13 @@ locale WordArrayUpdate =
   l0: level0_update
 begin
 
-  definition "wa_abs_repr a \<equiv> case a of
+definition "wa_abs_repr a \<equiv> case a of
       UWA t _ _ \<Rightarrow> (''WordArray'', [type_repr t])
     | _ \<Rightarrow> (''Unknown Abstract Type'', [])"
-  
-  definition "wa_abs_typing_u \<Xi>' a name \<tau>s sig (r :: ptrtyp set) (w :: ptrtyp set) \<sigma> \<equiv>
+
+text "Definition 3.2"
+
+definition "wa_abs_typing_u \<Xi>' a name \<tau>s sig (r :: ptrtyp set) (w :: ptrtyp set) \<sigma> \<equiv>
     (case a of
       UWA t len arr \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [t] \<and> sig \<noteq> Unboxed \<and>
                        no_tvars t \<and> no_tfun t \<and> no_taken t \<and> no_tcon t \<and> no_theap t \<and>
@@ -151,6 +153,8 @@ lemma wa_abs_typing_u_update:
   done
 
 end (* of context *)
+
+text "Discharging abstract type constraints (Definition 2.12)" 
 
 sublocale WordArrayUpdate \<subseteq> update_sem wa_abs_typing_u wa_abs_repr
   apply (unfold wa_abs_repr_def[abs_def] wa_abs_typing_u_def[abs_def])
@@ -244,6 +248,8 @@ qed (fastforce elim!: u_t_tfunE u_t_tprimE u_t_tsumE u_t_tproductE u_t_tunitE
   
 section "Word Array Methods"
 
+text "Type preservation and frame relation for all word array operations (Theorem 2.2)"
+
 subsection "wordarray_length"
 
 definition uwa_length :: "(funtyp, abstyp, ptrtyp) ufundef"
@@ -267,7 +273,6 @@ lemma uwa_length_determ:
   apply (elim exE conjE)
   apply simp
   done
-
 
 subsection "wordarray_get"
 

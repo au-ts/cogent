@@ -11,6 +11,8 @@ sublocale WordArrayUpdate \<subseteq> update_sem_init wa_abs_typing_u wa_abs_rep
 
 context WordArrayUpdate begin
 
+text "Refinement from update to C for all word array operations (Theorem 2.4)"
+
 section "wordarray_length"
 
 definition cwa_length
