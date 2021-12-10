@@ -8,10 +8,76 @@ begin
 
 context WordArray begin
 
+section "Helper lemmas"
+
 lemmas abbreviated_type_defs = abbreviated_type_defs Generated_TypeProof.abbreviated_type_defs
 
-section "Level 0 Assumptions"
+inductive_cases u_v_recE': "upd_val_rel \<Xi>' \<sigma> (URecord fs) v \<tau> r w"
+inductive_cases u_v_ptrE': "upd_val_rel \<Xi>' \<sigma> (UPtr p rp) v \<tau> r w"
+inductive_cases u_v_r_emptyE': "upd_val_rel_record \<Xi>' \<sigma>  [] vs \<tau>s r w"
+inductive_cases u_v_primE': "upd_val_rel \<Xi>' \<sigma> (UPrim l) v \<tau> r w"
 
+lemma lit_type_ex:
+  "lit_type l = Bool \<Longrightarrow> \<exists>v. l = LBool v"
+  "lit_type l = Num U8 \<Longrightarrow> \<exists>v. l = LU8 v"
+  "lit_type l = Num U16 \<Longrightarrow> \<exists>v. l = LU16 v"
+  "lit_type l = Num U32 \<Longrightarrow> \<exists>v. l = LU32 v"
+  "lit_type l = Num U64 \<Longrightarrow> \<exists>v. l = LU64 v"
+  apply (induct l; clarsimp)+
+  done
+
+lemma proc_ctx_wellformed_\<Xi>:
+  "proc_ctx_wellformed \<Xi>"
+  apply (clarsimp simp: proc_ctx_wellformed_def \<Xi>_def)
+  apply (clarsimp split: if_splits
+                  simp: assoc_lookup.simps abbreviated_type_defs
+                        wordarray_get_0_type_def Generated_TypeProof.wordarray_get_u32_type_def
+                        wordarray_length_0_type_def Generated_TypeProof.wordarray_length_u32_type_def
+                        wordarray_put2_0_type_def Generated_TypeProof.wordarray_put2_u32_type_def
+                        wordarray_fold_no_break_0_type_def
+                        wordarray_map_no_break_0_type_def
+                        Generated_TypeProof.add_type_def Generated_TypeProof.sum_arr_type_def
+                        Generated_TypeProof.mul_type_def Generated_TypeProof.mul_arr_type_def
+                        Generated_TypeProof.inc_type_def Generated_TypeProof.inc_arr_type_def
+                        Generated_TypeProof.dec_type_def Generated_TypeProof.dec_arr_type_def)
+  done
+
+lemma frame_expand2:
+  "\<lbrakk>frame \<sigma> (w \<union> u) \<sigma>' (w \<union> u'); w \<subseteq> w'\<rbrakk> \<Longrightarrow> frame \<sigma> (w' \<union> u) \<sigma>' (w' \<union> u')"
+  apply (clarsimp simp: frame_def)
+  apply blast
+  done
+
+lemma word_set_compr_helper4:
+  "{arr + size_of_num_type ta * i |i. i < len \<and> frm \<le> i \<and> i < to} \<subseteq> {arr + size_of_num_type ta * i |i. i < len}"
+  apply blast
+  done
+
+lemma val_exec_from_upd_and_corres:
+assumes "proc_ctx_wellformed \<Xi>'"
+and     "u_v_matches \<Xi>' \<sigma> \<gamma> \<gamma>' \<Gamma>' r w"
+and     "proc_env_u_v_matches \<xi>\<^sub>u \<xi>\<^sub>v \<Xi>'"
+shows   "\<lbrakk> \<xi>\<^sub>u , \<gamma>  \<turnstile> (\<sigma>, e) \<Down>! (\<sigma>', v)
+         ; \<Xi>', [], \<Gamma>' \<turnstile> e : \<tau>
+         \<rbrakk> \<Longrightarrow> \<exists>v' r' w'. (\<xi>\<^sub>v, \<gamma>' \<turnstile> e \<Down> v') \<and> upd_val_rel \<Xi>' \<sigma>' v v' \<tau> r' w' \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'"
+and     "\<lbrakk> \<xi>\<^sub>u , \<gamma>  \<turnstile>* (\<sigma>, es) \<Down>! (\<sigma>', vs)
+         ; \<Xi>', [], \<Gamma>' \<turnstile>* es : \<tau>s'
+         \<rbrakk> \<Longrightarrow> \<exists>vs' r' w'. (\<xi>\<^sub>v, \<gamma>' \<turnstile>* es \<Down> vs') \<and> upd_val_rel_all \<Xi>' \<sigma>' vs vs' \<tau>s' r' w' \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'"
+  using assms
+  apply -
+   apply (frule val_executes_from_upd_executes(1); simp?)
+  apply clarsimp
+   apply (rule exI, rule conjI, simp)
+   apply (frule mono_correspondence(1); simp?)
+   apply (frule val_executes_from_upd_executes(2); simp?)
+  apply clarsimp
+   apply (rule exI, rule conjI, simp)
+   apply (frule mono_correspondence(2); simp?)
+  done
+
+section "Assumptions for First Order Abstract Functions"
+
+subsection "Refinement from polymorphic to monomorphic (Theorem 2.7)"
 lemma value_sem_rename_mono_prog_rename_\<Xi>_\<xi>m_\<xi>p: 
   "value_sem.rename_mono_prog wa_abs_typing_v rename \<Xi> \<xi>m \<xi>p"
   apply (clarsimp simp: rename_mono_prog_def)
@@ -36,6 +102,7 @@ lemma value_sem_rename_mono_prog_rename_\<Xi>_\<xi>m_\<xi>p:
   apply (clarsimp simp: val_wa_put2_rename_monoexpr_correct)
   done
 
+subsection "Type preservation (Theorem 2.1)"
 lemma val_proc_env_matches_\<xi>m_\<Xi>:
   "proc_env_matches \<xi>m \<Xi>"
   apply (clarsimp simp: proc_env_matches_def)
@@ -50,11 +117,7 @@ lemma val_proc_env_matches_\<xi>m_\<Xi>:
   apply (drule val_wa_put2_preservation; simp?)
   done
 
-inductive_cases u_v_recE': "upd_val_rel \<Xi>' \<sigma> (URecord fs) v \<tau> r w"
-inductive_cases u_v_ptrE': "upd_val_rel \<Xi>' \<sigma> (UPtr p rp) v \<tau> r w"
-inductive_cases u_v_r_emptyE': "upd_val_rel_record \<Xi>' \<sigma>  [] vs \<tau>s r w"
-inductive_cases u_v_primE': "upd_val_rel \<Xi>' \<sigma> (UPrim l) v \<tau> r w"
-
+subsection "Specialised value to update refinement (Theorem 2.5)"
 lemma wa_get_upd_val:
   "\<lbrakk>upd_val_rel \<Xi>' \<sigma> au av (TRecord [(a, TCon ''WordArray'' [t] (Boxed ReadOnly ptrl), Present),
       (b, TPrim (Num U32), Present)] Unboxed) r w; upd_wa_get_0 (\<sigma>, au) (\<sigma>', v)\<rbrakk>
@@ -111,6 +174,7 @@ lemma wa_length_upd_val:
   apply (clarsimp simp: val_wa_length_def)
   done
 
+(* Theorem 3.7 *)
 lemma wa_put2_upd_val:
   "\<lbrakk>upd_val_rel \<Xi>' \<sigma> au av (TRecord [(a, TCon ''WordArray'' [t] (Boxed Writable ptrl), Present),
       (b, TPrim (Num U32), Present), (c, t, Present)] Unboxed) r w; upd_wa_put2_0 (\<sigma>, au) (\<sigma>', v)\<rbrakk>
@@ -197,6 +261,7 @@ lemma proc_env_u_v_matches_\<xi>0_\<xi>m_\<Xi>:
   apply (drule wa_put2_upd_val; simp)
   done
 
+subsection "Type preservation and frame relation (Theorem 2.2)"
 lemma upd_proc_env_matches_ptrs_\<xi>0_\<Xi>:
   "proc_env_matches_ptrs \<xi>0 \<Xi>"
   apply (unfold proc_env_matches_ptrs_def)
@@ -212,70 +277,9 @@ lemma upd_proc_env_matches_ptrs_\<xi>0_\<Xi>:
   apply (drule upd_wa_put2_preservation; simp)
   done
 
-lemma proc_ctx_wellformed_\<Xi>:
-  "proc_ctx_wellformed \<Xi>"
-  apply (clarsimp simp: proc_ctx_wellformed_def \<Xi>_def)
-  apply (clarsimp split: if_splits
-                  simp: assoc_lookup.simps abbreviated_type_defs
-                        wordarray_get_0_type_def Generated_TypeProof.wordarray_get_u32_type_def
-                        wordarray_length_0_type_def Generated_TypeProof.wordarray_length_u32_type_def
-                        wordarray_put2_0_type_def Generated_TypeProof.wordarray_put2_u32_type_def
-                        wordarray_fold_no_break_0_type_def
-                        wordarray_map_no_break_0_type_def
-                        Generated_TypeProof.add_type_def Generated_TypeProof.sum_arr_type_def
-                        Generated_TypeProof.mul_type_def Generated_TypeProof.mul_arr_type_def
-                        Generated_TypeProof.inc_type_def Generated_TypeProof.inc_arr_type_def
-                        Generated_TypeProof.dec_type_def Generated_TypeProof.dec_arr_type_def)
-  done
+section "Assumptions for First and Second Order Abstract Functions"
 
-section "Level 1 Assumptions"
-
-lemma upd_wa_foldnb_preservation:
-  "\<And>K a b \<sigma> \<sigma>' \<tau>s v v' r w.
-   \<lbrakk>list_all2 (kinding []) \<tau>s K; wordarray_fold_no_break_0_type = (K, a, b);
-    uval_typing \<Xi> \<sigma> v (instantiate \<tau>s a) r w;
-    upd_wa_foldnb \<Xi> \<xi>0 (foldmap_funarg_type ''wordarray_fold_no_break_0'') (\<sigma>, v) (\<sigma>', v')\<rbrakk>
-    \<Longrightarrow> \<exists>r' w'. uval_typing \<Xi> \<sigma>' v' (instantiate \<tau>s b) r' w' \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'"
-  apply (clarsimp simp: wordarray_fold_no_break_0_type_def upd_wa_foldnb_def)
-  apply (rename_tac rb wb rc)
-  apply (erule u_t_recE; clarsimp)
-  apply (erule u_t_r_consE; clarsimp)
-  apply (erule u_t_r_consE; simp)
-  apply (erule u_t_r_consE; simp)
-  apply (erule conjE)+
-  apply (drule_tac t = "type_repr _" in sym; clarsimp)+
-  apply (erule u_t_r_consE; clarsimp)+
-  apply (erule u_t_r_emptyE; clarsimp)
-  apply (erule u_t_ptrE; simp)
-  apply (drule_tac t = "map type_repr _" in sym; clarsimp) 
-  apply (erule u_t_primE)+
-  apply (drule_tac t = "lit_type _" in sym)+
-  apply clarsimp
-  apply (rename_tac \<sigma> \<sigma>' v' p frm to \<tau>a \<tau>b len arr a0 a1 a2 f rf wf acc rb wb obsv rc wc ra)
-  apply (subst (asm) \<Xi>_def; simp add: wordarray_fold_no_break_0_type_def abbreviated_type_defs)
-  apply (frule_tac v = obsv and K' = "[]" and k = "kinding_fn [] \<tau>b" in discardable_or_shareable_not_writable(1)[rotated 1]; simp?)
-    apply (rule kindingI; clarsimp)
-  apply (frule tfun_no_pointers(1))
-  apply (frule tfun_no_pointers(2))
-  apply clarsimp
-  apply (drule_tac ra = ra and rb = rb and rc = rc and wb = wb in 
-      upd_wa_foldnb_bod_preservation[OF proc_ctx_wellformed_\<Xi> upd_proc_env_matches_ptrs_\<xi>0_\<Xi>, 
-        where ptrl = undefined and wa = "{}", simplified]; simp?; clarsimp?)
-    apply blast
-   apply blast
-  apply (case_tac f; clarsimp)
-  apply (elim u_t_functionE u_t_afunE; clarsimp; blast)+
-  done
-
-lemma lit_type_ex:
-  "lit_type l = Bool \<Longrightarrow> \<exists>v. l = LBool v"
-  "lit_type l = Num U8 \<Longrightarrow> \<exists>v. l = LU8 v"
-  "lit_type l = Num U16 \<Longrightarrow> \<exists>v. l = LU16 v"
-  "lit_type l = Num U32 \<Longrightarrow> \<exists>v. l = LU32 v"
-  "lit_type l = Num U64 \<Longrightarrow> \<exists>v. l = LU64 v"
-  apply (induct l; clarsimp)+
-  done
-
+subsection "Refinement from polymorphic to monomorphic (Theorem 2.7)"
 lemma value_sem_rename_mono_prog_rename_\<Xi>_\<xi>m1_\<xi>p1: 
   "value_sem.rename_mono_prog wa_abs_typing_v rename \<Xi> \<xi>m1 \<xi>p1"
   apply (clarsimp simp: rename_mono_prog_def)
@@ -330,6 +334,7 @@ lemma value_sem_rename_mono_prog_rename_\<Xi>_\<xi>m1_\<xi>p1:
   apply (rule conjI; clarsimp; subst (asm) rename_def; clarsimp)
   done
 
+subsection "Type preservation (Theorem 2.1)"
 lemma val_proc_env_matches_\<xi>m1_\<Xi>:
   "proc_env_matches \<xi>m1 \<Xi>"
  apply (clarsimp simp: proc_env_matches_def)
@@ -359,6 +364,132 @@ lemma val_proc_env_matches_\<xi>m1_\<Xi>:
   apply (drule_tac ptrl = undefined in val_wa_mapAccumnb_bod_preservation[OF proc_ctx_wellformed_\<Xi> val_proc_env_matches_\<xi>m_\<Xi>]; simp?)
   apply clarsimp+
   done
+
+subsection "Type preservation and frame relation (Theorem 2.2)"
+
+lemma upd_wa_foldnb_preservation:
+  "\<And>K a b \<sigma> \<sigma>' \<tau>s v v' r w.
+   \<lbrakk>list_all2 (kinding []) \<tau>s K; wordarray_fold_no_break_0_type = (K, a, b);
+    uval_typing \<Xi> \<sigma> v (instantiate \<tau>s a) r w;
+    upd_wa_foldnb \<Xi> \<xi>0 (foldmap_funarg_type ''wordarray_fold_no_break_0'') (\<sigma>, v) (\<sigma>', v')\<rbrakk>
+    \<Longrightarrow> \<exists>r' w'. uval_typing \<Xi> \<sigma>' v' (instantiate \<tau>s b) r' w' \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'"
+  apply (clarsimp simp: wordarray_fold_no_break_0_type_def upd_wa_foldnb_def)
+  apply (rename_tac rb wb rc)
+  apply (erule u_t_recE; clarsimp)
+  apply (erule u_t_r_consE; clarsimp)
+  apply (erule u_t_r_consE; simp)
+  apply (erule u_t_r_consE; simp)
+  apply (erule conjE)+
+  apply (drule_tac t = "type_repr _" in sym; clarsimp)+
+  apply (erule u_t_r_consE; clarsimp)+
+  apply (erule u_t_r_emptyE; clarsimp)
+  apply (erule u_t_ptrE; simp)
+  apply (drule_tac t = "map type_repr _" in sym; clarsimp) 
+  apply (erule u_t_primE)+
+  apply (drule_tac t = "lit_type _" in sym)+
+  apply clarsimp
+  apply (rename_tac \<sigma> \<sigma>' v' p frm to \<tau>a \<tau>b len arr a0 a1 a2 f rf wf acc rb wb obsv rc wc ra)
+  apply (subst (asm) \<Xi>_def; simp add: wordarray_fold_no_break_0_type_def abbreviated_type_defs)
+  apply (frule_tac v = obsv and K' = "[]" and k = "kinding_fn [] \<tau>b" in discardable_or_shareable_not_writable(1)[rotated 1]; simp?)
+    apply (rule kindingI; clarsimp)
+  apply (frule tfun_no_pointers(1))
+  apply (frule tfun_no_pointers(2))
+  apply clarsimp
+  apply (drule_tac ra = ra and rb = rb and rc = rc and wb = wb in 
+      upd_wa_foldnb_bod_preservation[OF proc_ctx_wellformed_\<Xi> upd_proc_env_matches_ptrs_\<xi>0_\<Xi>, 
+        where ptrl = undefined and wa = "{}", simplified]; simp?; clarsimp?)
+    apply blast
+   apply blast
+  apply (case_tac f; clarsimp)
+  apply (elim u_t_functionE u_t_afunE; clarsimp; blast)+
+  done
+
+lemma upd_wa_mapAccumnb_preservation:
+  "\<And>K a b \<sigma> \<sigma>' \<tau>s v v' r w.
+       \<lbrakk>list_all2 (kinding []) \<tau>s K; wordarray_map_no_break_0_type = (K, a, b); uval_typing \<Xi> \<sigma> v (instantiate \<tau>s a) r w;
+        upd_wa_mapAccumnb \<Xi> \<xi>0
+         (funarg_type (present_type (rec_type_list (prod.fst (prod.snd (\<Xi> ''wordarray_map_no_break_0''))) ! 3)))
+         (funret_type (present_type (rec_type_list (prod.fst (prod.snd (\<Xi> ''wordarray_map_no_break_0''))) ! 3))) (\<sigma>, v) (\<sigma>', v')\<rbrakk>
+       \<Longrightarrow> \<exists>r' w'. uval_typing \<Xi> \<sigma>' v' (instantiate \<tau>s b) r' w' \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'"
+  apply (clarsimp simp: wordarray_map_no_break_0_type_def upd_wa_mapAccumnb_def)
+  apply (rename_tac \<sigma> \<sigma>' v' r w p frm to func acc obsv t \<tau>a \<tau>o len arr a0 a1 a2 b0 b1)
+  apply (erule u_t_recE; clarsimp)
+  apply (erule u_t_r_consE; clarsimp)
+  apply (erule u_t_r_consE; simp)
+  apply (erule conjE)+
+  apply (drule_tac t = "type_repr _" in sym; clarsimp)
+  apply (erule u_t_r_consE; simp)
+  apply (erule conjE)+
+  apply (drule_tac t = "type_repr _" in sym; clarsimp)
+  apply (erule u_t_r_consE; clarsimp)
+  apply (frule tfun_no_pointers(1))
+  apply (frule tfun_no_pointers(2))
+  apply clarsimp
+  apply (rename_tac f r' w')
+  apply (erule u_t_r_consE; clarsimp)
+  apply (rename_tac acc r_a w_a r' w')
+  apply (erule u_t_r_consE; clarsimp)
+  apply (erule u_t_r_emptyE; clarsimp)
+  apply (rename_tac obsv r_o w_o) 
+  apply (erule u_t_primE)+
+  apply (drule_tac t = "lit_type _" in sym)+
+  apply clarsimp
+  apply (erule u_t_ptrE; clarsimp)
+  apply (rename_tac wa)
+  apply (subst (asm) \<Xi>_def; simp add: wordarray_map_no_break_0_type_def abbreviated_type_defs)
+  apply (subst (asm) \<Xi>_def; simp add: wordarray_map_no_break_0_type_def abbreviated_type_defs)
+  apply (frule_tac v = obsv and K' = "[]" and k = "kinding_fn [] \<tau>o" in discardable_or_shareable_not_writable(1)[rotated 1]; simp?)
+   apply (rule kindingI; clarsimp)
+  apply clarsimp
+  apply (cut_tac ra = ra and rb = r_a and rc = r_o  and wa = wa and wb = w_a in 
+      upd_wa_mapAccumnb_bod_preservation[OF proc_ctx_wellformed_\<Xi> upd_proc_env_matches_ptrs_\<xi>0_\<Xi>, 
+        where ptrl = undefined, simplified]; simp?; clarsimp?)
+      apply blast
+     apply blast
+    apply blast
+   apply blast
+  apply (rename_tac r' w')
+  apply (erule_tac x = "ra \<union> r'" in allE)
+  apply (erule impE, blast)
+  apply (erule_tac x = "(insert p wa) \<union> w'" in allE)
+  apply (erule impE)
+   apply (rule u_t_struct)
+    apply (rule u_t_r_cons1; simp?)
+      apply (rule u_t_p_abs_w[where ts = "[TPrim (Num _)]", simplified]; simp?)
+      apply (drule wa_abs_typing_u_elims(3))
+      apply (drule_tac p = p in valid_ptr_not_in_frame_same; simp?)
+      apply clarsimp
+     apply (rule u_t_r_cons1[where r' = "{}" and w' = "{}" and xs = "[]" and ts = "[]", simplified]; simp?)
+     apply (rule u_t_r_empty)
+    apply (drule wa_abs_typing_u_elims(3); blast)
+   apply clarsimp
+  apply (rotate_tac -1)
+  apply (erule notE)
+  apply (drule_tac w' = wa in frame_expand2)
+   apply (drule wa_abs_typing_u_elims(3); clarsimp simp: word_set_compr_helper4)
+   apply blast
+  apply clarsimp
+  apply (drule_tac p = p in frame_expand(1); simp?)
+  done
+
+lemma upd_proc_env_matches_ptrs_\<xi>1_\<Xi>:
+  "proc_env_matches_ptrs \<xi>1 \<Xi>"
+  apply (unfold proc_env_matches_ptrs_def)
+  apply clarsimp
+  apply (subst (asm) \<Xi>_def)
+  apply (subst (asm) assoc_lookup.simps)+
+  apply (clarsimp split: if_split_asm)
+     apply (clarsimp simp: wordarray_get_0_type_def abbreviated_type_defs)
+     apply (drule upd_wa_get_preservation; simp?)
+    apply (clarsimp simp: wordarray_length_0_type_def)
+    apply (drule upd_wa_length_preservation; simp)
+   apply (clarsimp simp: wordarray_put2_0_type_def abbreviated_type_defs)
+   apply (drule upd_wa_put2_preservation; simp)
+  apply (clarsimp simp: upd_wa_foldnb_preservation)
+  apply (clarsimp simp: upd_wa_mapAccumnb_preservation)
+  done
+
+subsection "Specialised value to update refinement (Theorem 2.5)"
 
 lemma upd_val_wa_foldnb_bod_corres:
   "\<lbrakk>proc_ctx_wellformed \<Xi>'; proc_env_u_v_matches \<xi>\<^sub>u \<xi>\<^sub>v \<Xi>'; proc_env_matches_ptrs \<xi>\<^sub>u \<Xi>';
@@ -509,33 +640,6 @@ lemma val_executes_from_upd_wa_foldnb_bod:
    apply (drule wa_abs_upd_val_elims(3); simp)
   apply (rule_tac x = v' in exI)
   apply clarsimp
-  done
-
-lemma word_set_compr_helper4:
-  "{arr + size_of_num_type ta * i |i. i < len \<and> frm \<le> i \<and> i < to} \<subseteq> {arr + size_of_num_type ta * i |i. i < len}"
-  apply blast
-  done
-
-lemma val_exec_from_upd_and_corres:
-assumes "proc_ctx_wellformed \<Xi>'"
-and     "u_v_matches \<Xi>' \<sigma> \<gamma> \<gamma>' \<Gamma>' r w"
-and     "proc_env_u_v_matches \<xi>\<^sub>u \<xi>\<^sub>v \<Xi>'"
-shows   "\<lbrakk> \<xi>\<^sub>u , \<gamma>  \<turnstile> (\<sigma>, e) \<Down>! (\<sigma>', v)
-         ; \<Xi>', [], \<Gamma>' \<turnstile> e : \<tau>
-         \<rbrakk> \<Longrightarrow> \<exists>v' r' w'. (\<xi>\<^sub>v, \<gamma>' \<turnstile> e \<Down> v') \<and> upd_val_rel \<Xi>' \<sigma>' v v' \<tau> r' w' \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'"
-and     "\<lbrakk> \<xi>\<^sub>u , \<gamma>  \<turnstile>* (\<sigma>, es) \<Down>! (\<sigma>', vs)
-         ; \<Xi>', [], \<Gamma>' \<turnstile>* es : \<tau>s'
-         \<rbrakk> \<Longrightarrow> \<exists>vs' r' w'. (\<xi>\<^sub>v, \<gamma>' \<turnstile>* es \<Down> vs') \<and> upd_val_rel_all \<Xi>' \<sigma>' vs vs' \<tau>s' r' w' \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'"
-  using assms
-  apply -
-   apply (frule val_executes_from_upd_executes(1); simp?)
-  apply clarsimp
-   apply (rule exI, rule conjI, simp)
-   apply (frule mono_correspondence(1); simp?)
-   apply (frule val_executes_from_upd_executes(2); simp?)
-  apply clarsimp
-   apply (rule exI, rule conjI, simp)
-   apply (frule mono_correspondence(2); simp?)
   done
 
 lemma upd_val_wa_mapAccumnb_bod_corres:
@@ -862,7 +966,6 @@ lemma wordarray_fold_no_break_upd_val:
   apply (erule conjE)+
   apply (drule_tac t = "type_repr _" in sym)
   apply clarsimp
-
   apply (erule u_v_primE')+
   apply (drule_tac t = "TPrim _" in sym)
   apply (drule_tac t = "TPrim _" in sym)
@@ -902,98 +1005,6 @@ lemma wordarray_fold_no_break_upd_val:
   apply (rename_tac res)
   apply (erule_tac x = res in allE)
   apply (case_tac f; clarsimp; elim u_v_t_funE u_v_t_afunE; clarsimp)
-  done
-
-
-lemma frame_expand2:
-  "\<lbrakk>frame \<sigma> (w \<union> u) \<sigma>' (w \<union> u'); w \<subseteq> w'\<rbrakk> \<Longrightarrow> frame \<sigma> (w' \<union> u) \<sigma>' (w' \<union> u')"
-  apply (clarsimp simp: frame_def)
-  apply blast
-  done
-
-lemma upd_wa_mapAccumnb_preservation:
-  "\<And>K a b \<sigma> \<sigma>' \<tau>s v v' r w.
-       \<lbrakk>list_all2 (kinding []) \<tau>s K; wordarray_map_no_break_0_type = (K, a, b); uval_typing \<Xi> \<sigma> v (instantiate \<tau>s a) r w;
-        upd_wa_mapAccumnb \<Xi> \<xi>0
-         (funarg_type (present_type (rec_type_list (prod.fst (prod.snd (\<Xi> ''wordarray_map_no_break_0''))) ! 3)))
-         (funret_type (present_type (rec_type_list (prod.fst (prod.snd (\<Xi> ''wordarray_map_no_break_0''))) ! 3))) (\<sigma>, v) (\<sigma>', v')\<rbrakk>
-       \<Longrightarrow> \<exists>r' w'. uval_typing \<Xi> \<sigma>' v' (instantiate \<tau>s b) r' w' \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'"
-  apply (clarsimp simp: wordarray_map_no_break_0_type_def upd_wa_mapAccumnb_def)
-  apply (rename_tac \<sigma> \<sigma>' v' r w p frm to func acc obsv t \<tau>a \<tau>o len arr a0 a1 a2 b0 b1)
-  apply (erule u_t_recE; clarsimp)
-  apply (erule u_t_r_consE; clarsimp)
-  apply (erule u_t_r_consE; simp)
-  apply (erule conjE)+
-  apply (drule_tac t = "type_repr _" in sym; clarsimp)
-  apply (erule u_t_r_consE; simp)
-  apply (erule conjE)+
-  apply (drule_tac t = "type_repr _" in sym; clarsimp)
-  apply (erule u_t_r_consE; clarsimp)
-  apply (frule tfun_no_pointers(1))
-  apply (frule tfun_no_pointers(2))
-  apply clarsimp
-  apply (rename_tac f r' w')
-  apply (erule u_t_r_consE; clarsimp)
-  apply (rename_tac acc r_a w_a r' w')
-  apply (erule u_t_r_consE; clarsimp)
-  apply (erule u_t_r_emptyE; clarsimp)
-  apply (rename_tac obsv r_o w_o) 
-  apply (erule u_t_primE)+
-  apply (drule_tac t = "lit_type _" in sym)+
-  apply clarsimp
-  apply (erule u_t_ptrE; clarsimp)
-  apply (rename_tac wa)
-  apply (subst (asm) \<Xi>_def; simp add: wordarray_map_no_break_0_type_def abbreviated_type_defs)
-  apply (subst (asm) \<Xi>_def; simp add: wordarray_map_no_break_0_type_def abbreviated_type_defs)
-  apply (frule_tac v = obsv and K' = "[]" and k = "kinding_fn [] \<tau>o" in discardable_or_shareable_not_writable(1)[rotated 1]; simp?)
-   apply (rule kindingI; clarsimp)
-  apply clarsimp
-  apply (cut_tac ra = ra and rb = r_a and rc = r_o  and wa = wa and wb = w_a in 
-      upd_wa_mapAccumnb_bod_preservation[OF proc_ctx_wellformed_\<Xi> upd_proc_env_matches_ptrs_\<xi>0_\<Xi>, 
-        where ptrl = undefined, simplified]; simp?; clarsimp?)
-      apply blast
-     apply blast
-    apply blast
-   apply blast
-  apply (rename_tac r' w')
-  apply (erule_tac x = "ra \<union> r'" in allE)
-  apply (erule impE, blast)
-  apply (erule_tac x = "(insert p wa) \<union> w'" in allE)
-  apply (erule impE)
-   apply (rule u_t_struct)
-    apply (rule u_t_r_cons1; simp?)
-      apply (rule u_t_p_abs_w[where ts = "[TPrim (Num _)]", simplified]; simp?)
-      apply (drule wa_abs_typing_u_elims(3))
-      apply (drule_tac p = p in valid_ptr_not_in_frame_same; simp?)
-      apply clarsimp
-     apply (rule u_t_r_cons1[where r' = "{}" and w' = "{}" and xs = "[]" and ts = "[]", simplified]; simp?)
-     apply (rule u_t_r_empty)
-    apply (drule wa_abs_typing_u_elims(3); blast)
-   apply clarsimp
-  apply (rotate_tac -1)
-  apply (erule notE)
-  apply (drule_tac w' = wa in frame_expand2)
-   apply (drule wa_abs_typing_u_elims(3); clarsimp simp: word_set_compr_helper4)
-   apply blast
-  apply clarsimp
-  apply (drule_tac p = p in frame_expand(1); simp?)
-  done
-
-lemma upd_proc_env_matches_ptrs_\<xi>1_\<Xi>:
-  "proc_env_matches_ptrs \<xi>1 \<Xi>"
-  apply (unfold proc_env_matches_ptrs_def)
-  apply clarsimp
-  apply (subst (asm) \<Xi>_def)
-  apply (subst (asm) assoc_lookup.simps)+
-  apply (clarsimp split: if_split_asm)
-     apply (clarsimp simp: wordarray_get_0_type_def abbreviated_type_defs)
-     apply (drule upd_wa_get_preservation; simp?)
-    apply (clarsimp simp: wordarray_length_0_type_def)
-    apply (drule upd_wa_length_preservation; simp)
-   apply (clarsimp simp: wordarray_put2_0_type_def abbreviated_type_defs)
-   apply (drule upd_wa_put2_preservation; simp)
-  apply (clarsimp simp: upd_wa_foldnb_preservation)
-  apply (clarsimp simp: upd_wa_mapAccumnb_preservation)
   done
 
 lemma wordarray_mapAccumnb_abs_upd_val:

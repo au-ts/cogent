@@ -5,6 +5,8 @@ theory WordArray_UpdCCorres
   imports WordArray_UAbsFun
 begin
 
+section "Helper definition and lemmas"
+
 context update_sem_init begin
 
 definition
@@ -56,8 +58,9 @@ sublocale WordArray \<subseteq> Generated _ wa_abs_typing_u wa_abs_repr
 
 context WordArray begin
 
-section "Correspondence Lemmas Between Update Semantics and C"
+section "Refinement from  Update Semantics and C (Theorem 2.4)"
 
+(* Theorem 3.6 *)
 lemma upd_C_wordarray_put2_corres_gen:
   "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
     \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_put2_0'')));

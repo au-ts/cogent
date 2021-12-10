@@ -6,7 +6,7 @@ theory WordArray_SVCorres
   imports WordArray_Shallow WordArray_VAbsFun
 begin
 
-subsection "Shallow Word Array Value Relation"
+subsection "Shallow Word Array Value Relation (Definition 3.4)"
 text 
   "The shallow embedding of a word array is a list of words. Currently we only support word
    arrays with primitive words as values. In the future, we hope to extend this to elements which
@@ -69,7 +69,7 @@ end
 context WordArray begin
 
   
-section "Shallow to Deep Corresondence Lemmas (@{term scorres}) for Word Array Functions"
+section "Shallow to Deep Corresondence Lemmas (@{term scorres}) for Word Array Functions (Theorem 2.9)"
 
 lemmas valRel_WordArray_simps = valRel_WordArrayUX
 

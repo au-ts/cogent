@@ -163,6 +163,7 @@ locale WordArray = main_pp_inferred begin
       UWA (TPrim (Num t)) _ _ \<Rightarrow> (''WordArray'', [RPrim (Num t)])
     | _ \<Rightarrow> (''Unknown Abstract Type'', [])"
 
+  text "Definition 3.2"
   definition "wa_abs_typing_u \<Xi>' a name \<tau>s sig (r :: ptrtyp set) (w :: ptrtyp set) \<sigma> \<equiv>
     (case a of
       UWA (TPrim (Num t)) len arr \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [TPrim (Num t)] \<and> sig \<noteq> Unboxed \<and>
@@ -174,12 +175,14 @@ locale WordArray = main_pp_inferred begin
                       unat (size_of_num_type t)  * unat len \<le> unat (max_word :: ptrtyp)
     | _ \<Rightarrow> name = ''Unknown Abstract Type'' \<and> \<tau>s = [] \<and> r = {} \<and> w = {} \<and> sig = Unboxed)"
 
+  text "Definition 3.1"
   definition "wa_abs_typing_v \<Xi>' a name \<tau>s \<equiv>
     (case a of
       VWA (TPrim (Num t)) xs \<Rightarrow> name = ''WordArray'' \<and> \<tau>s = [TPrim (Num t)] \<and> 
       (\<forall>i < length xs. \<exists>x. xs ! i = VPrim x \<and>  lit_type x = Num t)
     | _ \<Rightarrow> name = ''Unknown Abstract Type'' \<and> \<tau>s = [])"
 
+  text "Definition 3.5"
   definition  "wa_abs_upd_val \<Xi>' au av name \<tau>s sig (r :: ptrtyp set) (w :: ptrtyp set) \<sigma> \<equiv>
     wa_abs_typing_u \<Xi>' au name \<tau>s sig r w \<sigma> \<and> wa_abs_typing_v \<Xi>' av name \<tau>s \<and>
     (case au of
@@ -270,6 +273,8 @@ lemma wa_abs_upd_val_update:
 end
 
 section "Sublocale Proof"
+
+text "Discharging the abstract type requirements (Definition 2.12)"
 
 sublocale WordArray \<subseteq> update_sem wa_abs_typing_u wa_abs_repr
   apply (unfold wa_abs_repr_def[abs_def] wa_abs_typing_v_def[abs_def] wa_abs_typing_u_def[abs_def] wa_abs_upd_val_def[abs_def])

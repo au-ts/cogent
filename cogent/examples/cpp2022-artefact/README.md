@@ -1,6 +1,6 @@
 # ARTEFACT
 ---
-This is an artefact for "Overcoming Restraint: Composing Verification of Foreign Functions with Cogent"
+This is an artefact for "Overcoming Restraint: Composing Verification of Foreign Functions with Cogent" ([published](https://doi.org/10.1145/3497775.3503686))
 
 This formalisation works with [Isabelle2019](https://isabelle.in.tum.de/website-Isabelle2019/index.html),
 [AutoCorres version 1.6.1](https://trustworthy.systems/projects/TS/autocorres/) and
@@ -9,6 +9,9 @@ Cogent from this [branch](https://github.com/au-ts/cogent/tree/uabsfuns-decl-fix
 The work that is being presented are all the files in **loops**, **sum-example** and the file _bilby/adt/WordArray\_Shallow.thy_.
 
 Note that for MacOS users, some of the make files depend on the GNU version of **sed**, i.e. **gsed** on MacOS.
+
+The top level make file only generates the C code and theory files for the loop and sum example.
+This is just to keep the GitHub build happy.
 
 ## Install Isabelle2019
 
@@ -26,6 +29,11 @@ Follow the installation instructions.
 Set the environment variable **COGENT_DIR** to be the top level directory of Cogent.
 
 ## Sum Example
+
+The sum example was the first completed attempt at composing verification of foreign functions and abstract types with Cogent functions and types.
+This is the reason why some of the approaches and proofs have not been optimised,
+the word arrays in this example can only contain primitive numeric types,
+and that the update to C refinement is only for 32-bit word arrays.
 
 ### Important Files
 
@@ -64,6 +72,14 @@ To run the example, go into the **sum-example** folder and use the command:
 ---
 
 ## Loops Example
+
+The loops example drew from the lessons learnt from the sum example, and hence is much more polished, reusable,
+and resilient to changes made to the Cogent program.
+Some notable differences are:
+
+* The value typing relation for arrays is defined for all non-heap element types.
+* The update to C refinement proof for the word array operations and generalise loop occurs on a polymorphic monadic Isabelle shallow embeddings.
+This means that it does not need to undergo alpha renaming when used by other Cogent programs.
 
 ### Important Files
 

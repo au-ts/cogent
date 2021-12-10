@@ -3,6 +3,8 @@ theory WordArray_Update
 
 begin
 
+section "Word array method embeddings (Figure 6a)"
+
 type_synonym ('f, 'a, 'l) ufoldmapdef = "('f, 'a, 'l) uabsfuns \<Rightarrow> ('f, 'a, 'l) store \<Rightarrow>
                                           'l \<Rightarrow> 32 word \<Rightarrow> 32 word \<Rightarrow> 'f expr \<Rightarrow> 
                                           type \<Rightarrow> ('f, 'a, 'l) uval \<Rightarrow> type \<Rightarrow> ('f, 'a, 'l) uval \<Rightarrow>
@@ -113,6 +115,8 @@ definition upd_wa_mapAccumnb
         (\<Xi>', [], [option.Some \<tau>i] \<turnstile> (App (uvalfun_to_exprfun func) (Var 0)) : \<tau>o) \<and> 
         upd_wa_mapAccumnb_bod \<xi>\<^sub>u y1 p frm to (uvalfun_to_exprfun func) u acc v obsv z))"
 
+section "Helper lemmas"
+
 context update_sem begin
 lemma discardable_or_shareable_not_writable:
 assumes "D \<in> k \<or> S \<in> k"
@@ -143,13 +147,13 @@ and     "u  \<inter> r = {} \<Longrightarrow> r \<inter> u' = {}"
            simp: frame_def
            dest: abs_typing_valid)
 
-
 end (* of context *)
 
+section "Type preservation and frame relation theorems (Theorem 2.2)"
 
 context WordArray begin
 
-section wordarray_length
+subsection wordarray_length
 
 lemma upd_wa_length_preservation:
   "\<lbrakk>uval_typing \<Xi>' \<sigma> v (TCon ''WordArray'' [t] (Boxed ReadOnly ptrl)) r w;
@@ -161,7 +165,7 @@ lemma upd_wa_length_preservation:
   apply (clarsimp simp: frame_def intro!: u_t_prim')
   done
 
-section wordarray_get
+subsection wordarray_get
 
 lemma upd_wa_get_preservation:
   "\<lbrakk>uval_typing \<Xi>' \<sigma> v (TRecord [(a, TCon ''WordArray'' [t] (Boxed ReadOnly ptrl), Present),
@@ -188,7 +192,7 @@ lemma upd_wa_get_preservation:
   apply (case_tac ta; clarsimp intro!: u_t_prim')
   done
 
-section wordarray_put2
+subsection wordarray_put2
 
 lemma upd_wa_put2_preservation:
   "\<lbrakk>uval_typing \<Xi>' \<sigma> v (TRecord [(a, TCon ''WordArray'' [t] (Boxed Writable ptrl), Present),
@@ -237,7 +241,7 @@ lemma upd_wa_put2_preservation:
   apply (rule conjI; clarsimp)
   done
 
-section wordarray_fold_no_break
+subsection wordarray_fold_no_break
 
 lemma upd_wa_foldnb_bod_to_geq_len:
   "\<lbrakk> proc_ctx_wellformed \<Xi>';
@@ -736,7 +740,7 @@ lemma upd_wa_foldnb_bod_preservation:
   apply (rule frame_trans; simp)
   done
 
-section wordarray_map_no_break
+subsection wordarray_map_no_break
 
 lemma upd_wa_mapAccumnb_bod_to_geq_len:
   "\<lbrakk> proc_ctx_wellformed \<Xi>';

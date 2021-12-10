@@ -9,7 +9,7 @@ fun myslice :: "nat \<Rightarrow> nat \<Rightarrow> 'a list \<Rightarrow> 'a lis
   where
 "myslice frm to xs = List.take (to - frm) (List.drop frm xs)"
 
-section "Shallow Word Array Function Definitions"
+section "Shallow Word Array Function Definitions (Figure 4)"
 
 overloading
   wordarray_put2' \<equiv> wordarray_put2

@@ -4,6 +4,8 @@ theory WordArray_Value
 
 begin
 
+section "Word array method embeddings (Figure 6b)"
+
 type_synonym ('f, 'a) vfoldmapdef = "('f, 'a) vabsfuns \<Rightarrow> type \<Rightarrow> ('f, 'a) vval list \<Rightarrow> nat \<Rightarrow> 
                                       nat \<Rightarrow> 'f expr \<Rightarrow> ('f, 'a) vval \<Rightarrow> ('f, 'a) vval \<Rightarrow> 
                                       ('f, 'a) vval \<Rightarrow> bool"
@@ -41,6 +43,22 @@ termination
 
 declare val_wa_foldnb_bod.simps[simp del]
 
+definition (in WordArray) val_wa_foldnb
+  where
+  "val_wa_foldnb \<Xi>' \<xi>\<^sub>v \<tau> x y = (\<exists>xs frm to acc obsv func t u v a0 a1 a2. 
+      x = VRecord [VAbstract (VWA t xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and> 
+      wa_abs_typing_v \<Xi>' (VWA t xs) ''WordArray'' [t]  \<and>
+      is_vval_fun func \<and> \<tau> = TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
+      vval_typing \<Xi>' acc u \<and> vval_typing \<Xi>' obsv v \<and> distinct [a0, a1, a2] \<and>
+      (\<Xi>', [], [option.Some \<tau>] \<turnstile> (App (vvalfun_to_exprfun func) (Var 0)) : u) \<and>
+      (val_wa_foldnb_bod \<xi>\<^sub>v t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y))"
+
+definition (in WordArray) val_wa_foldnbp
+  where
+  "val_wa_foldnbp \<xi>\<^sub>p x y = (\<exists>t xs frm to func acc obsv. 
+      x = VRecord [VAbstract (VWA t xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and>
+      is_vval_fun func \<and> val_wa_foldnb_bod \<xi>\<^sub>p t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y)"
+
 function val_wa_mapAccumnb_bod :: "(char list, vatyp) vfoldmapdef"
   where
   "val_wa_mapAccumnb_bod \<xi>\<^sub>v t xs frm to f acc obsv res = 
@@ -56,16 +74,28 @@ termination
 
 declare val_wa_mapAccumnb_bod.simps[simp del]
 
+definition (in WordArray) val_wa_mapAccumnb
+  where
+  "val_wa_mapAccumnb \<Xi>' \<xi>\<^sub>v \<tau>i \<tau>o x y = (\<exists>xs frm to acc obsv func t u v a0 a1 a2 b0 b1. 
+      x = VRecord [VAbstract (VWA t xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and> 
+      wa_abs_typing_v \<Xi>' (VWA t xs) ''WordArray'' [t]  \<and>
+      is_vval_fun func \<and> \<tau>i = TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
+      \<tau>o = TRecord [(b0, t, Present), (b1, u, Present)] Unboxed \<and>
+      vval_typing \<Xi>' acc u \<and> vval_typing \<Xi>' obsv v \<and> distinct [a0, a1, a2] \<and> distinct [b0, b1] \<and>
+      (\<Xi>', [], [option.Some \<tau>i] \<turnstile> (App (vvalfun_to_exprfun func) (Var 0)) : \<tau>o) \<and>
+      (val_wa_mapAccumnb_bod \<xi>\<^sub>v t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y))"
+
+definition (in WordArray) val_wa_mapAccumnbp
+  where
+  "val_wa_mapAccumnbp \<xi>\<^sub>p x y = (\<exists>t xs frm to func acc obsv. 
+      x = VRecord [VAbstract (VWA t xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and>
+      is_vval_fun func \<and> val_wa_mapAccumnb_bod \<xi>\<^sub>p t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y)"
+
+section "Type preservation theorems (Theorem 2.1)"
+
 context WordArray begin
 
-section wordarray_length
-
-lemma val_wa_length_rename_monoexpr_correct:
-  "\<lbrakk>val_wa_length (rename_val rename' (monoval v)) v'; proc_env_matches \<xi>\<^sub>v \<Xi>'; proc_ctx_wellformed \<Xi>'\<rbrakk>
-    \<Longrightarrow> v' = rename_val rename' (monoval v') \<and> val_wa_length v v'"
-  apply (clarsimp simp: val_wa_length_def)
-  apply (case_tac v; clarsimp)
-  done
+subsection wordarray_length
 
 lemma val_wa_length_preservation:
   "\<lbrakk>vval_typing \<Xi>' v (TCon ''WordArray'' [t] (Boxed ReadOnly ptrl)); val_wa_length v v'\<rbrakk>
@@ -74,16 +104,7 @@ lemma val_wa_length_preservation:
   apply (rule v_t_prim'; clarsimp)
   done
 
-section wordarray_get
-
-lemma val_wa_get_rename_monoexpr_correct:
-  "\<lbrakk>val_wa_get (rename_val rename' (monoval v)) v'; proc_env_matches \<xi>\<^sub>v \<Xi>'; proc_ctx_wellformed \<Xi>'\<rbrakk>
-    \<Longrightarrow> v' = rename_val rename' (monoval v') \<and> val_wa_get v v'"
-  apply (clarsimp simp: val_wa_get_def)
-  apply (case_tac v; clarsimp)
-  apply (case_tac z; clarsimp)
-  apply (case_tac za; clarsimp)
-  done
+subsubsection wordarray_get
 
 lemma val_wa_get_preservation:
   "\<lbrakk>vval_typing \<Xi>' v (TRecord [(a, TCon ''WordArray'' [t] (Boxed ReadOnly ptrl), Present),
@@ -96,17 +117,7 @@ lemma val_wa_get_preservation:
   apply (rule v_t_prim'; clarsimp)
   done
 
-section wordarray_put2
-
-lemma val_wa_put2_rename_monoexpr_correct:
-  "\<lbrakk>val_wa_put2 (rename_val rename' (monoval v)) v'; proc_env_matches \<xi>\<^sub>v \<Xi>'; proc_ctx_wellformed \<Xi>'\<rbrakk>
-    \<Longrightarrow> v' = rename_val rename' (monoval v') \<and> val_wa_put2 v v'"
-  apply (clarsimp simp: val_wa_put2_def)
-  apply (case_tac v; clarsimp)
-  apply (case_tac z; clarsimp)
-  apply (case_tac za; clarsimp)
-  apply (case_tac zb; clarsimp)
-  done
+subsection wordarray_put2
 
 lemma val_wa_put2_preservation:
   "\<lbrakk>vval_typing \<Xi>' v (TRecord [(a, TCon ''WordArray'' [t] (Boxed Writable ptrl), Present),
@@ -121,7 +132,7 @@ lemma val_wa_put2_preservation:
   apply (rule wa_abs_typing_v_update; simp?)
   done
 
-section wordarray_fold_no_break
+subsection wordarray_fold_no_break
 
 lemma val_wa_foldnb_bod_append:
   "\<lbrakk>to \<le> length xs; val_wa_foldnb_bod \<xi>\<^sub>v t (xs @ [x]) frm to f acc obsv r\<rbrakk>
@@ -285,89 +296,7 @@ lemma val_wa_foldnb_bod_preservation:
   apply (rule v_t_r_empty)
   done
 
-lemma val_wa_foldnb_bod_rename_monoexpr_correct:
-  "\<lbrakk>proc_env_matches \<xi>\<^sub>m \<Xi>'; proc_ctx_wellformed \<Xi>'; 
-    value_sem.rename_mono_prog wa_abs_typing_v rename' \<Xi>' \<xi>\<^sub>m \<xi>\<^sub>p;
-    val_wa_foldnb_bod \<xi>\<^sub>m t xs frm to (vvalfun_to_exprfun (rename_val rename' (monoval f))) 
-      (rename_val rename' (monoval acc )) (rename_val rename' (monoval obsv)) r;
-    is_vval_fun (rename_val rename' (monoval f)); wa_abs_typing_v \<Xi>' (VWA t xs) ''WordArray'' [t]; 
-    vval_typing \<Xi>' (rename_val rename' (monoval acc )) u;
-    vval_typing \<Xi>' (rename_val rename' (monoval obsv)) v;
-    \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)] \<turnstile>
-      App (vvalfun_to_exprfun (rename_val rename' (monoval f))) (Var 0) : u; 
-    distinct [a0, a1, a2]\<rbrakk>
-       \<Longrightarrow> is_vval_fun f \<and> (\<exists>r'. r = rename_val rename' (monoval r') \<and>
-         val_wa_foldnb_bod \<xi>\<^sub>p t xs frm to (vvalfun_to_exprfun f) acc obsv r')"
-  apply (rule conjI)
-   apply (case_tac f; clarsimp)
-  apply (induct to arbitrary: r)
-   apply (erule val_wa_foldnb_bod.elims; clarsimp)
-   apply (subst val_wa_foldnb_bod.simps; clarsimp)
-  apply (case_tac "length xs < Suc to")
-   apply (drule val_wa_foldnb_bod_back_step'; simp)
-   apply (drule val_wa_foldnb_bod_to_geq_lenD)
-    apply linarith
-   apply (drule_tac x = r in meta_spec)
-   apply clarsimp
-   apply (erule meta_impE)
-    apply (rule val_wa_foldnb_bod_to_geq_len; simp?)
-   apply clarsimp
-   apply (rule_tac x = r' in exI; clarsimp)
-   apply (rule val_wa_foldnb_bod_to_geq_len; simp?)
-   apply (drule_tac to = to in val_wa_foldnb_bod_to_geq_lenD; simp?)
-  apply (case_tac "frm \<ge> Suc to")
-   apply (clarsimp simp: not_less not_le)
-   apply (erule val_wa_foldnb_bod.elims; clarsimp)
-   apply (subst val_wa_foldnb_bod.simps; clarsimp)
-  apply (drule val_wa_foldnb_bod_back_step; simp?)
-  apply clarsimp
-  apply (drule_tac x = r' in meta_spec)
-  apply clarsimp
-  apply (frule_tac \<gamma> = "[VRecord [xs ! to, r'a, obsv]]" and
-      ?\<Gamma> = "[option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]" and
-      e = "App (vvalfun_to_exprfun f) (Var 0)" and
-      v' = r and
-      \<tau> = u in rename_monoexpr_correct(1); simp?)
-     apply (clarsimp simp: matches_Cons[where xs = "[]" and ys = "[]", simplified])
-     apply (clarsimp simp: matches_def)
-     apply (rule v_t_record; simp?)
-     apply (rule v_t_r_cons1; clarsimp?)
-      apply (frule wa_abs_typing_v_elims(1); clarsimp)
-      apply (drule wa_abs_typing_v_elims(2))
-      apply (erule_tac x = to in allE; clarsimp)
-      apply (rule v_t_prim'; clarsimp)
-     apply (rule v_t_r_cons1; clarsimp?)
-      apply (drule val_wa_foldnb_bod_preservation; simp?)
-     apply (rule v_t_r_cons1; clarsimp?)
-     apply (rule v_t_r_empty)
-    apply (frule wa_abs_typing_v_elims(1); clarsimp)
-    apply (drule wa_abs_typing_v_elims(2))
-    apply (erule_tac x = to in allE; clarsimp)
-    apply (case_tac f; clarsimp)
-   apply (case_tac f; clarsimp)
-  apply clarsimp
-  apply (drule_tac \<xi>\<^sub>v = \<xi>\<^sub>p in val_wa_foldnb_bod_step; simp?)
-  apply (rule_tac x = va in exI)
-  apply clarsimp
-  done
-
-definition val_wa_foldnb
-  where
-  "val_wa_foldnb \<Xi>' \<xi>\<^sub>v \<tau> x y = (\<exists>xs frm to acc obsv func t u v a0 a1 a2. 
-      x = VRecord [VAbstract (VWA t xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and> 
-      wa_abs_typing_v \<Xi>' (VWA t xs) ''WordArray'' [t]  \<and>
-      is_vval_fun func \<and> \<tau> = TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
-      vval_typing \<Xi>' acc u \<and> vval_typing \<Xi>' obsv v \<and> distinct [a0, a1, a2] \<and>
-      (\<Xi>', [], [option.Some \<tau>] \<turnstile> (App (vvalfun_to_exprfun func) (Var 0)) : u) \<and>
-      (val_wa_foldnb_bod \<xi>\<^sub>v t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y))"
-
-definition val_wa_foldnbp
-  where
-  "val_wa_foldnbp \<xi>\<^sub>p x y = (\<exists>t xs frm to func acc obsv. 
-      x = VRecord [VAbstract (VWA t xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and>
-      is_vval_fun func \<and> val_wa_foldnb_bod \<xi>\<^sub>p t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y)"
-
-section wordarray_map_no_break
+subsection wordarray_map_no_break
 
 lemma val_wa_mapAccumnb_bod_to_geq_len:
   "\<lbrakk>val_wa_mapAccumnb_bod \<xi>\<^sub>v t xs frm (length xs) f acc obsv r; length xs \<le> to\<rbrakk> 
@@ -558,6 +487,110 @@ lemma val_wa_mapAccumnb_bod_preservation:
   apply (rule v_t_r_empty)
   done
 
+section "Refinement from polymorphic to monomorphic (Theorem 2.7)"
+
+subsection wordarray_length
+
+lemma val_wa_length_rename_monoexpr_correct:
+  "\<lbrakk>val_wa_length (rename_val rename' (monoval v)) v'; proc_env_matches \<xi>\<^sub>v \<Xi>'; proc_ctx_wellformed \<Xi>'\<rbrakk>
+    \<Longrightarrow> v' = rename_val rename' (monoval v') \<and> val_wa_length v v'"
+  apply (clarsimp simp: val_wa_length_def)
+  apply (case_tac v; clarsimp)
+  done
+
+subsubsection wordarray_get
+
+lemma val_wa_get_rename_monoexpr_correct:
+  "\<lbrakk>val_wa_get (rename_val rename' (monoval v)) v'; proc_env_matches \<xi>\<^sub>v \<Xi>'; proc_ctx_wellformed \<Xi>'\<rbrakk>
+    \<Longrightarrow> v' = rename_val rename' (monoval v') \<and> val_wa_get v v'"
+  apply (clarsimp simp: val_wa_get_def)
+  apply (case_tac v; clarsimp)
+  apply (case_tac z; clarsimp)
+  apply (case_tac za; clarsimp)
+  done
+
+subsection wordarray_put2
+
+lemma val_wa_put2_rename_monoexpr_correct:
+  "\<lbrakk>val_wa_put2 (rename_val rename' (monoval v)) v'; proc_env_matches \<xi>\<^sub>v \<Xi>'; proc_ctx_wellformed \<Xi>'\<rbrakk>
+    \<Longrightarrow> v' = rename_val rename' (monoval v') \<and> val_wa_put2 v v'"
+  apply (clarsimp simp: val_wa_put2_def)
+  apply (case_tac v; clarsimp)
+  apply (case_tac z; clarsimp)
+  apply (case_tac za; clarsimp)
+  apply (case_tac zb; clarsimp)
+  done
+
+subsection wordarray_fold_no_break
+
+lemma val_wa_foldnb_bod_rename_monoexpr_correct:
+  "\<lbrakk>proc_env_matches \<xi>\<^sub>m \<Xi>'; proc_ctx_wellformed \<Xi>'; 
+    value_sem.rename_mono_prog wa_abs_typing_v rename' \<Xi>' \<xi>\<^sub>m \<xi>\<^sub>p;
+    val_wa_foldnb_bod \<xi>\<^sub>m t xs frm to (vvalfun_to_exprfun (rename_val rename' (monoval f))) 
+      (rename_val rename' (monoval acc )) (rename_val rename' (monoval obsv)) r;
+    is_vval_fun (rename_val rename' (monoval f)); wa_abs_typing_v \<Xi>' (VWA t xs) ''WordArray'' [t]; 
+    vval_typing \<Xi>' (rename_val rename' (monoval acc )) u;
+    vval_typing \<Xi>' (rename_val rename' (monoval obsv)) v;
+    \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)] \<turnstile>
+      App (vvalfun_to_exprfun (rename_val rename' (monoval f))) (Var 0) : u; 
+    distinct [a0, a1, a2]\<rbrakk>
+       \<Longrightarrow> is_vval_fun f \<and> (\<exists>r'. r = rename_val rename' (monoval r') \<and>
+         val_wa_foldnb_bod \<xi>\<^sub>p t xs frm to (vvalfun_to_exprfun f) acc obsv r')"
+  apply (rule conjI)
+   apply (case_tac f; clarsimp)
+  apply (induct to arbitrary: r)
+   apply (erule val_wa_foldnb_bod.elims; clarsimp)
+   apply (subst val_wa_foldnb_bod.simps; clarsimp)
+  apply (case_tac "length xs < Suc to")
+   apply (drule val_wa_foldnb_bod_back_step'; simp)
+   apply (drule val_wa_foldnb_bod_to_geq_lenD)
+    apply linarith
+   apply (drule_tac x = r in meta_spec)
+   apply clarsimp
+   apply (erule meta_impE)
+    apply (rule val_wa_foldnb_bod_to_geq_len; simp?)
+   apply clarsimp
+   apply (rule_tac x = r' in exI; clarsimp)
+   apply (rule val_wa_foldnb_bod_to_geq_len; simp?)
+   apply (drule_tac to = to in val_wa_foldnb_bod_to_geq_lenD; simp?)
+  apply (case_tac "frm \<ge> Suc to")
+   apply (clarsimp simp: not_less not_le)
+   apply (erule val_wa_foldnb_bod.elims; clarsimp)
+   apply (subst val_wa_foldnb_bod.simps; clarsimp)
+  apply (drule val_wa_foldnb_bod_back_step; simp?)
+  apply clarsimp
+  apply (drule_tac x = r' in meta_spec)
+  apply clarsimp
+  apply (frule_tac \<gamma> = "[VRecord [xs ! to, r'a, obsv]]" and
+      ?\<Gamma> = "[option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]" and
+      e = "App (vvalfun_to_exprfun f) (Var 0)" and
+      v' = r and
+      \<tau> = u in rename_monoexpr_correct(1); simp?)
+     apply (clarsimp simp: matches_Cons[where xs = "[]" and ys = "[]", simplified])
+     apply (clarsimp simp: matches_def)
+     apply (rule v_t_record; simp?)
+     apply (rule v_t_r_cons1; clarsimp?)
+      apply (frule wa_abs_typing_v_elims(1); clarsimp)
+      apply (drule wa_abs_typing_v_elims(2))
+      apply (erule_tac x = to in allE; clarsimp)
+      apply (rule v_t_prim'; clarsimp)
+     apply (rule v_t_r_cons1; clarsimp?)
+      apply (drule val_wa_foldnb_bod_preservation; simp?)
+     apply (rule v_t_r_cons1; clarsimp?)
+     apply (rule v_t_r_empty)
+    apply (frule wa_abs_typing_v_elims(1); clarsimp)
+    apply (drule wa_abs_typing_v_elims(2))
+    apply (erule_tac x = to in allE; clarsimp)
+    apply (case_tac f; clarsimp)
+   apply (case_tac f; clarsimp)
+  apply clarsimp
+  apply (drule_tac \<xi>\<^sub>v = \<xi>\<^sub>p in val_wa_foldnb_bod_step; simp?)
+  apply (rule_tac x = va in exI)
+  apply clarsimp
+  done
+
+subsection wordarray_map_no_break
+
 lemma val_wa_mapAccumnb_bod_rename_monoexpr_correct:
   "\<lbrakk>proc_env_matches \<xi>\<^sub>m \<Xi>'; proc_ctx_wellformed \<Xi>'; 
     value_sem.rename_mono_prog wa_abs_typing_v rename' \<Xi>' \<xi>\<^sub>m \<xi>\<^sub>p;
@@ -655,23 +688,6 @@ lemma val_wa_mapAccumnb_bod_rename_monoexpr_correct:
   apply (erule v_t_primtE; clarsimp)
   apply (case_tac z; clarsimp)
   by (simp add: list_helper)
-
-definition val_wa_mapAccumnb
-  where
-  "val_wa_mapAccumnb \<Xi>' \<xi>\<^sub>v \<tau>i \<tau>o x y = (\<exists>xs frm to acc obsv func t u v a0 a1 a2 b0 b1. 
-      x = VRecord [VAbstract (VWA t xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and> 
-      wa_abs_typing_v \<Xi>' (VWA t xs) ''WordArray'' [t]  \<and>
-      is_vval_fun func \<and> \<tau>i = TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
-      \<tau>o = TRecord [(b0, t, Present), (b1, u, Present)] Unboxed \<and>
-      vval_typing \<Xi>' acc u \<and> vval_typing \<Xi>' obsv v \<and> distinct [a0, a1, a2] \<and> distinct [b0, b1] \<and>
-      (\<Xi>', [], [option.Some \<tau>i] \<turnstile> (App (vvalfun_to_exprfun func) (Var 0)) : \<tau>o) \<and>
-      (val_wa_mapAccumnb_bod \<xi>\<^sub>v t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y))"
-
-definition val_wa_mapAccumnbp
-  where
-  "val_wa_mapAccumnbp \<xi>\<^sub>p x y = (\<exists>t xs frm to func acc obsv. 
-      x = VRecord [VAbstract (VWA t xs), VPrim (LU32 frm), VPrim (LU32 to), func, acc, obsv] \<and>
-      is_vval_fun func \<and> val_wa_mapAccumnb_bod \<xi>\<^sub>p t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y)"
 
 end (* of context *)
 
