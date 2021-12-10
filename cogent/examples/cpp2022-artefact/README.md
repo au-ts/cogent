@@ -2,7 +2,7 @@
 ---
 This is an artefact for "Overcoming Restraint: Composing Verification of Foreign Functions with Cogent"
 
-This formalisation works with [Isabele2019](https://isabelle.in.tum.de/website-Isabelle2019/index.html),
+This formalisation works with [Isabelle2019](https://isabelle.in.tum.de/website-Isabelle2019/index.html),
 [AutoCorres version 1.6.1](https://trustworthy.systems/projects/TS/autocorres/) and
 Cogent from this [branch](https://github.com/au-ts/cogent/tree/uabsfuns-decl-fix).
 
