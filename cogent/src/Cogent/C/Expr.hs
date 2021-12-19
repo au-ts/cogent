@@ -49,9 +49,9 @@ import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
 #ifdef BUILTIN_ARRAYS
-import           Cogent.Dargent.CodeGen       (genGSRecord, genBoxedArrayGetSet)
+import           Cogent.Dargent.CodeGen       (genGSRecord, genBoxedArrayGetSet, genGSFuncDecls)
 #else
-import           Cogent.Dargent.CodeGen       (genGSRecord)
+import           Cogent.Dargent.CodeGen       (genGSRecord, genGSFuncDecls)
 #endif
 import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
@@ -866,6 +866,14 @@ genAllGSetters | not __cogent_funused_dargent_accessors = return ()
         Just fn -> return ()
         Nothing -> genGSRecord t fld Set >> return ()
 
+genGSetterDecls :: Gen 'Zero ()
+genGSetterDecls = do
+  mg <- M.toList <$> use boxedRecordGetters
+  ms <- M.toList <$> use boxedRecordSetters
+  forM_ mg $ \(StrlCogentType t, m) ->
+    genGSFuncDecls t m Get
+  forM_ ms $ \(StrlCogentType t, m) ->
+    genGSFuncDecls t m Set
 
  -- NOTE: This function excessively uses `unsafeCoerce' because of existentials / zilinc
 genDefinition :: Definition TypedExpr VarName VarName -> Gen 'Zero [CExtDecl]
@@ -969,7 +977,7 @@ compile defs mcache ctygen pragmas =
       -- vvv The writer stores the Dargent getter/setter definitions.
       (extDecls, st, gsDecls) = runRWS (runGen $
         (concat <$> mapM genDefinition (fdefs ++ tdefs)) <*  -- `fdefs' will collect the types that are used in the program, and `tdefs' can generate synonyms
-        genAllGSetters
+        genAllGSetters <* genGSetterDecls 
         ) Nil state
       (enum, st', _) = runRWS (runGen $ (mappend <$> genLetTrueEnum <*> genEnum)) Nil st  -- `LET_TRUE', `LETBANG_TRUE' & `_tag' enums
       ((funclasses,tns), st'', _) = runRWS (runGen genFunClasses) Nil st'  -- fun_enums & dispatch functions

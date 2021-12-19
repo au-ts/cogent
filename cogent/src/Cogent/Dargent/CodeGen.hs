@@ -12,6 +12,7 @@
 
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Cogent.Dargent.CodeGen where
 
@@ -45,15 +46,17 @@ import Data.Char
 
 import Control.Monad (forM, when)
 import Control.Monad.Writer.Class (tell)
-import Data.List (foldl', scanl')
+import Data.List as L (foldl', lookup, scanl')
 import Data.Map as M
-  ( (!)
+  ( Map
+  , (!)
   , fromList
   , empty
   , insert
   , lookup
+  , toList
   )
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromJust, fromMaybe)
 import Lens.Micro
   ( (^.)
   , at
@@ -589,7 +592,18 @@ mkGsDecl :: CType -> CType -> CId -> [CBlockItem] -> GetOrSet -> CExtDecl
 mkGsDecl root t f stmts Get = CFnDefn (t    , f) [(root, boxId)]               stmts staticInlineFnSpec
 mkGsDecl root t f stmts Set = CFnDefn (CVoid, f) [(root, boxId), (t, valueId)] stmts staticInlineFnSpec
 
-
+-- | Generates the function declarations for the top-level getters/setters.
+genGSFuncDecls :: Type 'Zero VarName -> M.Map FieldName FunName -> GetOrSet -> Gen v ()
+genGSFuncDecls t (M.toList -> l) mode = do
+  decls <- forM l $ \(fld, fn) -> do
+    let TRecord _ fts _ = t
+        τ = fst . fromJust $ L.lookup fld fts  -- field type
+    t' <- genType t
+    τ' <- genType τ      
+    case mode of
+      Get -> return $ CDecl (CExtFnDecl τ' fn [(t', Nothing)] staticInlineFnSpec)
+      Set -> return $ CDecl (CExtFnDecl t' fn [(t', Nothing), (τ', Nothing)] staticInlineFnSpec)
+  tell decls
 
 -- * Auxilliary functions, definitions and constants
 
