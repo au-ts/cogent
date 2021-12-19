@@ -10,55 +10,61 @@
 include <gum/common/common.cogent>
 include <gum/common/iterator.cogent>
 
-type Vector -- The "Buffer" type
+type Buffer -- The "Buffer" type
 
 -- We split a vector/buffer into two:
 --
---  * BItem enumerates the initialised portion of a buffer;
---  * BTail points to the start of the uninitialised portion.
-type BItem
-type BTail
+--  * BUsed enumerates the initialised portion of a buffer;
+--  * BFree points to the start of the uninitialised portion.
+type BUsed
+type BFree
 
--- The main abstract function for buffers. We can decompose a buffer
--- into its constituent parts, an item and a tail object.
--- Given a function which operates on the item and tail we can
--- internally call this function to modify the provided buffer.
-focus_buffer : all (a,b).(Vector, b!,
-                   #{ obj : (BItem, BTail), obsv : b!} -> (a, BItem, BTail)) ->
-  (a, Vector)
+type FocusROFArg a b = #{ bu : BUsed!, bf : BFree!, acc : a, obsv : b }
 
--- Start BItem & BTail interface functions.
+-- The focus function which opens up the buffer, allowing some operations on the
+-- internals of the buffer, and at the end packs it up. It's the readonly variant
+-- of the focus_buffer function.
+focus_buffer_ro : all (a, b :< DS, r).
+  #{buf : Buffer!, acc : a, obsv : b, f : FocusROFArg a b -> r} -> r
 
--- Retrieve the next item given both the current item and the tail. This
--- function should return the next item on success (Some), or the given
--- item if it is the last initialised item.
-next : (BItem, BTail!) -> <None BItem | Some BItem>
+-- The interface functions:
 
--- Retrieve the read-only contents for the given item.
-read : BItem! -> Entry!
-
--- End of BItem & BTail interface functions.
+next_ro : (BUsed!, BFree!) -> <This | Next (BUsed!)>
+read : BUsed! -> Entry!
 
 -- Example-specific types and definitions.
 
 -- The data we wish to retrieve.
 type Data =
   < Person #TPerson | Addr #TAddr | Date #TDate >
-
 layout LData = variant (2b) { Person(0) : LPerson at 1B, Addr(1) : LAddr at 1B, Date(2) : LDate at 1B }
 
 -- NOTE: The default layout of TPerson is not well aligned, thus
 -- we use an explicit layout that is indeed different from the
 -- compiler inferred layout.
-type TPerson = { len : U8, age : U32, name : U8#[0] }  -- the name ends with \0, and len (of name) includes it.
-type TAddr   = { len : U8, zip : U8 , addr : U8#[0] }  -- the addr ends with \0, and len (of addr) includes it.
-type TDate   = { yr  : U8, mon : U8 , day  : U8 }
+type TPerson = { len : U8, gender : Gender, nationality : U8#[2], name : U8#[0] }  -- the name ends with \0, and len (of name) includes it.
+type TAddr   = { len : U8, addr : U8#[0] }  -- the addr ends with \0, and len (of addr) includes it.
+type TDate   = { yr  : U16, mon : U8 , day : U8 }
 
-layout LPerson = record { age : 4B, len : 1B at 4B, name : array[1B] at 5B }
-layout LAddr   = record { len : 1B, zip : 1B at 1B, addr : array[1B] at 2B }
-layout LDate   = record { yr  : 1B, mon : 1B at 1B, day  : 1B at 2B }
+layout LPerson = record { len : 1B, gender : LGender at 1B, nationality : array[1B] at 2B, name : array[1B] at 4B }
+layout LAddr   = record { len : 1B, addr : array[1B] at 1B }
+layout LDate   = record { yr  : 2B, mon : 1B at 2B, day : 1B at 3B }
+
+{-# GETTER TPersonL, nationality, get_TPersonL_nationality #-}
+
+const_NAME_LEN_MAX : U32
+const_NAME_LEN_MAX = 64
+
+const_ADDR_LEN_MAX : U32
+const_ADDR_LEN_MAX = 256
 
 type TPersonL = TPerson layout LPerson
+type TAddrL   = TAddr   layout LAddr
+type TDateL   = TDate   layout LDate
+
+
+type Gender = < Male | Female >
+layout LGender = variant (1b) { Male(0) : 0b, Female(1) : 0b}
 
 type Entry =
   { id   : U32
@@ -71,90 +77,127 @@ type CString
 
 -- user defined accessors; the Cogent getter/setters should not be used.
 get_Person_name : TPersonL!  -> CString!
--- get_Person_name : TPerson!  -> CString!
+get_Addr_addr : TAddrL! -> CString!
 
 -- Test for string equality
 cstring_eq : (CString!, CString!) -> Bool
 
--- Here follows the general iteration scheme in Cogent.
+
+type BoxedData  -- The pointer the the variant with the layout!
+
+get_Entry_data : Entry! -> BoxedData!
+
+-- Used for simulating a case-of-&
+--
+match_Person : all (acc, obsv :< DS, r).
+  #{ scr  : BoxedData!
+   , acc  : acc
+   , obsv : obsv
+   , person : (TPersonL!, acc, obsv) -> (r, acc)
+   , addr   : (TAddrL!  , acc, obsv) -> (r, acc)
+   , date   : (#TDate   , acc, obsv) -> (r, acc)
+   } -> (r, acc)
+
+get_Person_id_and_info : (TPersonL!, (), (CString!, Entry!)) -> (<Next | Stop | Return (U32, PersonInfo)>, ())
+get_Person_id_and_info (p, _, (name, entry)) =
+  let s = get_Person_name p
+  and r = cstring_eq (s, name)
+  in if r then (Return (entry.id, #{name=s, gender=p.gender, nationality=p.nationality, dob=None, addr=None}), ())
+          else (Next, ())
+
+skip_Addr : (TAddrL!, (), (CString!, Entry!)) -> (<Next | Stop | Return (U32, PersonInfo)>, ())
+skip_Addr _ = (Next, ())
+
+skip_Date : (#TDate, (), (CString!, Entry!)) -> (<Next | Stop | Return (U32, PersonInfo)>, ())
+skip_Date _ = (Next, ())
+
+is_Person : (TPersonL!, PersonInfo, (U32, Entry!)) -> (<Next | Stop | Return>, PersonInfo)
+is_Person (_, info, _) = (Next, info)
+
+get_Addr : (TAddrL!, PersonInfo, (U32, Entry!)) -> (<Next | Stop | Return>, PersonInfo)
+get_Addr (addr, info, (id, entry)) =
+  let info' = if id == entry.id then info { addr = Some (get_Addr_addr addr) } else info
+   in (Next, info')
+
+get_Date : (#TDate, PersonInfo, (U32, Entry!)) -> (<Next | Stop | Return>, PersonInfo)
+get_Date (date, info, (id, entry)) =
+  let info' = if id == entry.id then info { dob = Some date } else info
+   in (Next, info')
+
+-- Loop through the buffer to find a person with a certain name.
+-- Return the id and construct a PersonInfo record.
+--
+find_person : FocusROFArg () CString! -> Option (U32, PersonInfo)
+find_person #{bu, bf, acc = _, obsv = name} =
+  let ((bu, _), ret) =
+    iterate_do [(), (U32, PersonInfo), (), (BUsed!, ()), (BFree!, CString!)]
+               #{ init = ()
+                , gen  = gen_next_item
+                , cons = cons_entry_Person
+                , acc  = (bu, ())
+                , obsv = (bf, name) }
+   in ret | Stop     -> None
+          | Return x -> Some x
+
+
+-- Inspect an entry, and if it's the person we are after, we return the person's id and construct a PersonInfo record.
+--
+cons_entry_Person : #{ obj : (), acc : (BUsed!, ()), obsv : (BFree!, CString!) } -> ConsumerResult (U32, PersonInfo) () (BUsed!, ())
+cons_entry_Person (r {acc = (bu, _), obsv = (_, name)}) =
+  let entry    = read bu
+  and data     = get_Entry_data entry
+  and (ret, _) = match_Person[(), (CString!, Entry!), <Next | Stop | Return (U32, PersonInfo)>]
+                   #{scr=data, acc=(), obsv=(name,entry), person=get_Person_id_and_info, addr=skip_Addr, date=skip_Date}
+   in ((bu, ()), ret)
+
+-- Iterate through the buffer and find all the information relevant to a given id.
+--
+collect_info : FocusROFArg PersonInfo U32 -> PersonInfo
+collect_info #{bu, bf, acc = info, obsv = id} = 
+  let ((bu, info), _) =
+    iterate_do [(), (), (), (BUsed!, PersonInfo), (BFree!, U32)]
+               #{ init = ()
+                , gen  = gen_next_item
+                , cons = cons_entry_by_id
+                , acc  = (bu, info)
+                , obsv = (bf, id) }
+   in info
+
 
 -- Given the current item, we may generate the next item,
 -- if any, and yield to the consumer. Otherwise, we are finished.
 --
-gen_next_item : #{ acc : BItem , obsv : (BTail!, CString!) } ->
-  GeneratorResult () U32 () BItem
-gen_next_item (r { acc = item , obsv = (tail, _) }) =
-  next (item, tail)
-  | None item -> (item, Stop ())
-  | Some item -> (item, Yield ())
+gen_next_item : all (a, b :< DS, r). #{ acc : (BUsed!, a) , obsv : (BFree!, b) } -> GeneratorResult () r () (BUsed!, a)
+gen_next_item #{acc = (bu, a) , obsv = (bf, _)} =
+  next_ro (bu, bf) | This     -> ((bu , a), Stop  ())
+                   | Next bu' -> ((bu', a), Yield ())
 
 -- During consumption, we determine whether or not the current item is
 -- the one we want to query. If so, we return its stuff. Otherwise, we
 -- ask for the next item.
 --
-cons_next_item :
-  #{ obj : (), acc : BItem, obsv : (BTail!, CString!) } ->
-  ConsumerResult U32 () BItem
-cons_next_item (r {acc = item , obsv = (_, needle) }) =
-  let (res, _) = (
-    let entry = read item
-    and data = get_Entry_data entry
-     in match_Data_Person[(), CString!, <Next | Stop | Return U32>]
-          #{scr=data, acc=(), obsv=needle, hit=do_Person, miss=do_not_Person}) !item
-   in (item, res)
+cons_entry_by_id : #{ obj : (), acc : (BUsed!, PersonInfo), obsv : (BFree!, U32) } -> ConsumerResult () () (BUsed!, PersonInfo)
+cons_entry_by_id (r {acc = (bu, info), obsv = (_, id)}) =
+  let entry = read bu
+  and data  = get_Entry_data entry
+  and (ret, info) = match_Person[PersonInfo, (U32, Entry!), <Next | Stop | Return>]
+                      #{scr=data, acc=info, obsv=(id, entry), person=is_Person, addr=get_Addr, date=get_Date}
+  in ((bu, info), ret)
 
-do_Person : (TPersonL!, (), CString!) -> (<Next | Stop | Return U32>, ())
--- do_Person : (TPerson!, (), CString!) -> (<Next | Stop | Return U32>, ())
-do_Person (p, _, needle) =
-  let s = get_Person_name p
-  and r = cstring_eq (s, needle)
-  and age = p.age
-  in if r then (Return age, ())
-          else (Next, ())
-
-do_not_Person : (BoxedData_take_Person!, (), CString!) -> (<Next | Stop | Return U32>, ())
-do_not_Person (v, _, _) = (Next, ())
-
-
-type BoxedData  -- The pointer the the variant with the layout!
-type BoxedData_take_Person
-
-get_Entry_data : Entry! -> BoxedData!
-
-match_Data_Person : all (acc, obsv :< DS, r :< E). 
- #{ scr  : BoxedData!
-  , acc  : acc
-  , obsv : obsv
-  , hit  : (TPersonL!, acc, obsv) -> (r, acc)
-  -- , hit  : (TPerson!, acc, obsv) -> (r, acc)
-  , miss : (BoxedData_take_Person!, acc, obsv) -> (r, acc)
-  } -> (r, acc)
-
-
--- Our main function for item and tail: we iterate using the FFI
--- function which repeatedly calls the consumer followed by the
--- generator until we have completed iteration of all items, or found
--- a matching entry.
---
-get_name_age : #{obj : (BItem, BTail) , obsv : CString! } ->
-             (<None | Some U32>, BItem, BTail)
-get_name_age #{obj = (item, tail) , obsv = needle } =
-  let (item, ret) =
-     iterate_do [(), U32, (), BItem, (BTail!, CString!)]
-                #{ init = ()
-                 , gen = gen_next_item
-                 , cons = cons_next_item
-                 , acc = item
-                 , obsv = (tail, needle) } !tail
-  and res =
-    ret
-    | Stop () -> None
-    | Return x -> Some x
-  in (res, item, tail)
+type PersonInfo =
+  #{ name        : CString!
+   , gender      : Gender
+   , nationality : U8#[2]
+   , dob         : Option (#TDate)
+   , addr        : Option (CString!)
+   }
 
 -- Main entry function for the Cogent code.
+-- It tries to query the information about a person, using the name.
 --
-findAgeByName : (Vector, CString!) -> (Vector, <None | Some U32>)
-findAgeByName (block, needle) =
-  let (res, block) = focus_buffer(block, needle, get_name_age)
-  in (block, res)
+findPersonInfo : (Buffer!, CString!) -> Option PersonInfo
+findPersonInfo (buf, name) = 
+  focus_buffer_ro #{buf, acc = (), obsv = name, f = find_person}
+  | None -> None
+  | Some (id, info) -> Some (focus_buffer_ro #{buf, acc = info, obsv = id, f = collect_info})
+

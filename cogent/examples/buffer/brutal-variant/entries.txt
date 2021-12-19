@@ -1,9 +1,18 @@
-p 1 2405 Aristotle
-p 2 131 Charles de Gaulle
-a 3 2033 135 Anzac Pde. Kensington, NSW
-d 4 2021 12 24
-a 5 2000 24 York Str. Sydney
-p 6 56 J. K. Rowling
-a 7 2052 UNSW, Sydney
-d 8 2021 11 5
-p 9 58 Michael Jordan
+d 1 1965 7 31
+p 7 M IT Jorginho
+p 2 M NL Arend Heyting
+a 2 University of Amsterdam
+p 5 F AU Kerry Chant
+d 7 1991 12 20
+p 6 F PL Marie Curie
+p 1 F GB J. K. Rowling
+p 3 M US Joe Biden
+d 3 1942 11 20
+a 3 The White House, 1600 Pennsylvania Ave NW, Washington, DC 20500
+p 4 M DE Gernot Heiser
+a 5 1 Reserve Road, St Leonards NSW 2065, Australia
+d 6 1867 11 7
+a 7 Chelsea Football Club, Stamford Bridge, Fulham Road, London, SW6 1HS
+d 2 1898 5 9
+a 4 Level 3 K17 UNSW Sydney, NSW
+
