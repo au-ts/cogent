@@ -19,7 +19,7 @@ module Cogent.Dargent.CodeGen where
 import Cogent.C.Monad
 import Cogent.C.Type (genType, typeCId, simplifyType)
 import Cogent.C.Syntax
-import Cogent.Common.Syntax (FieldName, FunName, GetOrSet(..), VarName, Size)
+import Cogent.Common.Syntax (FieldName, FunName, funNameToCoreFunName, GetOrSet(..), VarName, Size)
 import Cogent.Common.Types (Sigil(..))
 import Cogent.Compiler
   ( __fixme
@@ -29,7 +29,7 @@ import Cogent.Compiler
   , Architecture (..)
   , __cogent_arch
   )
-import Cogent.Core (Type (..))
+import Cogent.Core (Definition (..), findFuncById, Type (..), TypedExpr)
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Surface (Endianness(..))
 import Cogent.Dargent.Core
@@ -56,7 +56,7 @@ import Data.Map as M
   , lookup
   , toList
   )
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (catMaybes, fromJust, fromMaybe)
 import Lens.Micro
   ( (^.)
   , at
@@ -593,17 +593,21 @@ mkGsDecl root t f stmts Get = CFnDefn (t    , f) [(root, boxId)]               s
 mkGsDecl root t f stmts Set = CFnDefn (CVoid, f) [(root, boxId), (t, valueId)] stmts staticInlineFnSpec
 
 -- | Generates the function declarations for the top-level getters/setters.
-genGSFuncDecls :: Type 'Zero VarName -> M.Map FieldName FunName -> GetOrSet -> Gen v ()
-genGSFuncDecls t (M.toList -> l) mode = do
-  decls <- forM l $ \(fld, fn) -> do
-    let TRecord _ fts _ = t
-        τ = fst . fromJust $ L.lookup fld fts  -- field type
-    t' <- genType t
-    τ' <- genType τ      
-    case mode of
-      Get -> return $ CDecl (CExtFnDecl τ' fn [(t', Nothing)] staticInlineFnSpec)
-      Set -> return $ CDecl (CExtFnDecl t' fn [(t', Nothing), (τ', Nothing)] staticInlineFnSpec)
-  tell decls
+genGSFuncDecls :: Type 'Zero VarName -> M.Map FieldName FunName -> GetOrSet -> [Definition TypedExpr VarName VarName] -> Gen v ()
+genGSFuncDecls t (M.toList -> l) mode defs = do
+  mdecls <- forM l $ \(fld, fn) -> do
+    case findFuncById (funNameToCoreFunName fn) defs of
+      Just _  -> return Nothing  -- If such a function is defined, then we don't need to generate anything.
+                                 -- The code gen will take care of it.
+      Nothing -> do
+        let TRecord _ fts _ = t
+            τ = fst . fromJust $ L.lookup fld fts  -- field type
+        t' <- genType t
+        τ' <- genType τ      
+        case mode of
+          Get -> return $ Just $ CDecl (CExtFnDecl τ' fn [(t', Nothing)] staticInlineFnSpec)
+          Set -> return $ Just $ CDecl (CExtFnDecl CVoid fn [(t', Nothing), (τ', Nothing)] staticInlineFnSpec)
+  tell $ catMaybes mdecls
 
 -- * Auxilliary functions, definitions and constants
 

@@ -1,5 +1,6 @@
 $esc:(#include <stdio.h>)
 $esc:(#include <stdlib.h>)
+$esc:(#include <string.h>)
 
 #include <cogent-defns.h>
 
@@ -40,7 +41,7 @@ $ty:(()) printF ($ty:(FL!) args)
           ((Fc*)args)->f1, ((Fc*)args)->len, ((Fc*)args)->f2,
           ((char*)args)[9] , ((char*)args)[10],
           ((char*)args)[11], ((char*)args)[12]);
-  return;
+  return $exp:(());
 }
 
 $ty:((Heap, FL)) real_set_data ($ty:((Heap, FL take data, Data!)) args)
