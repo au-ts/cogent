@@ -362,6 +362,11 @@ isAbsTyp :: Definition e a b -> Bool
 isAbsTyp (TypeDef _ _ Nothing) = True
 isAbsTyp _ = False
 
+findFuncById :: CoreFunName -> [Definition e a b] -> Maybe (Definition e a b)
+findFuncById fn [] = Nothing
+findFuncById fn (d:ds) | isFuncId fn d = Just d
+                       | otherwise = findFuncById fn ds
+
 insertIdxAtType :: Nat -> Type t b -> Type t b
 insertIdxAtType cut t = __fixme t
 

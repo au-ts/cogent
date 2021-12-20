@@ -1,0 +1,62 @@
+$esc:(#include <stdio.h>)
+$esc:(#include <stdlib.h>)
+$esc:(#include <string.h>)
+
+#include <cogent-defns.h>
+
+typedef struct Heap { void* heap; } Heap;
+typedef char Data;
+
+#include "generated.c"
+
+struct Fc {
+  $ty:(U32) f1;
+  $ty:(U32) len;
+  $ty:(U8) f2;
+  char data[];
+};
+
+typedef struct Fc Fc;
+
+$ty:((Heap, FL take data)) newF ($ty:((Heap, U32)) args)
+{
+  $ty:((Heap, FL take data)) ret;
+  ret.p1 = args.p1;
+  ret.p2 = malloc (sizeof ($ty:(FL)) + args.p2);
+  if (!ret.p2) {
+    printf ("ERROR: malloc failed!\n");
+  }
+  return ret;
+}
+
+$ty:(Heap) freeF ($ty:((Heap, FL)) args)
+{
+  free (args.p2);
+  return args.p1;
+}
+
+$ty:(()) printF ($ty:(FL!) args)
+{
+  printf ("{ f1=%u, len=%u, f2=%u, data=[%u,%u,%u,%u] }\n",
+          ((Fc*)args)->f1, ((Fc*)args)->len, ((Fc*)args)->f2,
+          ((char*)args)[9] , ((char*)args)[10],
+          ((char*)args)[11], ((char*)args)[12]);
+  return $exp:(());
+}
+
+$ty:((Heap, FL)) real_set_data ($ty:((Heap, FL take data, Data!)) args)
+{
+  $ty:((Heap, FL)) ret;
+  ret.p1 = args.p1;
+  memcpy (((Fc*)args.p2)->data, args.p3, 4);
+  ret.p2 = args.p2;
+  return ret;
+}
+
+int main () {
+  char data[4] = {1,2,3,4};
+  $ty:((Heap, Data!)) fargs;
+  fargs.p2 = data;
+  $exp:foo (fargs);
+  return 0;
+}
