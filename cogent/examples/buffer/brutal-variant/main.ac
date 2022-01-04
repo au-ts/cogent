@@ -282,7 +282,7 @@ int main (int argc, char **argv){
   // }
 
   $ty:((Buffer, CString!)) args = {.p1 = block , .p2 = argv[1]};
-  ret = findPersonInfo (args);
+  ret = find_PersonInfo (args);
   if (ret.tag == TAG_ENUM_Some) {
     $ty:(PersonInfo) p = ret.Some;
     printf ("%s's record has been found. Details:\n", p.name);

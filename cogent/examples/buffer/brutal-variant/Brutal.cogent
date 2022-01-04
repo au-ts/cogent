@@ -89,7 +89,7 @@ get_Entry_data : Entry! -> BoxedData!
 
 -- Used for simulating a case-of-&
 --
-match_Person : all (acc, obsv :< DS, r).
+match_BoxedData : all (acc, obsv :< DS, r).
   #{ scr  : BoxedData!
    , acc  : acc
    , obsv : obsv
@@ -146,8 +146,8 @@ cons_entry_Person : #{ obj : (), acc : (BUsed!, ()), obsv : (BFree!, CString!) }
 cons_entry_Person (r {acc = (bu, _), obsv = (_, name)}) =
   let entry    = read bu
   and data     = get_Entry_data entry
-  and (ret, _) = match_Person[(), (CString!, Entry!), <Next | Stop | Return (U32, PersonInfo)>]
-                   #{scr=data, acc=(), obsv=(name,entry), person=get_Person_id_and_info, addr=skip_Addr, date=skip_Date}
+  and (ret, _) = match_BoxedData[(), (CString!, Entry!), <Next | Stop | Return (U32, PersonInfo)>]
+                   #{scr=data, acc=(), obsv=(name, entry), person=get_Person_id_and_info, addr=skip_Addr, date=skip_Date}
    in ((bu, ()), ret)
 
 -- Iterate through the buffer and find all the information relevant to a given id.
@@ -180,7 +180,7 @@ cons_entry_by_id : #{ obj : (), acc : (BUsed!, PersonInfo), obsv : (BFree!, U32)
 cons_entry_by_id (r {acc = (bu, info), obsv = (_, id)}) =
   let entry = read bu
   and data  = get_Entry_data entry
-  and (ret, info) = match_Person[PersonInfo, (U32, Entry!), <Next | Stop | Return>]
+  and (ret, info) = match_BoxedData[PersonInfo, (U32, Entry!), <Next | Stop | Return>]
                       #{scr=data, acc=info, obsv=(id, entry), person=is_Person, addr=get_Addr, date=get_Date}
   in ((bu, info), ret)
 
@@ -195,8 +195,8 @@ type PersonInfo =
 -- Main entry function for the Cogent code.
 -- It tries to query the information about a person, using the name.
 --
-findPersonInfo : (Buffer!, CString!) -> Option PersonInfo
-findPersonInfo (buf, name) = 
+find_PersonInfo : (Buffer!, CString!) -> Option PersonInfo
+find_PersonInfo (buf, name) = 
   focus_buffer_ro #{buf, acc = (), obsv = name, f = find_person}
   | None -> None
   | Some (id, info) -> Some (focus_buffer_ro #{buf, acc = info, obsv = id, f = collect_info})
