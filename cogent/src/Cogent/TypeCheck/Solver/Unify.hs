@@ -148,7 +148,7 @@ assignOfL (TLU n) (TL l) = pure [Subst.ofLayout n (TL l)]
 assignOfL (TL l) (TLU n) = pure [Subst.ofLayout n (TL l)]
 assignOfL (TLU _) (TLU _) = empty
 #ifdef BUILTIN_ARRAYS
-assignOfL (TLArray e1 _) (TLArray e2 _) = assignOfL e1 e2
+assignOfL (TLArray e1 l1 _) (TLArray e2 l2 _) | l1 == l2 = assignOfL e1 e2
 #endif
 assignOfL _ _ = empty
 

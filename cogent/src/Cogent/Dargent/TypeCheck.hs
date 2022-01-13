@@ -41,6 +41,8 @@ import Data.Maybe (fromJust, fromMaybe)
 import Lens.Micro
 import Text.Parsec.Pos (SourcePos)
 
+import Debug.Trace
+
 {- * Definition for datalayout representation in typechecker -}
 
 data TCDataLayout   = TL { unTCDataLayout :: DataLayoutExpr' TCDataLayout }
@@ -51,7 +53,7 @@ pattern TLPrim s       = TL (Prim s)
 pattern TLRecord ps    = TL (Record ps)
 pattern TLVariant t ps = TL (Variant t ps)
 #ifdef BUILTIN_ARRAYS
-pattern TLArray e s    = TL (Array e s)
+pattern TLArray e l s  = TL (Array e l s)
 #endif
 pattern TLOffset e s   = TL (Offset e s)
 pattern TLEndian e n   = TL (Endian e n)
@@ -67,7 +69,7 @@ toDLExpr (TLPrim n) = DLPrim n
 toDLExpr (TLRecord fs) = DLRecord ((\(x,y,z) -> (x,y,toDLExpr z)) <$> fs)
 toDLExpr (TLVariant e fs) = DLVariant (toDLExpr e) ((\(x,y,z,v) -> (x,y,z,toDLExpr v)) <$> fs)
 #ifdef BUILTIN_ARRAYS
-toDLExpr (TLArray e p) = DLArray (toDLExpr e) p
+toDLExpr (TLArray e l p) = DLArray (toDLExpr e) l p
 #endif
 toDLExpr (TLOffset e s) = DLOffset (toDLExpr e) s
 toDLExpr (TLAfter e f)  = DLAfter (toDLExpr e) f
@@ -82,7 +84,7 @@ toTCDL (DLPrim n) = TLPrim n
 toTCDL (DLRecord fs) = TLRecord ((\(x,y,z) -> (x,y,toTCDL z)) <$> fs)
 toTCDL (DLVariant e fs) = TLVariant (toTCDL e) ((\(x,y,z,v) -> (x,y,z,toTCDL v)) <$> fs)
 #ifdef BUILTIN_ARRAYS
-toTCDL (DLArray e p) = TLArray (toTCDL e) p
+toTCDL (DLArray e l p) = TLArray (toTCDL e) l p
 #endif
 toTCDL (DLOffset e s) = TLOffset (toTCDL e) s
 toTCDL (DLAfter e s) = TLAfter (toTCDL e) s
@@ -217,10 +219,16 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
     primitiveBitRange _                    = Nothing
 
 #ifdef BUILTIN_ARRAYS
-tcDataLayoutExpr env vs (DLArray e pos) = do
-  (e', alloc) <- tcDataLayoutExpr env vs e
-  let alloc' = fmap (InElmt pos) alloc
-  return (TLArray e' pos, alloc')
+tcDataLayoutExpr env vs (DLArray e l pos) = do
+  (e', alloc0) <- tcDataLayoutExpr env vs e
+  let sz = endOfAllocation alloc0 - beginningOfAllocation alloc0
+      alloc0' = fmap (InElmt pos) alloc0
+      allocs  = zipWith offset [ n * sz | n <- [0 ..]] (replicate (fromIntegral l) alloc0')
+  if sz `mod` 8 /= 0 then
+    throwE $ ArrayElementNotByteAligned (fromIntegral sz) (InElmt pos PathEnd)
+  else case foldM (/\) emptyAllocation allocs of
+    Left  ovlp  -> throwE (OverlappingBlocks ovlp)
+    Right alloc -> return (TLArray e' l pos, alloc)
 #endif
 
 tcDataLayoutExpr _ _ DLPtr = return (TLPtr, singletonAllocation (pointerBitRange, PathEnd))
@@ -246,7 +254,7 @@ substDataLayoutExpr = f
     f ps (DLAfter e n)    = flip DLAfter n $ f ps e
     f ps (DLEndian e n)   = flip DLEndian n $ f ps e
 #ifdef BUILTIN_ARRAYS
-    f ps (DLArray e p)    = flip DLArray p $ f ps e
+    f ps (DLArray e l p)  = DLArray (f ps e) l p
 #endif
     f ps (DLVar n)        = fromMaybe (DLVar n) (lookup n ps)
     f ps e                = e
@@ -293,6 +301,7 @@ data DataLayoutTcErrorP p
   | NonExistingField        FieldName p
   | InvalidUseOfAfter       FieldName p
   | InvalidEndianness       Endianness p
+  | ArrayElementNotByteAligned Int p
   deriving (Eq, Show, Ord, Functor)
 
 

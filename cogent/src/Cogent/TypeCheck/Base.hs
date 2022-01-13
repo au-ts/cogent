@@ -744,7 +744,7 @@ substLayoutL vs (TLVar n) | Just x <- lookup n vs = x
 substLayoutL vs (TLRecord fs) = TLRecord $ (\(x,y,z) -> (x,y,substLayoutL vs z)) <$> fs
 substLayoutL vs (TLVariant e fs) = TLVariant e $ (\(x,y,z,v) -> (x,y,z,substLayoutL vs v)) <$> fs
 #ifdef BUILTIN_ARRAYS
-substLayoutL vs (TLArray e p) = TLArray (substLayoutL vs e) p
+substLayoutL vs (TLArray e l p) = TLArray (substLayoutL vs e) l p
 #endif
 substLayoutL vs (TLOffset e s) = TLOffset (substLayoutL vs e) s
 substLayoutL vs (TLAfter e f) = TLAfter (substLayoutL vs e) f
@@ -872,7 +872,7 @@ unifLVars (TLU n) = [n]
 unifLVars (TLRecord ps) = concatMap unifLVars (thd3 <$> ps)
 unifLVars (TLVariant t ps) = unifLVars t <> concatMap unifLVars ((\(_,_,_,a) -> a) <$> ps)
 #ifdef BUILTIN_ARRAYS
-unifLVars (TLArray e _) = unifLVars e
+unifLVars (TLArray e _ _) = unifLVars e
 #endif
 unifLVars (TLOffset e _) = unifLVars e
 unifLVars (TLAfter e _) = unifLVars e

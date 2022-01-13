@@ -263,7 +263,7 @@ substituteS ls (Boxed b (Layout l)) = Boxed b . Layout $ substituteS' ls l
             fes = fmap snd fsl
          in RecordLayout $ M.fromList (zip fns (fmap (substituteS' ls) fes))
 #ifdef BUILTIN_ARRAYS
-      ArrayLayout e -> ArrayLayout $ substituteS' ls e
+      ArrayLayout es -> ArrayLayout $ Prelude.map (substituteS' ls) es
 #endif
       _ -> l
 
