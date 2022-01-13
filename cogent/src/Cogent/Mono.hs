@@ -267,7 +267,7 @@ monoLayout (Layout l) = Layout <$> monoLayout' l
       fes' <- mapM monoLayout' fes
       RecordLayout <$> pure (M.fromList $ P.zip fns fes')
 #ifdef BUILTIN_ARRAYS
-    monoLayout' (ArrayLayout e) = ArrayLayout <$> monoLayout' e
+    monoLayout' (ArrayLayout es) = ArrayLayout <$> mapM monoLayout' es
 #endif
     monoLayout' l = pure l
 

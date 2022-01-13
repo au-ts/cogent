@@ -137,7 +137,7 @@ $ty:(BoxedData!) get_Entry_data ($ty:(Entry!) args) {
   return &((EntryC *)args)->data;
 }
 
-$ty:((r, acc)) $id:match_Person ($ty:(#{ scr  : BoxedData!
+$ty:((r, acc)) $id:match_BoxedData ($ty:(#{ scr  : BoxedData!
                                        , acc  : acc
                                        , obsv : obsv
                                        , person : (TPersonL!, acc, obsv) -> (r, acc)

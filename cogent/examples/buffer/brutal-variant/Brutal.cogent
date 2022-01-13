@@ -46,8 +46,8 @@ type TPerson = { len : U8, gender : Gender, nationality : U8#[2], name : U8#[0] 
 type TAddr   = { len : U8, addr : U8#[0] }  -- the addr ends with \0, and len (of addr) includes it.
 type TDate   = { yr  : U16, mon : U8 , day : U8 }
 
-layout LPerson = record { len : 1B, gender : LGender at 1B, nationality : array[1B] at 2B, name : array[1B] at 4B }
-layout LAddr   = record { len : 1B, addr : array[1B] at 1B }
+layout LPerson = record { len : 1B, gender : LGender at 1B, nationality : array{1B}[2] at 2B, name : array{1B}[0] at 4B }
+layout LAddr   = record { len : 1B, addr : array {1B} [0] at 1B }
 layout LDate   = record { yr  : 2B, mon : 1B at 2B, day : 1B at 3B }
 
 {-# GETTER TPersonL, nationality, get_TPersonL_nationality #-}

@@ -610,14 +610,9 @@ desugarType = \case
     return $ TArray t' l' Unboxed mhole
   B.DT (S.TArray t l sigil tkns) -> do
     TArray t' l' Unboxed tkns' <- desugarType $ B.DT (S.TArray t l Unboxed tkns)
-    -- NOTE: if the user specify boxed array containing boxed types with layout defined as pointer,
-    --       we simply turn that into CLayout to avoid generating extra getters & setters
-    ds <- case sigil of
-            Boxed ro (Just (DLArray DLPtr _)) -> pure $ Boxed ro CLayout
-            _ -> desugarSigil sigil
     TArray <$> pure t'
            <*> pure l'
-           <*> pure ds
+           <*> desugarSigil sigil
            <*> pure tkns'
 #endif
   notInWHNF -> __impossible $ "desugarType (type " ++ show (pretty notInWHNF) ++ " is not in WHNF)"
@@ -632,7 +627,7 @@ desugarLayout = (Layout <$>) . go
         | sz <- evalSize n
         , sz > 0 -> pure $ PrimLayout (fromJust $ newBitRangeBaseSize 0 sz) ME
         | evalSize n < 0 -> __impossible "desugarLayout: TLPrim has a negative size"
-        | otherwise            -> pure UnitLayout
+        | otherwise      -> pure UnitLayout
       DLOffset e n -> do
         e' <- go e
         pure $ offset (evalSize n) e'
@@ -657,7 +652,11 @@ desugarLayout = (Layout <$>) . go
         pure $ SumLayout tr (M.fromList alts')
       DLPtr -> pure $ PrimLayout pointerBitRange ME
 #ifdef BUILTIN_ARRAYS
-      DLArray e _ -> ArrayLayout <$> go e
+      DLArray e l _ -> do
+        e' <- go e
+        let sz = dataLayoutSizeInBytes' e'
+            es' = P.zipWith offset [8 * sz * n | n <- [0..]] (replicate (fromIntegral l) e')
+        return $ ArrayLayout es'
 #endif
       DLVar n -> (findIx n <$> use layCtx) >>= \case
         Just v -> pure $ VarLayout (finNat v) 0

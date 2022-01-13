@@ -168,7 +168,7 @@ applyL s (TLRecord fs) = TLRecord $ (\(a,b,c) -> (a,b,applyL s c)) <$> fs
 applyL s (TLVariant e fs) = TLVariant (applyL s e) $
                                       (\(a,b,c,d) -> (a,b,c,applyL s d)) <$> fs
 #ifdef BUILTIN_ARRAYS
-applyL s (TLArray e p) = TLArray (applyL s e) p
+applyL s (TLArray e l p) = TLArray (applyL s e) l p
 #endif
 applyL s (TLOffset e n) = TLOffset (applyL s e) n
 applyL s (TLAfter e f) = TLAfter (applyL s e) f

@@ -91,7 +91,7 @@ import           Prelude             as P     hiding (mapM)
 import           System.IO (Handle, hPutChar)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
 
--- import Debug.Trace
+import Debug.Trace
 -- import Unsafe.Coerce (unsafeCoerce)
 
 
@@ -100,8 +100,9 @@ import qualified Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
 genTyDecl :: (StrlType, CId) -> [TypeName] -> ([CExtDecl], [CExtDecl])
 genTyDecl (Record x, n) _ = ([CDecl $ CStructDecl n (map (second Just . swap) x)], [genTySynDecl (n, CStruct n)])
 genTyDecl (RecordL layout, n) _ =
-  let size      = dataLayoutSizeInWords layout
-      arrayType = CArray (CInt False CIntT) (CArraySize $ CConst $ CNumConst size (CInt False CIntT) DEC)
+  let bitsize   = hiDataLayout layout
+      size      = trace ("**** n = " ++ n ++ ": " ++ show (PP.pretty layout) ++ "\n bit size =" ++ show bitsize) $ dataLayoutSizeInWords layout
+      arrayType = trace ("**** size = " ++ show size ++ "\n--------------------------------") $ CArray (CInt False CIntT) (CArraySize $ CConst $ CNumConst size (CInt False CIntT) DEC)
   in
     if size == 0
       then ([],[])
@@ -395,8 +396,8 @@ registerGS _ = return ()
 -- Helper function for remove unnecessary info for cogent types
 simplifyType :: CC.Type 'Zero VarName -> CC.Type 'Zero VarName
 #ifdef BUILTIN_ARRAYS
-simplifyType (TArray elt _ (Boxed rw (Layout (ArrayLayout l))) _) =
-    TArray elt (LILit 0 U32) (Boxed rw (Layout (ArrayLayout l))) Nothing
+simplifyType (TArray elt _ (Boxed rw (Layout l@(ArrayLayout {}))) _) =
+    TArray elt (LILit 0 U32) (Boxed rw (Layout l)) Nothing
 #endif
 -- In the C code, we don't care whether records are readonly or not (at least for recursive types). Thus, we only generate one type of record /emmetm
 simplifyType (TRecord rp fs s) =

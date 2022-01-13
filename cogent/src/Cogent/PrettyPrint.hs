@@ -697,7 +697,7 @@ instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (Variant e vs) = keyword "variant" <+> parens (pretty e)
                                                  <+> record (map (\(f,_,i,e) -> tagname f <+> tupled [literal $ string $ show i] <> symbol ":" <+> pretty e) vs)
 #ifdef BUILTIN_ARRAYS
-  pretty (Array e s) = keyword "array" <+> brackets (pretty e)
+  pretty (Array e l s) = keyword "array" <+> braces (pretty e) <+> brackets (pretty l)
 #endif
   pretty Ptr = keyword "pointer"
   pretty (LVar n) = dlvarname n
@@ -1065,6 +1065,8 @@ instance Pretty DataLayoutTcError where
     err "The use of" <+> symbol "after" <+> fieldname f <+> err "layout expression is invalid" <$$> indent (pretty ctx)
   pretty (InvalidEndianness end ctx) =
     err "Endianness" <+> pretty end <+> err "can only be applied to int sizes"
+  pretty (ArrayElementNotByteAligned sz p) = err "array element has a layout of size" <+> pretty sz <$$>
+                                             err "whereas it should be aligned to bytes"
 
 instance Pretty DataLayoutPath where
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx
@@ -1095,7 +1097,7 @@ instance Pretty a => Pretty (DataLayout' a) where
     record (map prettyField $ M.toList fieldsDL)
     where prettyField (f,l) = fieldname f <+> symbol ":" <+> pretty l
 #ifdef BUILTIN_ARRAYS
-  pretty (ArrayLayout l) = brackets (pretty l)
+  pretty (ArrayLayout ls) = list (map pretty ls)
 #endif
   pretty (VarLayout n s) = (dullcyan . string . ("_l" ++) . show $ natToInt n) <> prettyOffset s
     where prettyOffset 0 = empty

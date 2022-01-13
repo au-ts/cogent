@@ -39,6 +39,7 @@ module Cogent.Dargent.Allocation
   , overlaps
   , isZeroSizedAllocation
   , endOfAllocation
+  , beginningOfAllocation
   , AlignedBitRange (..)
   , alignSize
   , alignOffsettable
@@ -178,6 +179,9 @@ overlaps (BitRange s1 o1) (BitRange s2 o2) =
 
 isZeroSizedAllocation :: Allocation' p -> Bool
 isZeroSizedAllocation = all (isZeroSizedBR . fst) . unAllocation
+
+beginningOfAllocation :: Allocation -> Integer
+beginningOfAllocation (Allocation abs) = minimum $ fmap (\(BitRange s o, _) -> o) abs
 
 endOfAllocation :: Allocation -> Integer  -- calculates the last bit of an allocation
 endOfAllocation (Allocation abs) = maximum $ fmap (\(BitRange s o, _) -> s + o) abs
