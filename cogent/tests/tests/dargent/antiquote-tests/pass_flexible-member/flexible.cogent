@@ -1,5 +1,5 @@
 type F = { f1 : U32, len : U32, f2 : U8, data : U8#[0] }
-layout L = record { f1 : 4B, len : 4B, f2 : 1B, data : array [1B]}
+layout L = record { f1 : 4B, len : 4B, f2 : 1B, data : array {1B}[0]}
 
 -- The functions given in the GETTER/SETTER pragmas should have a(n) (abstract)
 -- function definition inn Cogent so that the compiler can generate the correct
