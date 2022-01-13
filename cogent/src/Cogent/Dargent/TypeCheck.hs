@@ -221,12 +221,10 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
 #ifdef BUILTIN_ARRAYS
 tcDataLayoutExpr env vs (DLArray e l pos) = do
   (e', alloc0) <- tcDataLayoutExpr env vs e
-  let sz = endOfAllocation alloc0 - beginningOfAllocation alloc0
+  let sz = (`div` byteSizeBits) . alignSize wordSizeBits $ endOfAllocation alloc0 - beginningOfAllocation alloc0  -- in bytes
       alloc0' = fmap (InElmt pos) alloc0
-      allocs  = zipWith offset [ n * sz | n <- [0 ..]] (replicate (fromIntegral l) alloc0')
-  if sz `mod` 8 /= 0 then
-    throwE $ ArrayElementNotByteAligned (fromIntegral sz) (InElmt pos PathEnd)
-  else case foldM (/\) emptyAllocation allocs of
+      allocs  = zipWith offset [ 8 * n * sz | n <- [0 ..]] (replicate (fromIntegral l) alloc0')
+  case foldM (/\) emptyAllocation allocs of
     Left  ovlp  -> throwE (OverlappingBlocks ovlp)
     Right alloc -> return (TLArray e' l pos, alloc)
 #endif
