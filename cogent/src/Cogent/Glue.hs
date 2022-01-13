@@ -531,8 +531,6 @@ genAnti m a =
                                           , CG._boxedRecordGetters     = M.empty
                                           , CG._boxedArraySetters      = M.empty
                                           , CG._boxedArrayGetters      = M.empty
-                                          , CG._boxedArrayElemSetters  = M.empty
-                                          , CG._boxedArrayElemGetters  = M.empty
                                           }
                   in return (fst $ evalRWS (CG.runGen $ m a) reader state, s)
 

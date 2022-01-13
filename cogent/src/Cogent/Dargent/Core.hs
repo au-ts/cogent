@@ -100,7 +100,7 @@ loDataLayout' (PrimLayout b _) = loBitRange b
 loDataLayout' (SumLayout tag alts) = foldr (\(_,b) m -> min (loDataLayout' b) m) (loBitRange tag) alts
 loDataLayout' (RecordLayout (M.toList -> (f:fs))) = foldr (\(_,b) m -> min (loDataLayout' b) m) (loDataLayout' (snd f)) fs
 #ifdef BUILTIN_ARRAYS
-loDataLayout' (ArrayLayout ds) = minimum $ Prelude.map loDataLayout' ds
+loDataLayout' (ArrayLayout d l) = loDataLayout' d
 #endif
 loDataLayout' (VarLayout v off) = __impossible "loDataLayout': don't know the last bit of a variable"
 
@@ -110,7 +110,9 @@ hiDataLayout' (PrimLayout b _) = hiBitRange b
 hiDataLayout' (SumLayout tag alts) = foldr (\(_,b) m -> max (hiDataLayout' b) m) (hiBitRange tag) alts
 hiDataLayout' (RecordLayout fs) = foldr (\b m -> max (hiDataLayout' b) m) 0 fs
 #ifdef BUILTIN_ARRAYS
-hiDataLayout' (ArrayLayout ds) = maximum $ Prelude.map hiDataLayout' ds
+hiDataLayout' (ArrayLayout d l) = let low = loDataLayout' d
+                                      sz = dataLayoutSizeInBytes' d
+                                   in low + l * sz * 8
 #endif
 hiDataLayout' (VarLayout v off) = __impossible "hiDataLayout': don't know the last bit of a variable"
 

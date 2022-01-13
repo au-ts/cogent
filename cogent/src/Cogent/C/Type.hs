@@ -91,7 +91,7 @@ import           Prelude             as P     hiding (mapM)
 import           System.IO (Handle, hPutChar)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP hiding ((<$>), (<>))
 
-import Debug.Trace
+-- import Debug.Trace
 -- import Unsafe.Coerce (unsafeCoerce)
 
 
@@ -101,12 +101,11 @@ genTyDecl :: (StrlType, CId) -> [TypeName] -> ([CExtDecl], [CExtDecl])
 genTyDecl (Record x, n) _ = ([CDecl $ CStructDecl n (map (second Just . swap) x)], [genTySynDecl (n, CStruct n)])
 genTyDecl (RecordL layout, n) _ =
   let bitsize   = hiDataLayout layout
-      size      = trace ("**** n = " ++ n ++ ": " ++ show (PP.pretty layout) ++ "\n bit size =" ++ show bitsize) $ dataLayoutSizeInWords layout
-      arrayType = trace ("**** size = " ++ show size ++ "\n--------------------------------") $ CArray (CInt False CIntT) (CArraySize $ CConst $ CNumConst size (CInt False CIntT) DEC)
-  in
-    if size == 0
-      then ([],[])
-      else ([CDecl $ CStructDecl n [(arrayType, Just "data")]], [genTySynDecl (n, CStruct n)])
+      size      = dataLayoutSizeInWords layout
+      arrayType = CArray (CInt False CIntT) (CArraySize $ CConst $ CNumConst size (CInt False CIntT) DEC)
+  in if size == 0
+       then ([],[])
+       else ([CDecl $ CStructDecl n [(arrayType, Just "data")]], [genTySynDecl (n, CStruct n)])
 genTyDecl (Product t1 t2, n) _ = ([CDecl $ CStructDecl n [(t1, Just p1), (t2, Just p2)]], [])
 genTyDecl (Variant x, n) _ = case __cogent_funion_for_variants of
   False -> ([CDecl $ CStructDecl n ((CIdent tagsT, Just fieldTag) : map (second Just . swap) (M.toList x))],
