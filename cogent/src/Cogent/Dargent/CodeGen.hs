@@ -107,6 +107,49 @@ genGSRecord t fld m = do
       TRecord _ _ (Boxed _ CLayout) -> __impossible "genGSRecord: tried to gen a getter/setter for a C type"
 
 
+#ifdef BUILTIN_ARRAYS
+-- | Returns a getter/setter function name for an element of a boxed array.
+--   Used in array element access like @take, @put, @idx, etc.
+-- 
+-- We want all layout definition aligned to bytes and we don't want padding bytes between elements,
+-- thus we use byte array here.
+genGSArray
+  :: Type 'Zero VarName
+     -- ^
+     -- Cogent type for the array.
+  -> GetOrSet
+     -- ^
+     -- The type of function to generate.
+  -> Gen v FunName
+     -- ^
+     -- The 'FunName' is the name of the getter/setter function
+     -- for the field of the record.
+
+genGSArray t m = do
+  mf <- use ((case m of Get -> boxedArrayGetters; Set -> boxedArraySetters) . at t)
+  case mf of
+    Just f  -> return f
+    Nothing ->
+      case t of
+        -- NOTE: do we need to check layout within elt here?
+        TArray elt _ (Boxed _ (Layout (ArrayLayout ell _))) _ -> do
+          let sz = dataLayoutSizeInBytes' ell
+              ell' = alignLayoutToBytes' ell
+              -- we get rid of unused info here, e.g. array length, hole location
+          fn <- genGSName [] m
+          t' <- genType t
+          elt' <- genType elt
+          elGs <- genGS False (CPtr charCTy) elt ell' [] m
+          tell [arrayGetterSetter t' elt' sz fn elGs m]
+          ((case m of Get -> boxedArrayGetters; Set -> boxedArraySetters) . at (simplifyType t)) ?= fn
+          return fn
+        _ -> __impossible $ "genGSArray: this function should only be called with boxed array with boxed types " ++
+                            "with layout provided, check caller."
+#endif
+
+
+
+
 -- | Returns a getter/setter function name for a part of a boxed record.
 --
 -- Depending on the part's type, it recurses down the data structure in question to
@@ -175,7 +218,7 @@ genGS s root t@(TArray elt l (Boxed {}) _) (PrimLayout br ω) path m = do
   genGSBlock s br ω root t' path m
 
 -- vvv FIXME!!!
-genGS s root t@(TArray telt l Unboxed _) (ArrayLayout lelts) path m = do
+genGS s root t@(TArray telt l Unboxed _) (ArrayLayout lelt l') path m = do
   fn <- genGSName path m
   tarr' <- genType t
   telt' <- genType telt
@@ -188,49 +231,6 @@ genGS s root t@(TArray telt l Unboxed _) (ArrayLayout lelts) path m = do
 genGS s root t l _ _ = __impossible $ "genGS"
 
 
-#ifdef BUILTIN_ARRAYS
--- | Returns a getter/setter function C expression for a part of a boxed array.
---   Used in array element access like @take, @put, @idx, etc.
--- 
--- We want all layout definition aligned to bytes and we don't want padding bytes between elements,
--- thus we use byte array here.
-genBoxedArrayGetSet
-  :: Type 'Zero VarName
-     -- ^
-     -- Cogent type for the array.
-  -> GetOrSet
-     -- ^
-     -- The type of function to generate.
-  -> Gen v FunName
-     -- ^
-     -- The 'FunName' is the name of the getter/setter function
-     -- for the field of the record.
-
-genBoxedArrayGetSet cogentType getOrSet = do
-  mf <- use ((case getOrSet of Get -> boxedArrayGetters; Set -> boxedArraySetters) . at cogentType)
-  case mf of
-    Just f  -> return f
-    Nothing ->
-      case cogentType of
-        -- NOTE: do we need to check layout within elt here?
-        TArray elemType _ (Boxed _ (Layout (ArrayLayout (elemLayout:elemLayouts)))) _ -> do
-          let elemSize = dataLayoutSizeInBytes' elemLayout
-              elemLayout' = alignLayoutToBytes' elemLayout
-              -- we get rid of unused info here, e.g. array length, hole location
-          functionIdentifier <- genGSName [] getOrSet
-          cogentCType  <- genType cogentType
-          elemCType <- genType elemType
-          elemGetterSetter <- genGS False (CPtr charCTy) elemType elemLayout' [] getOrSet
-          ((case getOrSet of Get -> boxedArrayElemGetters; Set -> boxedArrayElemSetters) . at (simplifyType cogentType))
-            ?= elemGetterSetter
-          tell [arrayGetterSetter cogentCType elemCType elemSize functionIdentifier elemGetterSetter getOrSet]
-          ((case getOrSet of Get -> boxedArrayGetters; Set -> boxedArraySetters) . at (simplifyType cogentType))
-            ?= functionIdentifier
-          return functionIdentifier
-        _ -> __impossible $
-          "Cogent.Dargent.CodeGen: genBoxedArrayGetSet: this function should only be called with boxed array with boxed types " ++
-          "with layout provided, check caller."
-#endif
 
 -- | Declares in the 'Gen' state a C function which gets/sets the contents
 -- of a list of aligned bit ranges in a boxed value which concatenate to

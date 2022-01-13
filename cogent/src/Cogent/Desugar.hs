@@ -652,11 +652,7 @@ desugarLayout = (Layout <$>) . go
         pure $ SumLayout tr (M.fromList alts')
       DLPtr -> pure $ PrimLayout pointerBitRange ME
 #ifdef BUILTIN_ARRAYS
-      DLArray e l _ -> do
-        e' <- go e
-        let sz = dataLayoutSizeInBytes' e'
-            es' = P.zipWith offset [8 * sz * n | n <- [0..]] (replicate (fromIntegral l) e')
-        return $ ArrayLayout es'
+      DLArray e l _ -> ArrayLayout <$> go e <*> pure l
 #endif
       DLVar n -> (findIx n <$> use layCtx) >>= \case
         Just v -> pure $ VarLayout (finNat v) 0

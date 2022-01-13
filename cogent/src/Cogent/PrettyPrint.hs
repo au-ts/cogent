@@ -1097,7 +1097,7 @@ instance Pretty a => Pretty (DataLayout' a) where
     record (map prettyField $ M.toList fieldsDL)
     where prettyField (f,l) = fieldname f <+> symbol ":" <+> pretty l
 #ifdef BUILTIN_ARRAYS
-  pretty (ArrayLayout ls) = list (map pretty ls)
+  pretty (ArrayLayout d l) = parens (pretty d) <> brackets (pretty l)
 #endif
   pretty (VarLayout n s) = (dullcyan . string . ("_l" ++) . show $ natToInt n) <> prettyOffset s
     where prettyOffset 0 = empty
