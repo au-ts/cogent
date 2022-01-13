@@ -1,0 +1,6 @@
+struct $id:(WordArray a) {
+	int len;
+	$ty:a* values;
+};
+
+typedef struct $id:(WordArray a) $id:(WordArray a);
