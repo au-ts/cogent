@@ -19,6 +19,7 @@
     - pass_pragma-gsetters.cogent
     - pass_layout-variant-implicit-after.cogent
     - pass_layout-no-overlapping-variant.cogent
+    - pass_dargent-fn.cogent
   expected_result: pass
   flags:
     - -g
