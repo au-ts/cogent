@@ -200,6 +200,9 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
     | isBoxedType tau
     , evalSize n == pointerSizeBits
     -> hoistMaybe $ Just []
+    | isFunType tau
+    , evalSize n == pointerSizeBits
+    -> hoistMaybe $ Just []
 
   TLPtr :~ R rp r (Left (Boxed _ (Just l))) -> hoistMaybe $ Just [l :~ R rp r (Left Unboxed)]
   TLPtr :~ R rp r (Left (Boxed _ Nothing )) -> hoistMaybe $ Just [LayoutOk (R rp r (Left Unboxed))]
@@ -264,6 +267,8 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   t1 :~~ t2 | t1 == t2 -> hoistMaybe $ Just []
             | isPrimType t1 && isPrimType t2
             , primTypeSize t1 <= primTypeSize t2
+            -> hoistMaybe $ Just []
+            | isFunType t1 && isFunType t2
             -> hoistMaybe $ Just []
             | otherwise -> hoistMaybe Nothing
 
@@ -407,6 +412,10 @@ isPrimType (T (TCon n [] Unboxed))
 isPrimType (T (TBang t)) = isPrimType t
 isPrimType (T (TUnbox t)) = isPrimType t
 isPrimType _ = False
+
+isFunType :: TCType -> Bool
+isFunType (T (TFun _ _)) = True
+isFunType _ = False
 
 fullyNormalise :: TCType -> Rewrite.RewriteT TcSolvM TCType
 fullyNormalise t = undefined

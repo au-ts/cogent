@@ -1,0 +1,6 @@
+type R = {f : U8 -> U8, g : U8}
+  layout record { f : 4B, g : 1B }
+
+foo : R -> R
+foo r {g} = let g' = r.f g !r
+             in r {g = g'}

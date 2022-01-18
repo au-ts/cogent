@@ -182,6 +182,10 @@ genGS s root t@(TPrim _) (PrimLayout br ω) path m = do
   t' <- genType t
   genGSBlock s br ω root t' path m
 
+genGS s root t@(TFun {}) (PrimLayout br ω) path m = do
+  t' <- genType t
+  genGSBlock s br ω root t' path m
+
 genGS s root t@(TRecord _ _ Boxed {}) (PrimLayout br ω) path m = do
   t' <- genType t
   genGSBlock s br ω root t' path m
