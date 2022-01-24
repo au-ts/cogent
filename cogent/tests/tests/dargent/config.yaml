@@ -38,6 +38,7 @@
     - fail_after-nonexisting-field-2.cogent
     - fail_bits-endianness.cogent
     - fail_record-endianness.cogent
+    - fail_too-big-tag.cogent
   expected_result: fail
   flags:
     - -t

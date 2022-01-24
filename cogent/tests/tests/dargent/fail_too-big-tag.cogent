@@ -1,0 +1,11 @@
+type V = <A U16 | B Bool | C>
+
+layout L = variant (8B) { A(0) : 2B at 8B, 
+                          B(1) : 1b at 8B,
+                          C(0xFFFFFFFFFFFFFFFE) : 0b }
+
+
+bar : ({ f : V } layout record { f : L })! -> U32
+bar r = r.f | A a -> upcast a
+            | B b -> if b then 1 else 0
+            | C   -> 0xFFFFFFFE
