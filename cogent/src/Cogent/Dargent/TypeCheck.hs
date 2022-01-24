@@ -173,6 +173,7 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
         (tagExpr', tagAlloc) <- tcDataLayoutExpr env vs tagExpr
         when (2 ^ (bitSizeBR tagBits - 1) > maximum (alts <&> (^. _3))) $  -- we don't allow a variant without any alternatives
           throwE $ TagSizeTooLarge (InTag PathEnd)
+        when (bitSizeBR tagBits > 32) $ throwE $ TagLargerThanInt (InTag PathEnd)  -- we don't allow tag bigger than a uint
         let bs = foldl (desugar tagBits) BEmp alts
         (altsExprs, altsAlloc, _) <- foldM (tcAlternative tagBits) ([], emptyAllocation, M.empty) bs
         alloc <- except $ first OverlappingBlocks $ singletonAllocation (tagBits, InTag PathEnd) /\ altsAlloc
@@ -279,6 +280,7 @@ data DataLayoutTcErrorP p
   -- ^ Have referenced a data layout which isn't correct
 
   | TagSizeTooLarge         p
+  | TagLargerThanInt        p
   | TagNotSingleBlock       p
 
   | SameTagValues           p TagName TagName Size

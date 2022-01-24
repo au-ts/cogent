@@ -1046,6 +1046,9 @@ instance Pretty DataLayoutTcError where
   pretty (OversizedTagValue context range altName value) =
     err "Oversized tag value" <+> literal (pretty value) <+> err "for tag data block" <+> pretty range <+> err "in variant alternative" <+> tagname altName <$$>
     indent (pretty context)
+  pretty (TagLargerThanInt context) =
+    err "The size of the tag is larger than 32 bits" <$$>
+    indent (pretty context)
   pretty (ZeroSizedBitRange context) =
     err "Zero-sized bit range" <$$>
     indent (pretty context)
