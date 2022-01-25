@@ -223,7 +223,7 @@ datatype access_perm = ReadOnly | Writable
 datatype 'a sigil = Boxed of access_perm * 'a layout_info |  Unboxed
 datatype 'a uval = UProduct of string
               | USum of string * term (* term contains argument to TSum (excluding TSum itself) *)
-              | URecord of string * 'a sigil 
+              | URecord of string * term * 'a sigil  (* term is the type *)
               | UAbstract of string;
 ;
 type 'a uvals = ('a uval) list;
@@ -232,7 +232,7 @@ fun sigil_map f (Boxed (a, CustomLayout (l, t))) = Boxed (a, CustomLayout ((map 
  |  sigil_map _ (Boxed (a, DefaultLayout)) = Boxed (a, DefaultLayout)
  |  sigil_map _ Unboxed = Unboxed
 
-fun uval_map (f : 'a -> 'b) (URecord (s, b)) = (URecord (s, sigil_map f b))
+fun uval_map (f : 'a -> 'b) (URecord (s, t, b)) = (URecord (s, t, sigil_map f b))
   | uval_map _ (UProduct s) = UProduct s
   | uval_map _ (USum s) = USum s
   | uval_map _ (UAbstract s) = UAbstract s
@@ -255,8 +255,8 @@ fun get_uvals (file_nm : string) thy : (field_layout uvals) option =
 \<close>
 
 ML\<open> (* unify_sigils to remove certain kind of duplication.*)
-fun unify_sigils (URecord (ty_name, Boxed (_, l))) = URecord (ty_name,Boxed(Writable, l))
-  | unify_sigils (URecord (ty_name, Unboxed))    = URecord (ty_name,Boxed (Writable, DefaultLayout))
+fun unify_sigils (URecord (ty_name, t, Boxed (_, l))) = URecord (ty_name,t,Boxed(Writable, l))
+  | unify_sigils (URecord (ty_name, t, Unboxed))    = URecord (ty_name,t,Boxed (Writable, DefaultLayout))
   | unify_sigils uval                  = uval
   (* value-relations and type-relations are independent of sigils, if they
    * have the same layout.
@@ -281,7 +281,7 @@ fun get_urecords uvals = filter (fn uval => case uval of  (URecord _) => true | 
 \<close>
 
 ML\<open> (* get_uval_name *)
-fun get_uval_name (URecord (ty_name, _)) = ty_name
+fun get_uval_name (URecord (ty_name, _,_)) = ty_name
  |  get_uval_name (USum    (ty_name, _)) = ty_name
  |  get_uval_name (UProduct ty_name) = ty_name
  |  get_uval_name (UAbstract ty_name) = ty_name
@@ -298,14 +298,20 @@ ML \<open>fun get_uval_getsetters (URecord (ty_name, _, l)) = l
    | get_uval_getsetters _ = NONE \<close>
 *)
 ML\<open> (* get_uval_sigil *)
-fun get_uval_sigil (URecord (_, sigil)) = sigil
+fun get_uval_sigil (URecord (_, _, sigil)) = sigil
  |  get_uval_sigil _ = error "get_uval_sigil failed. The type of this argument is not URecord."
 \<close>
 
 ML \<open>
-  fun get_uval_layout (URecord (_, Boxed (_,l))) = l
+  fun get_uval_layout (URecord (_, _, Boxed (_,l))) = l
     | get_uval_layout _ = DefaultLayout
 \<close>
+ML\<open> 
+fun get_uval_typ (URecord (_, t, _)) = t
+ |  get_uval_typ _ = error "get_uval_typ failed. The type of this argument is not URecord."
+\<close>
+
+
 
 ML \<open>
   fun get_uval_custom_layout u =
@@ -315,20 +321,20 @@ ML \<open>
 \<close>
 
 ML\<open> fun get_uval_custom_layout_records uvals =
- filter (fn  (URecord (_, Boxed (_, (CustomLayout _)))) => true            
+ filter (fn  (URecord (_, _, Boxed (_, (CustomLayout _)))) => true            
             | _ => false) uvals;
 \<close>
 
 ML\<open> fun get_uval_writable_records (uvals : 'a uvals) =
- filter (fn uval => case uval of (URecord (_, Boxed(Writable, _))) => true | _ => false) uvals;
+ filter (fn uval => case uval of (URecord (_, _, Boxed(Writable, _))) => true | _ => false) uvals;
 \<close>
 
 ML\<open> fun get_uval_unbox_records (uvals : 'a uvals) =
- filter (fn uval => case uval of (URecord (_, Unboxed)) => true | _ => false) uvals;
+ filter (fn uval => case uval of (URecord (_, _, Unboxed)) => true | _ => false) uvals;
 \<close>
 
 ML\<open> fun get_uval_readonly_records uvals =
- filter (fn uval => case uval of (URecord (_, Boxed(ReadOnly, _))) => true | _ => false) uvals;
+ filter (fn uval => case uval of (URecord (_, _, Boxed(ReadOnly, _))) => true | _ => false) uvals;
 \<close>
 
 ML\<open> fun usum_list_of_types _ uval = case uval of

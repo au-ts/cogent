@@ -129,16 +129,17 @@ fun read_table (file_name:string) thy =
        List.map (HOLogic.dest_prod) |>
        List.map fst |> List.map HOLogic.dest_string
 
-    fun decode_type (_, Const (@{const_name TCon}, _) $ _ $ _ $ _, cT, _) =
-            UAbstract cT
-      | decode_type (pos, Const (@{const_name TRecord}, _) $ l $ sigil, cT, getsets) =
-            URecord (cT, (decode_sigil  (decode_field_names l) pos sigil getsets)) 
-      | decode_type (_, Const (@{const_name TSum}, _) $ variants, cT, _) =
+    fun decode_type (pos, ty, cT, getsets) =
+     case ty of
+        Const (@{const_name TCon}, _) $ _ $ _ $ _ =>  UAbstract cT
+      | Const (@{const_name TRecord}, _) $ l $ sigil  =>
+            URecord (cT, ty, (decode_sigil  (decode_field_names l) pos sigil getsets)) 
+      | Const (@{const_name TSum}, _) $ variants =>
             USum (cT, variants)
-      | decode_type (_, Const (@{const_name TProduct}, _) $ _ $ _, cT, _) =
+      | Const (@{const_name TProduct}, _) $ _ $ _ =>
             UProduct cT
-      | decode_type (pos, t, _, _) =
-            raise TERM (report pos ^ "unrecognised type", [t]);
+      | _ =>
+            raise TERM (report pos ^ "unrecognised type", [ty]);
 
     val uvals = map decode_type tymap |> rm_redundancy
    in

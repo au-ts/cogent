@@ -4,10 +4,10 @@ This file deals with custom getters and setters in case of custom layouts.
 It also register uvals read from the table file in the theory.
 
 The three main functions are
-- generate_isa_getset_records_for_file: generates a direct and non monadic definition of custom
+1) generate_isa_getset_records_for_file: generates a direct and non monadic definition of custom
 getters and setters by inspecting the C (monadic) definition
 
-- local_setup_getset_lemmas which generates the get/set lemmas and prove them (similarly
+2) local_setup_getset_lemmas which generates the get/set lemmas and prove them (similarly
 to local_setup_take_put_member_case_esac_specialised_lemmas)
 
 To show the get/set lemmas that ought to be proven, use the following snippset:
@@ -16,10 +16,21 @@ ML \<open>lems  |> map (string_of_getset_lem @{context})|> map tracing\<close>
 
 These get/set lemmas should be proven before the Take, Put, .. lemmas.
 
-- local_setup_getset_sanity_lemmas which generates sanity checks for
+3) local_setup_getset_sanity_lemmas which generates sanity checks for
 custom getters and setters (that they are only concerned with the bits 
 specified by the layouts). These lemmas are not necessary for the refinement
 proof.
+
+This function is outdated in the sense that it was implemented before 4), which is more convincing.
+
+4) local_setup_getter_correctness which generates correctness theorems for getters (that
+they manipulate data according to the layouts). See the last part of this file.
+Use the following snipset:
+context Example begin
+local_setup \<open> local_setup_getter_correctness "example.c"\<close>
+
+thm GetSetSanity
+end
 
 *)
 theory Dargent_Custom_Get_Set
@@ -1267,6 +1278,400 @@ fun local_setup_getset_sanity_lemmas file_nm lthy =
   val (get_thms, set_thms) = List.map (make_getset_sanity_thms lthy) uvals
       |> List.concat |> ListPair.unzip
   val thms = get_thms @ set_thms
+  
+  fun add_to_bucket (name, thm) lthy  = 
+  Local_Theory.note ((Binding.name name, []), [thm]) lthy |> snd |>
+                  GetSetSanity.add_local thm
+  val lthy''  = fold add_to_bucket thms lthy;
+ in
+  lthy''
+ end;
+
+\<close>
+
+
+(*  **********
+
+The remaining of this file is devoted to the correctness of custom getters (that of custom setters
+is deduced from get/set lemmas, i.e., by the fact that they are inverse to getters).
+
+The main definition is uval_from_array which is roughly a specification of getters.
+
+************** *)
+
+fun sized_word_from_array' :: "nat \<Rightarrow> nat \<Rightarrow> nat \<Rightarrow> (('a::len) word)['n::finite] \<Rightarrow> ('b :: len) word"
+  where "sized_word_from_array' byte 0 bito ar = (ucast (ar.[byte])  && mask bito)"
+  | "sized_word_from_array' byte (Suc byteo) bito ar = ucast (ar.[byte]) || (sized_word_from_array' (Suc byte) byteo bito ar << LENGTH('a)) "
+
+(* first argument: offset, second argument size  *)
+definition sized_word_from_array :: "nat \<Rightarrow> nat \<Rightarrow> (('a::len) word)['n::finite] \<Rightarrow> ('b :: len) word"
+  where "sized_word_from_array pos s ar = 
+          (let (bytei, offi) = find_position LENGTH('a) pos in
+           let (bytee, offe) = find_position LENGTH('a) (pos + s) in           
+            if bytei = bytee then
+             ucast ((ar.[bytei] >> offi) && mask (offe - offi))
+           else 
+             ((ucast ((ar.[bytei] >> offi))
+\<comment> \<open> this mask is not necessary, but it matches the haskell implementation of get/set-ers\<close>
+&& mask (LENGTH('a) - offi)
+  )
+               || (sized_word_from_array' (Suc bytei) (bytee - bytei - 1) offe ar << (LENGTH('a) - offi)))               
+)"
+
+
+definition word_from_array :: "nat \<Rightarrow> (('a::len) word)['n::finite] \<Rightarrow> ('b :: len) word"
+  where "word_from_array pos ar = sized_word_from_array pos LENGTH('b) ar"
+
+
+(* Ensures that in a data array, tag values are among the specified ones in the layout.
+
+TODO: add this condition to the value relation to compensate for its laziness. Indeed,
+consider a variant with two constructors A and B, where the tag is either 0 or 2. 
+The value relation only enforces that if the tag
+is 0 and then the update value must be A, otherwise it is B. This is because the generated getter
+only tests whether the tag is 0, implicitly assuming that if not it must be 2, and not 3, for example.
+ As a consequence, the value relation is weaker than expected. Adding the following condition to the value relation
+would solve this issue.
+
+We assume for simplicity that the tag fits on 32 words.
+
+ *)
+fun valid_tags :: "ptr_layout \<Rightarrow> (('a::len) word)['n::finite] \<Rightarrow> bool"
+  where 
+  "valid_tags (LayVariant (s, n) ls) a = (\<exists> (_, tag, l) \<in> set ls. ((of_nat tag :: 32 word) = sized_word_from_array n s a \<and> valid_tags l a))"
+| "valid_tags (LayRecord ls) a = (\<forall> (_, l) \<in> set ls. (valid_tags l a))"
+| "valid_tags (LayProduct l1 l2 ) a = (valid_tags l1 a \<and> valid_tags l2 a)"
+| "valid_tags (LayVar _ _) _ = True"
+| "valid_tags (LayBitRange _) _ = True"
+
+definition get_name_layout 
+where get_name_layout_def : "get_name_layout   =  (\<lambda> n s a ls. 
+  let (name, _, l) = the (find (\<lambda> (_, v, _). of_nat v = (sized_word_from_array n s a :: 32 word)) ls)
+in (name, l))"
+
+(* 
+
+Construct a value in the update semantics of the given type according to the layout, out of a given
+word array.
+
+Since the value relation involves them, proving that generated getters and setters are correct means 
+proving that the constructed value relates to the original word array,
+typically:
+
+valid_tags (layout_from_trecord type) (data_C t) \<Longrightarrow>  val_rel (uval_from_array_toplevel type (data_C t)) t"
+
+*)
+fun uval_from_array :: "ptr_layout \<Rightarrow> type \<Rightarrow> (('a::len) word)['n::finite] \<Rightarrow> (char list, unit, 32 word) uval"
+  where "uval_from_array (LayRecord ls) (TRecord ts Unboxed) a = 
+              URecord (map (\<lambda> (n, t, _). 
+                      let l = assoc ls n in
+                        (uval_from_array l t a, type_repr t))
+                   ts) None" 
+  | "uval_from_array (LayBitRange (_, n)) (TRecord ts (Boxed rw ptrl)) a = UPtr (word_from_array n a) (type_repr ((TRecord ts (Boxed rw ptrl)))) "
+  | "uval_from_array (LayBitRange (_, n)) (TPrim (Num U8)) a = UPrim (LU8 (word_from_array n a)) "
+  | "uval_from_array (LayBitRange (_, n)) (TPrim (Num U16)) a = UPrim (LU16 (word_from_array n a)) "
+  | "uval_from_array (LayBitRange (_, n)) (TPrim (Num U32)) a = UPrim (LU32 (word_from_array n a)) "
+  | "uval_from_array (LayBitRange (_, n)) (TPrim (Num U64)) a = UPrim (LU64 (word_from_array n a)) "
+  | "uval_from_array (LayBitRange (_, n)) (TPrim Bool) a = UPrim (LBool (get_bit a n)) "
+  | "uval_from_array _ TUnit a = UUnit "
+  | uval_from_array_variant: 
+  (* the variant case is a bit convoluted because it must satisfy Isabelle termination checker.
+Below, an alternative equivalent definition is provided (see uval_from_array_variant')
+*)
+   "uval_from_array (LayVariant (s, n) ls) (TSum ts) a =
+(    
+let rts = map (\<lambda>(n, t, _). (n, type_repr t)) ts in
+let name_l = get_name_layout n s a ls in
+let name = fst name_l in
+let l = snd name_l in
+    let m =  List.map (\<lambda> (n, t, _) .  
+       if n = name then Some 
+         (uval_from_array l t a)
+\<comment> \<open>(USum n (uval_from_array l t a) rts)\<close>
+  else None
+
+) ts in
+USum name ( case (List.find (\<lambda> x. \<not> (Option.is_none x)) m) of Some (Some x) \<Rightarrow> x ) 
+rts)
+ "
+
+
+declare uval_from_array_variant[simp del]
+
+lemma uval_from_array_variant' :
+  "let rts = map (\<lambda>(n, t, _). (n, type_repr t)) ts in
+   let name_l = get_name_layout n s a ls in
+   let name = fst name_l in
+   let l = snd name_l in
+   let v = case (find (\<lambda> (n, _, _). n = name) ts) of
+     Some (_,t,_) \<Rightarrow> uval_from_array l t a 
+   in
+     uval_from_array (LayVariant (s, n) ls) (TSum ts) a = USum name v rts"
+proof -
+  {
+    fix p f l 
+    have " find p (map f l) = option_map f ( find (p o f) l)"
+      by(induct l;simp)
+  }
+  note find_map = this
+
+  have eq: "\<And> name machin. (\<lambda>x. \<not> Option.is_none
+                              (case x of
+                               (n, t, _) \<Rightarrow>
+                                 if n =  name then Some (machin t)
+                                 else None)) =
+    (\<lambda>(n, t, _) \<Rightarrow> n =  name)"
+    apply(rule ext)
+    apply(simp split:prod.split)
+    done
+
+  show ?thesis
+
+    apply (simp add:uval_from_array_variant Let_def)
+    apply(simp add:find_map comp_def)
+    apply(subst eq)
+    apply(cases "(find (\<lambda>(na, _, _). na = fst (get_name_layout n s a ls)) ts)") 
+     apply(simp)   
+    apply simp
+    apply (simp split:prod.split)  
+    apply(intro allI impI)
+    apply(drule findSomeD)
+    by fast
+qed
+
+(* 
+A helper to prove correctness of get/set-ters, variant case.
+
+The idea is to put the "let..in" at the top level so that alternatives
+become a cunjunction of possibilites to be shown.
+*)
+lemma corres_getter_variant :
+  assumes 
+    "distinct (map fst ts)"
+    " \<comment> \<open>the distinct hypothesis helps simplification tactics\<close>
+     distinct (map fst ts)
+     \<Longrightarrow>
+    let rts = map (\<lambda>(n, t, _). (n, type_repr t)) ts in
+    let name_l = get_name_layout n s a ls in
+    let name = fst name_l in
+    let l = snd name_l in
+    let v = case (find (\<lambda> (n, _, _). n = name) ts) of
+      Some (_,t,_) \<Rightarrow> uval_from_array l t a 
+    in
+     val_rel (USum name v rts) x"
+  shows 
+    "val_rel (uval_from_array (LayVariant (s, n) ls) (TSum ts) a) x"
+ 
+    using assms
+    using uval_from_array_variant'
+    by metis
+
+
+fun uval_from_array_toplevel :: " type \<Rightarrow> (('a::len) word)['n::finite] \<Rightarrow> (char list, unit, 32 word) uval"
+where "uval_from_array_toplevel  (TRecord ts (Boxed _ (Some (LayRecord ls)))) a = 
+              URecord (map (\<lambda> (n, t, _). 
+                      let l = assoc ls n in
+                        (uval_from_array l t a, type_repr t))
+                   ts) (Some (LayRecord ls))"
+
+fun layout_from_trecord :: "type \<Rightarrow> ptr_layout"
+  where "layout_from_trecord (TRecord l (Boxed _ (Some ptrl))) = ptrl"
+
+
+(* Adapted from term_to_string found on the Isabelle mailing list (makarius) 
+The bare Syntax.string_of_term sometimes returns "<markup>" instead of the real stuff
+*)
+ML \<open>
+  fun typ_to_string ctxt t =
+    let
+      val ctxt' = Config.put show_markup false ctxt;
+    in Print_Mode.setmp [] (Syntax.string_of_typ ctxt') t end;
+\<close>
+
+ML \<open>
+local
+
+(* 
+Suppose the current subgoal is .. \<Longrightarrow> val_rel t1 t2 = .. .
+This function returns the type of t2, stringified.
+*)
+fun get_val_rel_type ctxt thm : string = 
+
+  let 
+    val concl = Thm.major_prem_of thm (* may fail *)
+  in
+
+   (case concl |> Utils.lhs_of_eq of
+     _ $ _ $ t => t |> Thm.cterm_of ctxt |>   Thm.typ_of_cterm  
+                    |> typ_to_string ctxt 
+           | _ => "" ) 
+    handle TERM ("lhs_of_eq", _) => ""
+end
+  handle THM(_, _, _) => ""
+in
+(* 
+Suppose the current subgoal is .. \<Longrightarrow> val_rel t1 t2 = ..,
+where t2 is of type A.
+This tactic tries to apply val_rel_A_def, if it exists.
+
+*)
+fun apply_val_rel_def ctxt i : tactic = fn thm =>
+let 
+  val vrel = get_val_rel_type ctxt thm 
+  val th_name = "val_rel_" ^ vrel ^ "_def"   
+  val th = (Proof_Context.get_thms ctxt th_name) handle _ => [] (* theorem may not exist *)
+in  
+   resolve_tac ctxt th i thm
+
+end
+
+end
+\<close>
+
+ML \<open>
+
+(*
+Suppose the current subgoal is .. \<Longrightarrow> val_rel x1 t1.
+
+This tactic performs one unfolding of val_rel with the following attempted results in order:
+1. corres_getter_variant
+2. ValRelSimp
+3. val_rel_A_def, where A is the type of t1
+
+The third case may be ussed at top level only. Indeed, it seems ValRelSimp may not include the definition
+of some value relation if the type is not involved as a subfield somewhere.
+
+
+*)
+fun unfold1_val_rel ctxt = 
+  let
+    val gets = Proof_Context.get_thms ctxt
+    val tags = gets "tag_t_defs" handle ERROR _ => []    
+    val val_rels   = ValRelSimp.get ctxt;
+  in
+  (resolve_tac ctxt @{thms  corres_getter_variant[simplified Let_def]}
+   ORELSE'  
+   (resolve_tac ctxt @{thms HOL.iffD2} 
+     THEN' resolve_tac ctxt @{thms HOL.meta_eq_to_obj_eq}
+     THEN' (resolve_tac ctxt val_rels
+            ORELSE' 
+            apply_val_rel_def ctxt)  
+   ))
+
+  (* doing a first simplification without any simpset seems helpful *)
+  THEN_ALL_NEW (fn i => TRY (asm_full_simp_tac ctxt i))
+  THEN_ALL_NEW
+     (fn i => TRY (asm_full_simp_tac (ctxt addsimps tags addsimps
+       
+    @{thms get_name_layout_def word_from_array_def sized_word_from_array_def 
+         find_position_def ucast_id mask_def } ) i))
+end
+
+
+fun val_rel_split ctxt  = 
+    unfold1_val_rel ctxt 
+ THEN_ALL_NEW
+    (fn i => TRY (REPEAT_ALL_NEW (resolve_tac ctxt @{thms impI conjI}) i))
+ 
+
+(* 
+
+Recursively simplify a goal .. \<Longrightarrow> val_rel by unfolding it
+
+*)
+fun recursive_val_rel_split ctxt = REPEAT_ALL_NEW (val_rel_split ctxt)
+
+
+(* 
+
+proves correctness of getters, i.e., a goal of the form
+valid_tags (layout_from_trecord type) (data_C t) \<Longrightarrow>  val_rel (uval_from_array_toplevel type (data_C t)) t
+
+*)
+fun solve_corres_getters ctxt = 
+let
+  val gets = Proof_Context.get_thms ctxt
+  val tags = gets "tag_t_defs" handle ERROR _ => []
+in
+  asm_full_simp_tac (ctxt addsimps
+   @{thms word_from_array_def find_position_def mask_def sized_word_from_array_def ucast_id})
+  THEN'  recursive_val_rel_split ctxt 
+  THEN_ALL_NEW (fn i => TRY (asm_full_simp_tac (ctxt addsimps 
+         GetSetDefs.get ctxt addsimps tags addsimps @{thms get_bit_def find_position_def}) i))
+  THEN_ALL_NEW
+      (fn i => TRY (asm_full_simp_tac (Raw_Simplifier.flip_simp @{thm One_nat_def} ctxt) i))
+  THEN_ALL_NEW
+      bw_tac_signed ctxt
+end
+\<close>
+
+
+ML \<open>
+
+fun make_getter_correctness_thms ctxt (Ctyp, cog_type) : (string * thm)  =
+let
+val data_get = Ctyp ^ ".data_C" |> Syntax.read_term ctxt
+val ass = @{term "\<lambda> type data . valid_tags (layout_from_trecord type) (data t)"}
+   $ cog_type $ data_get
+val concl = @{term "\<lambda> type data . val_rel (uval_from_array_toplevel type (data t)) t"}
+  $ cog_type $ data_get
+val name = Ctyp ^ "_getter_correct"
+in
+(name, prove_thm ctxt [ass] concl solve_corres_getters)
+
+end
+(*
+val (info, lays) = 
+case lay of
+CustomLayout (info, 
+Const ("Option.option.Some", _) $ 
+( Const ("Cogent.ptr_layout.LayRecord", _) $ 
+layout)) => 
+(info, 
+layout |> HOLogic.dest_list
+|> map HOLogic.dest_prod
+|> map (apfst HOLogic.dest_string)
+|> Symtab.make
+)
+
+val ass = 
+  @{term 
+  "\<lambda>  lay data. 
+   (\<forall> x\<in> set(layout_taken_bit_list lay). 
+  get_bit (data s) x = get_bit (data t) x)
+  "
+  } $ layfield $ data_get
+val concl = @{term "\<lambda> getter . getter s = getter t"  }
+        $ # isa_getter field_info
+in
+prove_thm ctxt [ass] concl getter_sanity_tac
+*)
+
+(*
+map (
+fn field => 
+let val lay = Symtab.lookup lays (# name field) |> the 
+val prefix = Ctyp ^ "_" ^ #name field 
+in
+((prefix ^ "_getter_sanity", make_getter_sanity_thm ctxt data_get lay field),
+(prefix ^ "_setter_sanity", make_setter_sanity_thm ctxt data_get lay field))
+end
+) 
+ info *)
+
+
+\<close>
+ML \<open>
+fun local_setup_getter_correctness file_nm lthy =
+ let
+  val uvals =  get_uvals file_nm (Proof_Context.theory_of lthy) |> Utils.the' "local_setup_getter_correctness"
+    |> get_uval_custom_layout_records   
+    |> rm_redundancy_by (fn x => (get_ty_nm_C x, get_uval_layout x))
+    |> List.map (fn x => (get_ty_nm_C x, get_uval_typ x)) 
+    (* |> @{print} *)
+
+  val thms = List.map (make_getter_correctness_thms lthy) uvals
+  
   
   fun add_to_bucket (name, thm) lthy  = 
   Local_Theory.note ((Binding.name name, []), [thm]) lthy |> snd |>

@@ -129,7 +129,7 @@ fun gen_mk_rhs_of_type_rel ctxt file_name uval =
   case uval of
     (USum (ty_name, _))   => mk_rhs_of_type_rel_sum ctxt (field_info ty_name)
   | (UProduct ty_name)    => mk_rhs_of_type_rel_prod ctxt (field_info ty_name)
-  | (URecord (ty_name,sigil)) => 
+  | (URecord (ty_name,_,sigil)) => 
     (case get_sigil_layout sigil of
        DefaultLayout =>  mk_rhs_of_type_rel_rec_default ctxt (field_info ty_name)
      | CustomLayout (l,lo) => mk_rhs_of_type_rel_rec_custom ctxt l lo file_name)

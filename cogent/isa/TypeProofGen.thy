@@ -183,7 +183,7 @@ fun get_all_typing_details timing_debug ctxt name script : details = let
     val _ = (@{print tracing} (name ^ "|phase: make tacs"); @{print tracing} time_res)
 
     val time = Timing.start ()
-    val orig_typing_tree = get_typing_tree ctxt name tacs'
+    val orig_typing_tree = get_typing_tree (ctxt addsimps @{thms layoutThms}) name tacs'
     val time_res = Timing.result time
     val _ = (@{print tracing} (name ^ "|phase: solve typing tree"); @{print tracing} time_res)
 

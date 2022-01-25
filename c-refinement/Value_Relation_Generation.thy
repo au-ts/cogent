@@ -95,7 +95,7 @@ fun gen_mk_rhs ctxt file_name uval =
   case uval of
     USum (ty_name  , _) => mk_rhs_sum ctxt (field_info ty_name)
   | UProduct ty_name    => mk_rhs_pro ctxt (field_info ty_name)
-  | URecord (ty_name,sigil) => 
+  | URecord (ty_name,_,sigil) => 
    (case get_sigil_layout sigil of
        DefaultLayout =>  mk_rhs_rec_default ctxt (field_info ty_name)
      | CustomLayout (l, lo) => mk_rhs_rec_custom ctxt l lo)

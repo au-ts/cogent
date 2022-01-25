@@ -32,6 +32,12 @@ fun rm_redundancy [] = []
   | rm_redundancy (x::xs) = x::(rm_redundancy (List.filter (fn y => y <> x) xs));
 \<close>
 
+ML\<open> (*rm_redundancy [1,2,3,4,2,3] = [1,2,3,4]*)
+fun rm_redundancy_by f [] = []
+  | rm_redundancy_by f (x::xs) = x::(rm_redundancy_by f (List.filter (fn y => f y <> f x) xs));
+\<close>
+
+
 ML\<open> fun get_somes xs = xs
      |> filter (fn x => case x of NONE => false | _ => true)
      |> map (Utils.the' "get_somes failed");\<close>

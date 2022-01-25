@@ -1044,13 +1044,13 @@ fun generate_HO_absfun_corres (xi:term) ctxt (fname:string) (callees:(term * str
   val Xi = Syntax.read_term ctxt "\<Xi> :: string \<Rightarrow> poly_type"
   val cfun = Syntax.read_term ctxt (fname ^ "'")
   val prop = if isAutoCorresFunRec ctxt fname
-    then @{mk_term "\<lbrakk> i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma> ! i = Some (fst (snd (?Xi ?fname))); m \<ge> ?min_m \<rbrakk> \<Longrightarrow>
+    then @{mk_term "\<lbrakk> i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma> ! i = Some (fst (snd (snd (snd (?Xi ?fname))))); m \<ge> ?min_m \<rbrakk> \<Longrightarrow>
                     ?corres ?state_rel (App (AFun ?fname [] []) (Var i))
                             (do x \<leftarrow> ?cfun m v'; gets (\<lambda>s. x) od) ?xi \<gamma> ?Xi \<Gamma> \<sigma> s"
                (corres, Xi, state_rel, fname, xi, cfun, min_m)}
                (corres, Xi, state_rel, Utils.encode_isa_string fname, xi, cfun,
                 Int.toString min_measure |> Syntax.read_term ctxt)
-    else @{mk_term "\<lbrakk> i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma> ! i = Some (fst (snd (?Xi ?fname))) \<rbrakk> \<Longrightarrow>
+    else @{mk_term "\<lbrakk> i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma> ! i = Some (fst (snd (snd (snd (?Xi ?fname))))) \<rbrakk> \<Longrightarrow>
                     ?corres ?state_rel (App (AFun ?fname [] []) (Var i))
                             (do x \<leftarrow> ?cfun v'; gets (\<lambda>s. x) od) ?xi \<gamma> ?Xi \<Gamma> \<sigma> s"
                (corres, Xi, state_rel, fname, xi, cfun)}
