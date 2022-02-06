@@ -42,7 +42,7 @@ import Text.PrettyPrint.Mainland
 import Text.PrettyPrint.Mainland.Class
 #endif
 
-import Text.Parsec (SourcePos, sourceLine, sourceName)
+import Text.Parsec (SourcePos, sourceLine, sourceName, sourceColumn)
 
 
 render :: FilePath
@@ -296,7 +296,8 @@ withLoc CFile loc item =
 showLoc :: SourcePos -> C.BlockItem
 showLoc loc =
   let
+    colNum = show $ sourceColumn loc
     lineNum = show $ sourceLine loc
     fileName = sourceName loc
   in
-  C.BlockStm $ C.EscStm ("#line " ++ lineNum ++  " \"" ++ fileName ++ "\"") noLoc
+    C.BlockStm $ C.AntiEscStm ("/* $LINE: " ++ "\"" ++ fileName ++ "\"" ++ " : " ++ lineNum ++ " : " ++ colNum ++ " */") noLoc
