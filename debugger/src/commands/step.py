@@ -4,9 +4,11 @@ from argparse import _SubParsersAction
 
 import src.lib.util as util
 
+(command, aliases) = ("step", ["s"])
+
 
 def register_command(subparsers: _SubParsersAction):
-    parser = subparsers.add_parser("step")
+    parser = subparsers.add_parser("step", aliases=[])
     parser.set_defaults(handler=handler)
 
 
