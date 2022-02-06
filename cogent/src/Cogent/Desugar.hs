@@ -527,7 +527,7 @@ desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec [Just (f,p)]) pos)) e = do
 desugarAlt' e0 (S.PIrrefutable (B.TIP (S.PTake rec (fp:fps)) pos)) e = do
   e1 <- freshVar
   B.DT (S.TRecord rp fts s) <- unfoldSynsShallowM $ snd rec
-  let t1 = B.DT $ S.TRecord rp (P.map (\ft@(f,(t,x)) -> if f == fst (fromJust fp) then (f,(t,True)) else ft) fts) s  -- type of e1
+  let t1 = B.DT $ S.TRecord rp (P.map (\ft@(f,(t,x)) -> if isJust fp && f == fst (fromJust fp) then (f,(t,True)) else ft) fts) s  -- type of e1
       b0 = S.Binding (B.TIP (S.PTake (e1, t1) [fp]) pos) Nothing e0 []
       bs = S.Binding (B.TIP (S.PTake rec fps) pos) Nothing (B.TE t1 (S.Var e1) (getLoc e0)) []
   desugarExpr $ B.TE (B.getTypeTE e) (S.Let [b0,bs] e) (getLoc e)
@@ -733,7 +733,7 @@ desugarExpr (B.TE _ (S.Match e vs alts) loc) = do
   -- FIXME: Not sure if this is going to work / zilinc
   venv <- use varCtx
   v <- freshVar
-  let mapFn v = (fromJust . flip findIx venv &&& id) $ (v, Nothing) -- FIXME: would like to revisit
+  let mapFn = (\v -> let lookup = findBy (\t -> fst t == v) venv in (fromJust lookup, (v, Nothing)))
   let vs' = P.map mapFn vs
   e' <- withBinding v $ desugarAlts (B.TE (B.getTypeTE e) (S.Var v) loc) alts
   E <$> (LetBang vs' (v, Nothing) <$> desugarExpr e <*> pure e' <*> pure loc)
