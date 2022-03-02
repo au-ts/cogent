@@ -52,6 +52,9 @@ lemma length_eval_simps:
   by simp+
 
 
+(* not sure to which extent they are necessary, and they slow down typing a lot *)
+lemmas layoutThms = upt_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def
+
 (* Generate type system lemma buckets *)
 ML \<open>
 
