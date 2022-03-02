@@ -58,7 +58,7 @@ all of the datalayout indications)
 type_synonym BitRange = "nat * nat" (* size and offset *)
 
 (* size of a pointer, in bits *)
-definition size_ptr :: nat where "size_ptr = 32"
+definition size_ptr :: nat where "size_ptr \<equiv> 32"
 
 fun size_prim_layout :: "prim_type \<Rightarrow> nat" where
   "size_prim_layout Bool = 1"
@@ -466,7 +466,7 @@ datatype repr = RPtr repr
               | RPrim prim_type
               | RSum "(name \<times> repr) list"
               | RProduct "repr" "repr"
-              | RRecord "repr list" "ptr_layout option"
+              | RRecord "repr list" "ptr_layout option" (* can we remove the layout information? *)
               | RUnit
 
 fun type_repr :: "type \<Rightarrow> repr" where
