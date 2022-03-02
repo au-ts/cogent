@@ -32,6 +32,7 @@ import Cogent.Util (WriterMaybe, tellEmpty, mapTells, third3, fourth4, fst3, thd
 import Control.Monad (guard, foldM, unless, when)
 import Control.Monad.Trans.Except
 import Data.Bifunctor (bimap, first, second)
+import Data.Bwd
 import Data.Data
 import qualified Data.Map as M
 import Data.List ((\\))
@@ -52,7 +53,7 @@ pattern TLPrim s       = TL (Prim s)
 pattern TLRecord ps    = TL (Record ps)
 pattern TLVariant t ps = TL (Variant t ps)
 #ifdef BUILTIN_ARRAYS
-pattern TLArray e s    = TL (Array e s)
+pattern TLArray e l s  = TL (Array e l s)
 #endif
 pattern TLOffset e s   = TL (Offset e s)
 pattern TLEndian e n   = TL (Endian e n)
@@ -68,7 +69,7 @@ toDLExpr (TLPrim n) = DLPrim n
 toDLExpr (TLRecord fs) = DLRecord ((\(x,y,z) -> (x,y,toDLExpr z)) <$> fs)
 toDLExpr (TLVariant e fs) = DLVariant (toDLExpr e) ((\(x,y,z,v) -> (x,y,z,toDLExpr v)) <$> fs)
 #ifdef BUILTIN_ARRAYS
-toDLExpr (TLArray e p) = DLArray (toDLExpr e) p
+toDLExpr (TLArray e l p) = DLArray (toDLExpr e) l p
 #endif
 toDLExpr (TLOffset e s) = DLOffset (toDLExpr e) s
 toDLExpr (TLAfter e f)  = DLAfter (toDLExpr e) f
@@ -83,7 +84,7 @@ toTCDL (DLPrim n) = TLPrim n
 toTCDL (DLRecord fs) = TLRecord ((\(x,y,z) -> (x,y,toTCDL z)) <$> fs)
 toTCDL (DLVariant e fs) = TLVariant (toTCDL e) ((\(x,y,z,v) -> (x,y,z,toTCDL v)) <$> fs)
 #ifdef BUILTIN_ARRAYS
-toTCDL (DLArray e p) = TLArray (toTCDL e) p
+toTCDL (DLArray e l p) = TLArray (toTCDL e) l p
 #endif
 toTCDL (DLOffset e s) = TLOffset (toTCDL e) s
 toTCDL (DLAfter e s) = TLAfter (toTCDL e) s
@@ -116,31 +117,54 @@ tcDataLayoutExpr env vs (DLOffset expr off) = do
   return (TLOffset expr' off, alloc')
 
 tcDataLayoutExpr env vs (DLRecord fields) = do
-  blob <- foldM tcField [] fields
+  blob <- foldM tcField [] $ fwd $ foldl desugar BEmp fields
   let (fields', fieldAllocs) = unzip $ fmap (\(a,b,c,d) -> ((a,b,c),d)) blob
   alloc <- except $ first OverlappingBlocks $ foldM (/\) emptyAllocation fieldAllocs
   return (TLRecord fields', alloc)
-  where lookup' :: (Eq a) => a -> [(a,b,c,d)] -> Maybe (c,d)
-        lookup' _key []          =  Nothing
-        lookup'  key ((x,_,z,w):xyzws)
-          | key == x          =  Just (z,w)
-          | otherwise         =  lookup' key xyzws
-    
-        tcField :: [(FieldName, SourcePos, TCDataLayout, Allocation)]  -- accum
-                -> (FieldName, SourcePos, DataLayoutExpr)
-                -> Except DataLayoutTcError [(FieldName, SourcePos, TCDataLayout, Allocation)]
-        tcField fs (fn, pos, expr) = do
-          case expr of
-            DLAfter e f -> do case lookup' f fs of
-                                Nothing -> throwE $ NonExistingField f (InField fn pos PathEnd)
-                                Just (ef,af) -> do 
-                                  let end = endOfAllocation af
-                                  (e',a) <- tcDataLayoutExpr env vs e
-                                  let a' = fmap (InField fn pos) $ offset end a
-                                  return (fs ++ [(fn, pos, TLOffset e' (Bits end), a')])
-            _           -> do (expr',alloc') <- tcDataLayoutExpr env vs expr
-                              return (fs ++ [(fn, pos, expr', fmap (InField fn pos) alloc')])
-      
+  where
+    -- Any unspecified blocks will be re-written to "after" annotations
+    desugar :: Bwd (FieldName, SourcePos, DataLayoutExpr) ->
+               (FieldName, SourcePos, DataLayoutExpr) ->
+               Bwd (FieldName, SourcePos, DataLayoutExpr)
+    desugar BEmp field = BEmp :< field -- Ignore first field in record.
+    desugar cx (f, p, e) = switch e
+      where
+        -- Make sure 'after' annotations occur at the top-level to be
+        -- eliminated by tcField below.
+        switch e@(DLOffset _ _) = cx :< (f, p, e)
+        switch e@(DLAfter _ _) = cx :< (f, p, e)
+        switch (DLEndian e' end) = case switch e' of
+          BEmp -> __impossible "tcDataLayoutExpr/record/desugar: invariant broken (endian)"
+          cx :< (f, p, DLAfter e f') -> cx :< (f, p, DLAfter (DLEndian e end) f')
+          cx :< (f, p, e) -> cx :< (f, p, DLEndian e end)
+        switch       e           = case cx of
+          BEmp -> __impossible "tcDataLayout/record/desugar: invariant broken (switch)"
+          (cx' :< (f', p', e')) -> cx' :< (f', p', e') :< (f, p, DLAfter e f')
+
+    lookup' :: (Eq a) => a -> [(a,b,c,d)] -> Maybe (c,d)
+    lookup' _key []          =  Nothing
+    lookup'  key ((x,_,z,w):xyzws)
+      | key == x          =  Just (z,w)
+      | otherwise         =  lookup' key xyzws
+
+    tcField :: [(FieldName, SourcePos, TCDataLayout, Allocation)] -- accum
+            -> (FieldName, SourcePos, DataLayoutExpr)
+            -> Except DataLayoutTcError [(FieldName, SourcePos, TCDataLayout, Allocation)]
+    tcField fs (fn, pos, expr) = do
+      case expr of
+        DLAfter e f -> do
+          case lookup' f fs of
+            Nothing ->
+              throwE $ NonExistingField f (InField fn pos PathEnd)
+            Just (ef, af) -> do
+              let end = endOfAllocation af
+              (e', a) <- tcDataLayoutExpr env vs e
+              let a' = fmap (InField fn pos) $ offset end a
+              return (fs ++ [(fn, pos, TLOffset e' (Bits end), a')])
+        _ -> do
+          (expr', alloc') <- tcDataLayoutExpr env vs expr
+          return (fs ++ [(fn, pos, expr', fmap (InField fn pos) alloc')])
+
 tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
   case primitiveBitRange tagExpr of
     Just tagBits | isZeroSizedBR tagBits -> throwE $ ZeroSizedBitRange (InTag PathEnd)
@@ -149,13 +173,25 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
         (tagExpr', tagAlloc) <- tcDataLayoutExpr env vs tagExpr
         when (2 ^ (bitSizeBR tagBits - 1) > maximum (alts <&> (^. _3))) $  -- we don't allow a variant without any alternatives
           throwE $ TagSizeTooLarge (InTag PathEnd)
-        (altsExprs, altsAlloc, _) <- foldM (tcAlternative tagBits) ([], emptyAllocation, M.empty) alts
+        when (bitSizeBR tagBits > 32) $ throwE $ TagLargerThanInt (InTag PathEnd)  -- we don't allow tag bigger than a uint
+        let bs = foldl (desugar tagBits) BEmp alts
+        (altsExprs, altsAlloc, _) <- foldM (tcAlternative tagBits) ([], emptyAllocation, M.empty) bs
         alloc <- except $ first OverlappingBlocks $ singletonAllocation (tagBits, InTag PathEnd) /\ altsAlloc
         let alts' = zipWith (\(t,p,l,_) e -> (t,p,l,e)) alts altsExprs
         return (TLVariant tagExpr' alts', alloc)
     Nothing -> throwE $ TagNotSingleBlock (InTag PathEnd)
 
   where
+    desugar :: BitRange ->
+               Bwd (TagName, SourcePos, Integer, DataLayoutExpr) ->
+               (TagName, SourcePos, Integer, DataLayoutExpr) ->
+               Bwd (TagName, SourcePos, Integer, DataLayoutExpr)
+    desugar r cx x@(t, p, i, e) = switch e
+      where
+        switch (DLOffset _ _) = cx :< x
+        switch (DLEndian (DLOffset _ _) _) = cx :< x
+        switch e = cx :< (t, p, i, DLOffset e (Bits (bitOffsetBR r + bitSizeBR r)))
+
     tcAlternative
       :: BitRange -- Of the variant's tag
       -> ([TCDataLayout], Allocation, Map Integer TagName)
@@ -165,9 +201,9 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
 
     tcAlternative range (exprs, accumAlloc, accumTagValues) (tagName, pos, tagValue, expr) = do
       (expr', alloc) <- tcDataLayoutExpr env vs expr
-      let alloc' = accumAlloc \/ fmap (InAlt tagName pos) alloc
+      let alloc' = fmap (InAlt tagName pos) alloc \/ accumAlloc
       tagValues <- checkedTagValues
-      return (exprs ++ [expr'], alloc', tagValues)
+      return (expr' : exprs, alloc', tagValues)
       where
         checkedTagValues :: Except DataLayoutTcError (Map Size TagName)
         checkedTagValues
@@ -184,10 +220,14 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
     primitiveBitRange _                    = Nothing
 
 #ifdef BUILTIN_ARRAYS
-tcDataLayoutExpr env vs (DLArray e pos) = do
-  (e', alloc) <- tcDataLayoutExpr env vs e
-  let alloc' = fmap (InElmt pos) alloc
-  return (TLArray e' pos, alloc')
+tcDataLayoutExpr env vs (DLArray e l pos) = do
+  (e', alloc0) <- tcDataLayoutExpr env vs e
+  let sz = (`div` byteSizeBits) . alignSize wordSizeBits $ endOfAllocation alloc0 - beginningOfAllocation alloc0  -- in bytes
+      alloc0' = fmap (InElmt pos) alloc0
+      allocs  = zipWith offset [ 8 * n * sz | n <- [0 ..]] (replicate (fromIntegral l) alloc0')
+  case foldM (/\) emptyAllocation allocs of
+    Left  ovlp  -> throwE (OverlappingBlocks ovlp)
+    Right alloc -> return (TLArray e' l pos, alloc)
 #endif
 
 tcDataLayoutExpr _ _ DLPtr = return (TLPtr, singletonAllocation (pointerBitRange, PathEnd))
@@ -213,7 +253,7 @@ substDataLayoutExpr = f
     f ps (DLAfter e n)    = flip DLAfter n $ f ps e
     f ps (DLEndian e n)   = flip DLEndian n $ f ps e
 #ifdef BUILTIN_ARRAYS
-    f ps (DLArray e p)    = flip DLArray p $ f ps e
+    f ps (DLArray e l p)  = DLArray (f ps e) l p
 #endif
     f ps (DLVar n)        = fromMaybe (DLVar n) (lookup n ps)
     f ps e                = e
@@ -240,6 +280,7 @@ data DataLayoutTcErrorP p
   -- ^ Have referenced a data layout which isn't correct
 
   | TagSizeTooLarge         p
+  | TagLargerThanInt        p
   | TagNotSingleBlock       p
 
   | SameTagValues           p TagName TagName Size
@@ -260,6 +301,7 @@ data DataLayoutTcErrorP p
   | NonExistingField        FieldName p
   | InvalidUseOfAfter       FieldName p
   | InvalidEndianness       Endianness p
+  | ArrayElementNotByteAligned Int p
   deriving (Eq, Show, Ord, Functor)
 
 

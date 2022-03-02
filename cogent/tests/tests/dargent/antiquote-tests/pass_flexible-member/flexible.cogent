@@ -1,0 +1,36 @@
+type F = { f1 : U32, len : U32, f2 : U8, data : U8#[0] }
+layout L = record { f1 : 4B, len : 4B, f2 : 1B, data : array {1B}[0]}
+
+-- The functions given in the GETTER/SETTER pragmas should have a(n) (abstract)
+-- function definition inn Cogent so that the compiler can generate the correct
+-- type signature. Otherwise it will use the default type signatures for getters/
+-- setters and that may not be what the user wants.
+{-# GETTER F, data, real_get_data #-}
+{-# SETTER F, data, real_set_data #-}
+type FL = F layout L
+
+type Heap
+
+-- The arg is the size of the data field, not the whole record.
+newF : (Heap, U32) -> (Heap, FL take data)
+freeF : (Heap, FL) -> Heap
+printF : FL! -> ()
+
+type Data
+
+-- Usually implemented as a memcpy().
+real_set_data : (Heap, FL take data, Data!) -> (Heap, FL)
+real_get_data : (Heap, FL) -> (Heap, FL take data, Data)
+
+foo : (Heap, Data!) -> Heap
+foo (h,d) = let (h, r) = newF (h, 4)
+            and r = r {f1 = 20211028, len = 4, f2 = 1}
+            and (h, r) = real_set_data (h, r, d)
+            and _ = printF r !r
+            in  freeF (h, r)
+
+-- | XXX -- This shows the generated getter/setter are not suitable,
+-- | XXX -- as it has a different type signature.
+-- | XXX bad : FL -> FL
+-- | XXX bad r = let r {data} = r in r {data}
+

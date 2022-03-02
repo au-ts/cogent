@@ -1,0 +1,5 @@
+o
+value
+from
+sum
+sup

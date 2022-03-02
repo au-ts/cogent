@@ -61,6 +61,7 @@ toTypeStr (TRecord _ ts _)   = nub $ RecordStr (P.map fst ts) : concatMap (toTyp
 toTypeStr (TPrim i)        = []
 toTypeStr (TString)        = []
 toTypeStr (TCon n ts _)    = nub $ concatMap toTypeStr ts
+toTypeStr (TSyn n ts _ _)  = nub $ concatMap toTypeStr ts
 #ifdef BUILTIN_ARRAYS
 toTypeStr (TArray {})      = []
 #endif
@@ -71,6 +72,10 @@ toTypeStr (TRPar v m)      = []
 --   synonym, it will be used; otherwise we will create a unique name
 --   for the type according to the position of that type in the table.
 --   This will make the generated Isabelle files more readable by humans.
+--   The result cannot collide with the original use of the type synonym
+--   because that has the form of a 'TSyn'.
+-- Caveat: the generated unique name could collide with an abstract type of 
+--   the same name, this will cause an invalid Isabelle theory.
 getStrlType :: M.Map TypeStr TypeName -> [TypeStr] -> Type t a -> Type t a
 getStrlType tsmap table (TSum ts) =
   let tstr = VariantStr (P.map fst ts)
@@ -79,8 +84,7 @@ getStrlType tsmap table (TSum ts) =
     Nothing ->
       let idx = findIndex tstr table
       in TCon ('T':show idx) tps Unboxed
-    Just tn ->
-      TCon tn tps Unboxed
+    Just tn -> TCon tn tps Unboxed
 -- TODO: recPars part of type strings?
 getStrlType tsmap table (TRecord _ fs s) =
   let tstr = RecordStr (P.map fst fs)
@@ -90,8 +94,7 @@ getStrlType tsmap table (TRecord _ fs s) =
       let idx = findIndex tstr table
       in TCon ('T':show idx) tps (__fixme (const () <$> s))
         -- The DataLayout is not included in shallow embeddings /mdimeglio zilinc
-    Just tn ->
-      TCon tn tps (__fixme (const () <$> s))
+    Just tn -> TCon tn tps (__fixme (const () <$> s))
         -- The DataLayout is not included in shallow embeddings /mdimeglio zilinc
 getStrlType _ _ t = t
 
@@ -104,7 +107,9 @@ st ds = execState (stDefinitions ds) []
 stDefinitions :: [Definition TypedExpr VarName b] -> ST ()
 stDefinitions = mapM_ stDefinition
 
--- Since desugaring, the RHSes have been unfolded already
+-- (Since desugaring, the RHSes have been unfolded already)
+-- This is not true anymore, but since all TypeDefs are scanned, it does not matter.
+
 stDefinition :: Definition TypedExpr VarName b -> ST ()
 stDefinition (FunDef  _ fn ts ls ti to e) = stExpr e  -- NOTE: `ti' and `to' will be included in `e', so no need to scan them / zilinc
 stDefinition (AbsDecl _ fn ts ls ti to) = stType ti >> stType to

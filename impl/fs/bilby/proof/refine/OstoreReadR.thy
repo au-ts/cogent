@@ -12,7 +12,6 @@ theory OstoreReadR
 imports
   "../spec/OstoreS"
   "../spec/OstoreInvS"
-  "../impl/BilbyFs_Shallow_Desugar_Tuples"
   "../adt/BufferT"
   "../spec/SerialS"
 begin
@@ -36,16 +35,16 @@ lemma inv_ostore_bound_upd:
   by (simp add: inv_ostore_bound_eq)
 
 lemma index_get_addr_ret:
-  assumes err: " oid \<notin> dom (\<alpha>rbt $ addrs\<^sub>f $ index_st\<^sub>f ostore_st) \<Longrightarrow> P (R.Error eNoEnt)"
+  assumes err: " oid \<notin> dom (\<alpha>rbt $ addrs\<^sub>f $ index_st\<^sub>f ostore_st) \<Longrightarrow> P (Result.Error eNoEnt)"
   and     suc: "\<And>oaddr. oid \<in> dom (\<alpha>rbt $ addrs\<^sub>f $ index_st\<^sub>f ostore_st) \<Longrightarrow>
             oaddr = the ((\<alpha>rbt $ addrs\<^sub>f $ index_st\<^sub>f ostore_st) oid) \<Longrightarrow>
-      P (R.Success oaddr)"
+      P (Result.Success oaddr)"
 
   shows
   "P (index_get_addr (index_st\<^sub>f ostore_st, oid))"
  unfolding index_get_addr_def[unfolded tuple_simps sanitizers, folded eNoEnt_def]
   apply (simp add: Let_def)
-  apply (clarsimp simp add: rbt_get_value_ret option.case_eq_if R.splits)
+  apply (clarsimp simp add: rbt_get_value_ret option.case_eq_if Result.splits)
   apply (auto intro: err suc)
  done
 
@@ -365,18 +364,18 @@ lemma read_obj_pages_in_buf_ret:
   (\<alpha>wubi (OstoreState.ubi_vol\<^sub>f ostore_st) ! unat (ObjAddr.ebnum\<^sub>f oaddr)) \<Longrightarrow>
   wellformed_buf buf \<Longrightarrow>
 length (\<alpha>wa (data\<^sub>f buf)) = length (\<alpha>wa (data\<^sub>f (rbuf\<^sub>f ostore_st))) \<Longrightarrow>
-    P ((ex, buf), R.Success ())"
+    P ((ex, buf), Result.Success ())"
   shows 
  "P (read_obj_pages_in_buf (ex, mount_st, OstoreState.ubi_vol\<^sub>f ostore_st, rbuf\<^sub>f ostore_st, oaddr))"
   unfolding read_obj_pages_in_buf_def[unfolded tuple_simps sanitizers]
   apply (simp add: Let_def)
   using inv_mount_st_io_size_not_0D[OF inv_mount_st]
   apply clarsimp
-  apply (rule wubi_leb_read_ret[OF _ _ inv_ubi_volD[OF inv_ostore]])
+  apply (rule wubi_leb_read_ret[simplified WubiLebReadP.defs, OF _ _ inv_ubi_volD[OF inv_ostore]])
       using inv_ostore_eb_size_rbuf_eqD[OF inv_ostore]
       apply (simp add: buf_simps wordarray_length_ret[symmetric])
      apply (rule oaddr_add_le_eb_size[OF inv_ostore inv_mount_st oaddr])
-    apply (simp add: )
+    apply simp
    using inv_ostore_eb_size_rbuf_eqD[OF inv_ostore]
    apply (simp add: err buf_length_def  wordarray_length_ret[symmetric])
   apply (simp, rule suc, simp add: read_pages_rbuf_def)
@@ -1415,7 +1414,7 @@ lemma ostore_read_ret:
       apply (simp add: inv_\<alpha>_ostore_wbuf_bound_eq_eb_size[OF inv_ostore inv_\<alpha>_ostore])
      apply (simp add: \<alpha>_ostore_medium_def)
     apply (simp add: \<alpha>_updates_def buf_simps)
-   apply (clarsimp split: R.splits)
+   apply (clarsimp split: Result.splits)
    apply(rule conjI)
     prefer 2
     apply clarsimp

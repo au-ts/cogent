@@ -8,7 +8,7 @@
 # @TAG(UNSW_GPL)
 #
 
-DIR:=brutal memcpy writable
+DIR:=brutal objects writable
 MKS:=$(patsubst %, %-mk, $(DIR))
 RMS:=$(patsubst %, %-rm, $(DIR))
 

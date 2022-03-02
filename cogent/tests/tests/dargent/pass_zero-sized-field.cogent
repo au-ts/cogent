@@ -4,4 +4,5 @@ layout L = record { f1 : 0b, f2 : 1b at 0b }
 foo : R! -> (Bool, ())
 foo x = (x.f2, x.f1)
 
-
+bar : R take (..) -> R
+bar r = r {f1 = (), f2 = False}

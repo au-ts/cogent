@@ -122,7 +122,7 @@ repExpr = do avoidInitial
              l <- DL <$> (  (Record  <$ reserved "record"                     <*> braces (commaSep recordRepr ))
                         <|> (Variant <$ reserved "variant" <*> parens repExpr <*> braces (commaSep variantRepr))
 #ifdef BUILTIN_ARRAYS
-                        <|> (Array   <$ reserved "array"   <*> brackets repExpr <*> getPosition)
+                        <|> (Array   <$ reserved "array"   <*> braces repExpr <*> brackets natural <*> getPosition)
 #endif
                         <|> (Prim <$> repSize)
                         <|> (Ptr  <$  reserved "pointer")

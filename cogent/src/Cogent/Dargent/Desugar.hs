@@ -69,7 +69,7 @@ constructDataLayout' (TSum alternatives)
         constructAlternativeLayout (minBitOffset, tagValue) (name, (coreType, _)) =
           let layout :: DataLayout' BitRange
               layout = alignOffsettable wordSizeBits minBitOffset $ constructDataLayout' coreType
-          in  ((endAllocatedBits' layout, tagValue + 1), (name, (tagValue, layout)))
+          in  ((hiDataLayout' layout, tagValue + 1), (name, (tagValue, layout)))
 
 constructDataLayout' (TRecord rp _ (Boxed {})) = PrimLayout pointerBitRange ME
 constructDataLayout' (TRecord rp fields Unboxed) = RecordLayout . fromList . snd $ mapAccumL go 0 fields
@@ -77,7 +77,7 @@ constructDataLayout' (TRecord rp fields Unboxed) = RecordLayout . fromList . snd
     go :: Show a => Size -> (FieldName, (Type t a, Bool)) -> (Size, (FieldName, DataLayout' BitRange))
     go minBitOffset (name, (coreType, _)) =
       let layout = alignOffsettable wordSizeBits minBitOffset $ go' coreType
-      in (endAllocatedBits' layout, (name, layout))
+      in (hiDataLayout' layout, (name, layout))
 
     -- Equations for boxed embedded types
     go' :: Show a => Type t a -> DataLayout' BitRange
@@ -86,6 +86,7 @@ constructDataLayout' (TRecord rp fields Unboxed) = RecordLayout . fromList . snd
 
     -- Equations for as yet unsupported embedded types
     go' (TCon n _ Unboxed) = __impossible $ "go' (Type check should fail on boxed types containing embedded unboxed abstract types)\n Failed on TCon type: " ++ n
+    go' (TSyn     _ _ _ _) = __impossible $ "go' (Please unfold type synonyms before constructDataLayout)"  
     go' (TVar         _  ) = __impossible $ "go' (Type check should fail on boxed types containing type variables)"
     go' (TVarBang     _  ) = __impossible $ "go' (Type check should fail on boxed types containing type variables)"
     go' (TFun         _ _) = __impossible $ "go' (Type check should fail on boxed types containing functions)"

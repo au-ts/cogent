@@ -125,6 +125,10 @@ assignOf (R rp1 _ _ :< R rp2 _ _ )
 assignOf (l1 :~< l2) = assignOfL l1 l2
 
 #ifdef BUILTIN_ARRAYS
+
+assignOf (SU _ i :==: e) = pure [ Subst.ofExpr i e ]
+assignOf (e :==: SU _ i) = pure [ Subst.ofExpr i e ]
+
 -- TODO: This will be moved to a separately module for SMT-solving. Eventually the results
 -- returned from the solver will be a Subst object. / zilinc
 assignOf (Arith (SE t (PrimOp "==" [SU _ x, e]))) | null (unknownsE e)
@@ -144,7 +148,7 @@ assignOfL (TLU n) (TL l) = pure [Subst.ofLayout n (TL l)]
 assignOfL (TL l) (TLU n) = pure [Subst.ofLayout n (TL l)]
 assignOfL (TLU _) (TLU _) = empty
 #ifdef BUILTIN_ARRAYS
-assignOfL (TLArray e1 _) (TLArray e2 _) = assignOfL e1 e2
+assignOfL (TLArray e1 l1 _) (TLArray e2 l2 _) | l1 == l2 = assignOfL e1 e2
 #endif
 assignOfL _ _ = empty
 

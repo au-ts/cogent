@@ -22,6 +22,7 @@ import Test.QuickCheck
 
 import Cogent.Common.Syntax (FieldName, TagName, Size)
 import Cogent.Dargent.Surface
+import Cogent.Surface (noPos)
 import CogentTests.Dargent.TypeCheck (bitSizeToDataLayoutSize)
 
 instance Arbitrary DataLayoutSize where
@@ -48,7 +49,18 @@ genPrim size = DL . Prim <$> arbitrary
 
 genRecord :: Int -> Gen DataLayoutExpr
 genRecord size = DL . Record <$> genFields 1 size
-
+{-
+    genFields :: Int -> Gen [(FieldName, SourcePos, DataLayoutExpr)]
+    genFields size = do
+      fieldSize <- choose (0, size)
+      if fieldSize == 0
+        then return []
+        else do
+          otherFields <- genFields (size - fieldSize)
+          fieldName <- arbitrary
+          fieldDataLayoutExpr <- genDataLayoutExpr fieldSize
+          return $ (fieldName, noPos, fieldDataLayoutExpr) : otherFields
+-}
 genFields :: Int -> Int -> Gen [(FieldName, SourcePos, DataLayoutExpr)]
 genFields nth size = do
   fieldSize <- choose (0, size)
@@ -68,6 +80,19 @@ genVariant size = do
   alternatives <- genAlternatives 1 (size - tagSize)
   return $ DL $ Variant tagExpr alternatives
 
+  {-
+    genAlternatives :: Int -> Gen [(TagName, SourcePos, Size, DataLayoutExpr)]
+    genAlternatives size = do
+      altSize <- choose (0, size)
+      if altSize == 0
+        then return []
+        else do
+          otherAlts <- genAlternatives (size - altSize)
+          altName <- arbitrary
+          altValue <- arbitrary
+          altDataLayoutExpr <- genDataLayoutExpr altSize
+          return $ (altName, noPos, altValue, altDataLayoutExpr) : otherAlts
+-}
 genAlternatives :: Int -> Int -> Gen [(TagName, SourcePos, Size, DataLayoutExpr)]
 genAlternatives nth size = do
   altSize <- choose (0, size)

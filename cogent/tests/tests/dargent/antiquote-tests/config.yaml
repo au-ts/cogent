@@ -1,0 +1,13 @@
+- test_name: pass-dargent-antiquoted
+  files:
+    - pass_abstract-bitfields
+  expected_result: pass
+  run:
+    - bash BUILD
+
+- test_name: fail-dargent-antiquoted
+  files:
+    - fail_implicit-after
+  expected_result: fail
+  run:
+    - bash BUILD

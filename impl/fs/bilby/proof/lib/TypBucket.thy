@@ -81,7 +81,7 @@ definition "NUL = 0x00"
 
 lemmas sanitizers = 
   Let\<^sub>d\<^sub>s_def
-  R.simps
+  Result.simps
   LoopResult.simps
 
 lemmas [simp] = Px_px take\<^sub>c\<^sub>o\<^sub>g\<^sub>e\<^sub>n\<^sub>t_def

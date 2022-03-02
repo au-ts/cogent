@@ -154,6 +154,7 @@ typDiscardVar rm0 t = case t of
   TVar v            -> pure $ TVar v
   TVarBang v        -> pure $ TVarBang v
   TCon tn ts s      -> TCon tn <$> traverse go ts <*> pure s
+  TSyn tn ts s r    -> TSyn tn <$> traverse go ts <*> pure s <*> pure r
   TFun t1 t2        -> TFun <$> go t1 <*> go t2
   TPrim pt          -> pure $ TPrim pt
   TString           -> pure TString
@@ -162,7 +163,7 @@ typDiscardVar rm0 t = case t of
   TRecord rp fs s   -> TRecord rp <$> mapM (secondM $ firstM go) fs <*> pure s
   TUnit             -> pure TUnit
 #ifdef BUILTIN_ARRAYS
-  TArray t l s mh   -> TArray <$> go t <*> pure l <*> pure s <*> mapM (lexpDiscardVar rm0) mh
+  TArray t l s mh   -> TArray <$> go t <*> pure l <*> pure s <*> mapM (lexpDiscardVar rm0) mh -- no lexpDiscardVar for l, is that correct? / gteege
 #endif
  where
   go   = typDiscardVar rm0

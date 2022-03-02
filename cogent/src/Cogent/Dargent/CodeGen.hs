@@ -12,13 +12,14 @@
 
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Cogent.Dargent.CodeGen where
 
 import Cogent.C.Monad
 import Cogent.C.Type (genType, typeCId, simplifyType)
 import Cogent.C.Syntax
-import Cogent.Common.Syntax (FieldName, FunName, GetOrSet(..), VarName, Size)
+import Cogent.Common.Syntax (FieldName, FunName, funNameToCoreFunName, GetOrSet(..), VarName, Size)
 import Cogent.Common.Types (Sigil(..))
 import Cogent.Compiler
   ( __fixme
@@ -28,7 +29,7 @@ import Cogent.Compiler
   , Architecture (..)
   , __cogent_arch
   )
-import Cogent.Core (Type (..))
+import Cogent.Core (Definition (..), findFuncById, Type (..), TypedExpr)
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Surface (Endianness(..))
 import Cogent.Dargent.Core
@@ -45,15 +46,17 @@ import Data.Char
 
 import Control.Monad (forM, when)
 import Control.Monad.Writer.Class (tell)
-import Data.List (foldl', scanl')
+import Data.List as L (foldl', lookup, scanl')
 import Data.Map as M
-  ( (!)
+  ( Map
+  , (!)
   , fromList
   , empty
   , insert
   , lookup
+  , toList
   )
-import Data.Maybe (fromMaybe)
+import Data.Maybe (catMaybes, fromJust, fromMaybe)
 import Lens.Micro
   ( (^.)
   , at
@@ -104,6 +107,49 @@ genGSRecord t fld m = do
       TRecord _ _ (Boxed _ CLayout) -> __impossible "genGSRecord: tried to gen a getter/setter for a C type"
 
 
+#ifdef BUILTIN_ARRAYS
+-- | Returns a getter/setter function name for an element of a boxed array.
+--   Used in array element access like @take, @put, @idx, etc.
+-- 
+-- We want all layout definition aligned to bytes and we don't want padding bytes between elements,
+-- thus we use byte array here.
+genGSArray
+  :: Type 'Zero VarName
+     -- ^
+     -- Cogent type for the array.
+  -> GetOrSet
+     -- ^
+     -- The type of function to generate.
+  -> Gen v FunName
+     -- ^
+     -- The 'FunName' is the name of the getter/setter function
+     -- for the field of the record.
+
+genGSArray t m = do
+  mf <- use ((case m of Get -> boxedArrayGetters; Set -> boxedArraySetters) . at t)
+  case mf of
+    Just f  -> return f
+    Nothing ->
+      case t of
+        -- NOTE: do we need to check layout within elt here?
+        TArray elt _ (Boxed _ (Layout (ArrayLayout ell _))) _ -> do
+          let sz = dataLayoutSizeInBytes' ell
+              ell' = alignLayoutToBytes' ell
+              -- we get rid of unused info here, e.g. array length, hole location
+          fn <- genGSName [] m
+          t' <- genType t
+          elt' <- genType elt
+          elGs <- genGS False (CPtr charCTy) elt ell' [] m
+          tell [arrayGetterSetter t' elt' sz fn elGs m]
+          ((case m of Get -> boxedArrayGetters; Set -> boxedArraySetters) . at (simplifyType t)) ?= fn
+          return fn
+        _ -> __impossible $ "genGSArray: this function should only be called with boxed array with boxed types " ++
+                            "with layout provided, check caller."
+#endif
+
+
+
+
 -- | Returns a getter/setter function name for a part of a boxed record.
 --
 -- Depending on the part's type, it recurses down the data structure in question to
@@ -133,6 +179,10 @@ genGS s root t@(TCon _ _ Boxed {}) (PrimLayout br ω) path m = do
   genGSBlock s br ω root t' path m
 
 genGS s root t@(TPrim _) (PrimLayout br ω) path m = do
+  t' <- genType t
+  genGSBlock s br ω root t' path m
+
+genGS s root t@(TFun {}) (PrimLayout br ω) path m = do
   t' <- genType t
   genGSBlock s br ω root t' path m
 
@@ -167,67 +217,23 @@ genGS s root TUnit UnitLayout path m = do
   return fn
 
 #ifdef BUILTIN_ARRAYS
-genGS s box t@(TArray elt l (Boxed {}) _) (PrimLayout br ω) path m = do
+genGS s root t@(TArray elt l (Boxed {}) _) (PrimLayout br ω) path m = do
   t' <- genType t
-  genGSBlock s br ω box t' path m
+  genGSBlock s br ω root t' path m
+
+-- vvv FIXME!!!
+genGS s root t@(TArray telt l Unboxed _) (ArrayLayout lelt l') path m = do
+  fn <- genGSName path m
+  tarr' <- genType t
+  telt' <- genType telt
+  eltGsName <- genGS s root telt lelt (path ++ ["arr"]) m
+  tell [mkGSDeclUArray root tarr' telt' fn eltGsName m]
+  return fn  
 #endif
 
 genGS s root t l _ _ = __impossible $ "genGS"
 
 
-#ifdef BUILTIN_ARRAYS
--- | Returns a getter/setter function C expression for a part of a boxed array.
--- 
--- We want all layout definition aligned to bytes and we don't want padding bytes between elements,
--- thus we use byte array here.
-genBoxedArrayGetSet
-  :: Type 'Zero VarName
-     -- ^
-     -- Cogent type for the array.
-  -> GetOrSet
-     -- ^
-     -- The type of function to generate.
-  -> Gen v FunName
-     -- ^
-     -- The 'FunName' is the name of the getter/setter function
-     -- for the field of the record.
-
-genBoxedArrayGetSet cogentType getOrSet = do
-  mf <- use ((case getOrSet of Get -> boxedArrayGetters; Set -> boxedArraySetters) . at cogentType)
-  case mf of
-    Just f  -> return f
-    Nothing ->
-      case cogentType of
-        -- NOTE: do we need to check layout within elt here?
-        TArray elemType _ (Boxed _ (Layout (ArrayLayout elemLayout))) _ -> do
-          let elemSize = dataLayoutSizeInBytes' elemLayout
-              elemLayout' = alignLayoutToBytes' elemLayout
-              -- we get rid of unused info here, e.g. array length, hole location
-          f' <- genArrayGetterSetter cogentType elemType elemSize elemLayout' getOrSet
-          ((case getOrSet of Get -> boxedArrayGetters; Set -> boxedArraySetters) . at (simplifyType cogentType))
-            ?= f'
-          return f'
-        _ -> __impossible $
-          "Cogent.Dargent.CodeGen: genBoxedArrayGetSet: this function should only be called with boxed array with boxed types " ++
-          "with layout provided, check caller."
-
-genArrayGetterSetter
-  :: Type 'Zero VarName
-  -> Type 'Zero VarName
-  -> Size
-  -> DataLayout' [AlignedBitRange]
-  -> GetOrSet
-  -> Gen v FunName
-genArrayGetterSetter arrType elemType elemSize elemLayout' getOrSet = do
-  functionIdentifier <- genGSName [] getOrSet
-  arrCType <- genType arrType
-  elemCType <- genType elemType
-  elemGetterSetter <- genGS False (CPtr charCTy) elemType elemLayout' [] getOrSet
-  ((case getOrSet of Get -> boxedArrayElemGetters; Set -> boxedArrayElemSetters) . at (simplifyType arrType))
-    ?= elemGetterSetter
-  tell [arrayGetterSetter arrCType elemCType elemSize functionIdentifier elemGetterSetter getOrSet]
-  return functionIdentifier
-#endif
 
 -- | Declares in the 'Gen' state a C function which gets/sets the contents
 -- of a list of aligned bit ranges in a boxed value which concatenate to
@@ -532,6 +538,11 @@ mkGsDeclABR b root (AlignedBitRange sz boff woff) fn m =
              False -> CArrayDeref boxVar (uint woff)
 
 
+mkGSDeclUArray :: CType -> CType -> CType -> CId -> FunName -> GetOrSet -> CExtDecl
+mkGSDeclUArray root tarr telt fn eltGsName m =
+  let stmts = [CBIStmt $ CComment "// FIXME: Don't use it! Define your own getter/setter using the GETTER or SETTER pragmas." CEmptyStmt]
+   in mkGsDecl root tarr fn stmts m
+
 arrayGetterSetter :: CType -> CType -> Size -> CId -> FunName -> GetOrSet -> CExtDecl
 arrayGetterSetter arrType elemType elemSize functionName elemGetterSetter Get =
   ( CFnDefn
@@ -574,7 +585,22 @@ mkGsDecl :: CType -> CType -> CId -> [CBlockItem] -> GetOrSet -> CExtDecl
 mkGsDecl root t f stmts Get = CFnDefn (t    , f) [(root, boxId)]               stmts staticInlineFnSpec
 mkGsDecl root t f stmts Set = CFnDefn (CVoid, f) [(root, boxId), (t, valueId)] stmts staticInlineFnSpec
 
-
+-- | Generates the function declarations for the top-level getters/setters.
+genGSFuncDecls :: Type 'Zero VarName -> M.Map FieldName FunName -> GetOrSet -> [Definition TypedExpr VarName VarName] -> Gen v ()
+genGSFuncDecls t (M.toList -> l) mode defs = do
+  mdecls <- forM l $ \(fld, fn) -> do
+    case findFuncById (funNameToCoreFunName fn) defs of
+      Just _  -> return Nothing  -- If such a function is defined, then we don't need to generate anything.
+                                 -- The code gen will take care of it.
+      Nothing -> do
+        let TRecord _ fts _ = t
+            τ = fst . fromJust $ L.lookup fld fts  -- field type
+        t' <- genType t
+        τ' <- genType τ      
+        case mode of
+          Get -> return $ Just $ CDecl (CExtFnDecl τ' fn [(t', Nothing)] staticInlineFnSpec)
+          Set -> return $ Just $ CDecl (CExtFnDecl CVoid fn [(t', Nothing), (τ', Nothing)] staticInlineFnSpec)
+  tell $ catMaybes mdecls
 
 -- * Auxilliary functions, definitions and constants
 

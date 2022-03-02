@@ -259,7 +259,7 @@ prettyTerm p t = case t of
                               MetaImp -> prettyMetaImp p t t'
                               _       -> prettyBinOpTerm p b t t')
   TermUnOp u t          -> prettyUnOpTerm p u t
-  ListTerm l ts r       -> pretty l <> hcat (intersperse (string ", ") (map (prettyTerm termAppPrec) ts)) <> pretty r
+  ListTerm l ts r       -> pretty l <> hcat (intersperse (string ", ") (map (prettyTerm 0) ts)) <> pretty r
   ConstTerm const       -> pretty const
   AntiTerm str          -> pretty str  -- FIXME: zilinc
   CaseOf e alts         -> parens (string "case" <+> pretty e <+> string "of" <+> sep (punctuate (text "|") (map prettyAlt alts)))

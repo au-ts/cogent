@@ -18,7 +18,7 @@ import Control.Arrow (first)
 import Data.Map (Map)
 import Data.List as List
 import qualified Data.Map as M
-import Text.Parsec.Pos (SourcePos, newPos)
+import Text.Parsec.Pos (SourcePos)
 import Test.QuickCheck
 
 import Cogent.Common.Syntax (FieldName, TagName, RepName, Size)
@@ -27,6 +27,10 @@ import Cogent.Dargent.Core
 import Cogent.Dargent.Surface (Endianness(..))
 import Cogent.Dargent.TypeCheck
 import Cogent.Dargent.Util
+import Cogent.Surface (noPos)
+
+import Debug.Trace
+
 
 possiblePrimBitSizes = [0, 1, 8, 16, 32, 64]
 
@@ -122,7 +126,7 @@ genPrimLayout maxBitIndex maxSize alloc = do
 
 genSumLayout
   :: Size -- max allowed allocated bit index
-  -> Size -- max allowed total bit size for the records fields
+  -> Size -- max allowed total bit size for the variant constructors
   -> Allocation -- Existing allocation
   -> Gen (DataLayout' BitRange, Allocation)
 genSumLayout maxBitIndex maxSize alloc =
@@ -136,13 +140,21 @@ genSumLayout maxBitIndex maxSize alloc =
       let maxNumAlternatives = 2^(bitSizeBR tagBitRange)
       (alts, alloc''') <- genAlts dSize 0 maxNumAlternatives alloc''
       return (SumLayout tagBitRange alts, alloc''')
+  {-
+  do
+    let maxTagSize = min 4 maxSize
+    (tagBitRange, alloc') <- genBitRange maxBitIndex maxTagSize alloc
+    let alloc''           = fmap InTag alloc'
+    let noAlts = 2 ^ bitSizeBR tagBitRange
+    -- FIXME: Add offset sugar for 0b offset alternatives.
+    (alts, alloc''') <-
+      first swizzle <$> genAlts (maxSize - maxTagSize) (noAlts - 1) ([],alloc'') alloc''
+    return (SumLayout tagBitRange alts, alloc''')
+    -}
   where
-    genAlts
-      :: Size     -- max allowed total bit size for remaining fields
-      -> Integer  -- tag value for alternative
-      -> Size     -- max number of alternatives
-      -> Allocation -- existing allocation
-      -> Gen (Map TagName (Size, DataLayout' BitRange), Allocation)
+    swizzle :: [(TagName, Size, DataLayout' BitRange)] ->
+      Map TagName (Size, DataLayout' BitRange)
+    swizzle ts = M.fromList $ map (\(t,p,d) -> (t,(p,d))) ts
 
     genAlts _ m n alloc | m == n = return (M.empty, alloc)
 
@@ -154,6 +166,24 @@ genSumLayout maxBitIndex maxSize alloc =
       (altLayout, altAlloc) <- genDataLayout' maxBitIndex altSize alloc
       let altAlloc' = fmap (InAlt altName sourcePos) altAlloc
       return (M.insert altName (tagValue, altLayout) remainingAlts, altAlloc' \/ remainingAlloc)
+      {-
+    genAlts
+      :: Size     -- max allowed total bit size for remaining constrs.
+      -> Size     -- tag value for alternative
+      -> ([(TagName, Size, DataLayout' BitRange)], Allocation) -- accumlated state
+      -> Allocation -- tag allocation
+      -> Gen ([(TagName, Size, DataLayout' BitRange)], Allocation)
+
+    genAlts _ tag (ts,alloc) _ | tag < 0 = return (ts, alloc)
+
+    genAlts max tag (ts,alloc) tagAlloc = do
+      sz <- if 1 <= max then choose (1, max) else return 0
+      (altLayout, altAlloc) <- genDataLayout' maxBitIndex sz tagAlloc
+      let tagName = show tag
+          altAlloc' = fmap (InAlt tagName noPos) altAlloc
+      genAlts (max - sz) (tag - 1)
+        ((tagName,tag,altLayout):ts, altAlloc' \/ alloc) tagAlloc
+        -}
 
 genRecordLayout
   :: Size -- max allowed allocated bit index
@@ -163,6 +193,7 @@ genRecordLayout
 genRecordLayout maxBitIndex maxSize alloc =
   do
     (fields, alloc') <- genFields maxSize 0 alloc
+    -- FIXME: Add offset sugar for 0b offset fields
     return (RecordLayout fields, alloc')
   where
     genFields
@@ -174,11 +205,10 @@ genRecordLayout maxBitIndex maxSize alloc =
     genFields 0 _ alloc = return (M.empty, alloc)
     genFields maxSize name alloc = do
       fieldSize <- choose (1, maxSize)
-      sourcePos <- arbitrary
       (remainingFields, alloc') <- genFields (maxSize - fieldSize) (name + 1) alloc
       let fieldName = "field" ++ show name
       (fieldLayout, alloc'') <- genDataLayout' maxBitIndex fieldSize alloc'
-      let alloc''' = fmap (InField fieldName sourcePos) alloc''
+      let alloc''' = fmap (InField fieldName noPos) alloc''
       return $ (M.insert fieldName fieldLayout remainingFields, alloc''')
 
 
@@ -232,16 +262,6 @@ allNonAllocatedRanges maxBitIndex alloc = do
   case Allocation [(range, PathEnd)] /\ alloc of
     Right newAlloc -> return (range, newAlloc)
     _              -> []
-
-{- Arbitrary instances -}
-
-instance Arbitrary SourcePos where
-  arbitrary = do
-    sourceName <- arbitrary
-    line <- choose (0, 100)
-    column <- choose (0, 80)
-    return $ newPos sourceName line column
-
 
 return []
 testAll = $quickCheckAll

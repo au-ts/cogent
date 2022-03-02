@@ -55,6 +55,7 @@ import Data.Word (Word32)
 import System.FilePath (takeFileName)
 import Text.Parsec.Pos
 import Text.PrettyPrint.ANSI.Leijen hiding (indent, tupled)
+import qualified Data.Set as S
 
 
 -- pretty-printing theme definition
@@ -684,7 +685,7 @@ instance Pretty DataLayoutSize where
 instance Pretty Endianness where
   pretty LE = keyword "LE"
   pretty BE = keyword "BE"
-  pretty ME = err "Invalid endianness" <+> keyword "ME"
+  pretty ME = keyword "ME"
 
 instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (RepRef n s) = if null s then reprname n else parens $ reprname n <+> hsep (fmap pretty s)
@@ -696,7 +697,7 @@ instance Pretty d => Pretty (DataLayoutExpr' d) where
   pretty (Variant e vs) = keyword "variant" <+> parens (pretty e)
                                                  <+> record (map (\(f,_,i,e) -> tagname f <+> tupled [literal $ string $ show i] <> symbol ":" <+> pretty e) vs)
 #ifdef BUILTIN_ARRAYS
-  pretty (Array e s) = keyword "array" <+> parens (pretty e) <+> keyword "at" <+> pretty s
+  pretty (Array e l s) = keyword "array" <+> braces (pretty e) <+> brackets (pretty l) <+> keyword "at" <+> pretty s
 #endif
   pretty Ptr = keyword "pointer"
   pretty (LVar n) = dlvarname n
@@ -932,6 +933,7 @@ instance Pretty Constraint where
   pretty (x :@ _)         = pretty x
 #ifdef BUILTIN_ARRAYS
   pretty (Arith e)        = pretty e
+  pretty (e1 :==: e2)     = pretty e1 </> warn ":==:" </> pretty e2
   pretty (a :-> b)        = prettyPrec 2 a </> warn ":->" </> prettyPrec 1 b
 #endif
   pretty (LayoutOk t)     = warn "LayoutOk" <+> pretty t
@@ -1044,6 +1046,9 @@ instance Pretty DataLayoutTcError where
   pretty (OversizedTagValue context range altName value) =
     err "Oversized tag value" <+> literal (pretty value) <+> err "for tag data block" <+> pretty range <+> err "in variant alternative" <+> tagname altName <$$>
     indent (pretty context)
+  pretty (TagLargerThanInt context) =
+    err "The size of the tag is larger than 32 bits" <$$>
+    indent (pretty context)
   pretty (ZeroSizedBitRange context) =
     err "Zero-sized bit range" <$$>
     indent (pretty context)
@@ -1063,6 +1068,8 @@ instance Pretty DataLayoutTcError where
     err "The use of" <+> symbol "after" <+> fieldname f <+> err "layout expression is invalid" <$$> indent (pretty ctx)
   pretty (InvalidEndianness end ctx) =
     err "Endianness" <+> pretty end <+> err "can only be applied to int sizes"
+  pretty (ArrayElementNotByteAligned sz p) = err "array element has a layout of size" <+> pretty sz <$$>
+                                             err "whereas it should be aligned to bytes"
 
 instance Pretty DataLayoutPath where
   pretty (InField n po ctx) = context' "for field" <+> fieldname n <+> context' "(" <> pretty po <> context' ")" </> pretty ctx
@@ -1093,11 +1100,20 @@ instance Pretty a => Pretty (DataLayout' a) where
     record (map prettyField $ M.toList fieldsDL)
     where prettyField (f,l) = fieldname f <+> symbol ":" <+> pretty l
 #ifdef BUILTIN_ARRAYS
-  pretty (ArrayLayout l) = brackets (pretty l)
+  pretty (ArrayLayout d l) = parens (pretty d) <> brackets (pretty l)
 #endif
   pretty (VarLayout n s) = (dullcyan . string . ("_l" ++) . show $ natToInt n) <> prettyOffset s
     where prettyOffset 0 = empty
           prettyOffset n = space <> symbol "offset" <+> integer n <> symbol "b"
+
+instance Pretty (Allocation' p) where
+  pretty (Allocation bs) = list $ map pretty bs
+
+instance Pretty a => Pretty (S.Set a) where
+  pretty s = list $ S.foldr ((:) . pretty) [] s
+
+instance {-# OVERLAPPING #-} Pretty (AllocationBlock p) where
+  pretty (br, _) = pretty br
 
 instance Pretty BitRange where
   pretty br = literal (pretty $ bitSizeBR br) <> symbol "b" <+> symbol "at" <+> literal (pretty $ bitOffsetBR br) <> symbol "b"

@@ -147,8 +147,6 @@ data GenState  = GenState
     -- ^ The expressions to call the generated setter and getter functions for the fields of boxed cogent records.
   , _boxedArraySetters :: M.Map (CC.Type 'Zero VarName) FunName
   , _boxedArrayGetters :: M.Map (CC.Type 'Zero VarName) FunName
-  , _boxedArrayElemSetters :: M.Map (CC.Type 'Zero VarName) FunName
-  , _boxedArrayElemGetters :: M.Map (CC.Type 'Zero VarName) FunName
   } deriving (Generic)
 
 instance Binary GenState

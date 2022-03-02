@@ -629,7 +629,7 @@ lvL (DLEndian e _) = lvL e
 lvL (DLRecord fs) = foldMap (lvL . (^._3)) fs
 lvL (DLVariant t alt) = lvL t <> foldMap (lvL . (^._4)) alt
 #ifdef BUILTIN_ARRAYS
-lvL (DLArray e _) = lvL e
+lvL (DLArray e _ _) = lvL e
 #endif
 lvL (DLRepRef _ s) = concatMap lvL s
 lvL _ = []
@@ -660,7 +660,7 @@ allRepRefs (DL d) = allRepRefs' d
     allRepRefs' (Record fs) = concatMap (allRepRefs . thd3) fs
     allRepRefs' (Variant tag cs) = allRepRefs tag ++ concatMap (\(_,_,_,e) -> allRepRefs e) cs
 #ifdef BUILTIN_ARRAYS
-    allRepRefs' (Array e _) = allRepRefs e
+    allRepRefs' (Array e _ _) = allRepRefs e
 #endif
     allRepRefs' (Offset e _) = allRepRefs e
     allRepRefs' (After e _) = allRepRefs e

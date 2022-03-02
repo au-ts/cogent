@@ -51,7 +51,7 @@ prop_typeCheckValidGivesNoErrors =
   forAll (genDataLayout size) $ \(Layout layout, alloc) ->  -- FIXME: not considering CLayout for now / zilinc
     case runExcept $ tcDataLayoutExpr M.empty [] (sugarDataLayout layout) of
       Right (_,alloc') -> toSet alloc == toSet alloc'
-      _                -> False
+      Left msg         -> False
   where size = 30
 
 {-+ INVERSE FUNCTIONS
@@ -60,15 +60,13 @@ prop_typeCheckValidGivesNoErrors =
   +-}
 
 bitSizeToDataLayoutSize :: Size -> DataLayoutSize
-bitSizeToDataLayoutSize size =
-  if bytes == 0
-    then Bits bits
-  else if bits == 0
-    then Bytes bytes
-    else Add (Bytes bytes) (Bits bits)
+bitSizeToDataLayoutSize size
+  | bytes == 0 = Bits bits
+  | bits == 0 = Bytes bytes
+  | otherwise = Add (Bytes bytes) (Bits bits)
   where
-    bytes = size `div` 8
-    bits  = size `mod` 8
+      bytes = size `div` 8
+      bits = size `mod` 8
 
 sugarBitRange :: BitRange -> DataLayoutExpr
 sugarBitRange (BitRange size offset) =
@@ -76,16 +74,16 @@ sugarBitRange (BitRange size offset) =
 
 sugarDataLayout  :: DataLayout' BitRange -> DataLayoutExpr
 sugarDataLayout UnitLayout = DL $ Prim (Bits 0)
-sugarDataLayout (PrimLayout bitRange endianness) = 
+sugarDataLayout (PrimLayout bitRange endianness) =
   case endianness of
     ME -> sugarBitRange bitRange
     _  -> DL $ Endian (sugarBitRange bitRange) endianness
 sugarDataLayout (RecordLayout fields) =
-  DL . Record $ fmap (\(name, layout) -> (name, noPos, (sugarDataLayout  layout))) (M.toList fields)
+  DL $ Offset (DL . Record $ fmap (\(name, layout) -> (name, noPos, (sugarDataLayout layout))) (M.toList fields)) (bitSizeToDataLayoutSize 0)
 sugarDataLayout (SumLayout tagBitRange alternatives) =
-  DL $ Variant
+  DL $ Offset (DL $ Variant
     (sugarBitRange tagBitRange)
-    (fmap (\(tagName, (tagValue, altLayout)) -> (tagName, noPos, tagValue, (sugarDataLayout  altLayout))) (M.toList alternatives))
+    (fmap (\(tagName, (tagValue, altLayout)) -> (tagName, noPos, tagValue, (sugarDataLayout altLayout))) (M.toList alternatives))) (bitSizeToDataLayoutSize 0)
 
 {- ARBITRARY INSTANCES -}
 instance Arbitrary DataLayoutPath where

@@ -390,7 +390,7 @@ coreTcExpr ds e = do
       mkFunMap (AbsDecl _ fn ps lts ti to  ) = (fn, FT (fmap snd ps) (V.length lts) [] ti to)  -- ditto
       mkFunMap _ = __impossible "coreTcExpr: mkFunMap: not a function definition"
   let funmap = M.fromList $ fmap mkFunMap $ filter (not . isTypeDef) ds
-  case fmap snd $ Core.runTC (Core.infer e) (V.Nil, funmap) V.Nil of  -- ditto
+  case fmap snd $ Core.runTC (Core.infer e) (V.Nil, funmap, Core.filterTypeDefs ds) V.Nil of
     Left err -> __impossible "coreTcExpr: there shouldn't be any error here"
     Right e  -> return e
 

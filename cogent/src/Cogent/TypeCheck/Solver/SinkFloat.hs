@@ -27,7 +27,7 @@ module Cogent.TypeCheck.Solver.SinkFloat ( sinkfloat ) where
 --
 
 import Cogent.Common.Types
-import Cogent.Surface (Type(..))
+import Cogent.Surface (Type(..), u32)
 import Cogent.TypeCheck.Base
 import Cogent.TypeCheck.Solver.Goal
 import Cogent.TypeCheck.Solver.Monad
@@ -198,6 +198,13 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
       , Just rv <- R.var r1
          = makeRowShapeSubsts rv r2
 
+
+#ifdef BUILTIN_ARRAYS
+    -- TODO: Currently only deal with no-hole arrays
+    genStructSubst _ (t@(A elt l s (Left Nothing)) :< U i) = makeArrUnifSubst i elt l s
+    genStructSubst _ (U i :< t@(A elt l s (Left Nothing))) = makeArrUnifSubst i elt l s
+#endif
+
     genStructSubst _ (t@(V r) :~~ U i) = makeRowUnifSubsts i V (filter R.present (R.entries r)) t
     genStructSubst _ (U i :~~ t@(V r)) = makeRowUnifSubsts i V (filter R.present (R.entries r)) t
 
@@ -271,4 +278,14 @@ sinkfloat = Rewrite.rewrite' $ \gs -> do
       tus <- traverse (const (U <$> lift (solvFresh $ SinkFloat (U i) t (T $ TCon n ts s)))) ts
       let t = T (TCon n tus s)  -- FIXME: A[R] :< (?0)! will break if ?0 ~> A[W] is needed somewhere else
       return $ Subst.ofType i t
+
+#ifdef BUILTIN_ARRAYS
+    makeArrUnifSubst i elt l s = mdo
+      let t = A elt l s (Left Nothing)
+      elt' <- U <$> lift (solvFresh $ SinkFloat (U i) t' t)
+      l'   <- SU (T u32) <$> lift (solvFresh $ SinkFloat (U i) t' t)
+      s'   <- Right <$> lift (solvFresh $ SinkFloat (U i) t' t)
+      let t' = A elt' l' s' (Left Nothing)
+      return $ Subst.ofType i t'
+#endif
 

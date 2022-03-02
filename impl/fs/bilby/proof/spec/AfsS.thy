@@ -153,7 +153,7 @@ where
     i_flags = v_flags v\<rparr>"
 
 definition
-  error_if_readonly :: "afs_state \<Rightarrow> (((ErrCode \<times> afs_state), afs_state) R) cogent_monad"
+  error_if_readonly :: "afs_state \<Rightarrow> (((ErrCode \<times> afs_state), afs_state) Result) cogent_monad"
 where
   "error_if_readonly as \<equiv> return $ if a_is_readonly as then Error (eRoFs, as) else Success as"
 
@@ -168,7 +168,7 @@ text {*
   return an Error.
 *} 
 definition
-  afs_alloc_inum :: "afs_map \<Rightarrow> ((unit, Ino) R) cogent_monad"
+  afs_alloc_inum :: "afs_map \<Rightarrow> ((unit, Ino) Result) cogent_monad"
 where
  "afs_alloc_inum as \<equiv>
     (do
@@ -194,7 +194,7 @@ where
 
 definition
   afs_init_inode :: "afs_state \<Rightarrow> vnode \<Rightarrow> vnode \<Rightarrow> VfsMode \<Rightarrow>
-                      ((afs_state \<times> vnode, afs_state \<times> vnode) R) cogent_monad"
+                      ((afs_state \<times> vnode, afs_state \<times> vnode) Result) cogent_monad"
 where
  "afs_init_inode adata vdir vnode mode \<equiv> do
      (adata, time) \<leftarrow> afs_get_current_time adata;

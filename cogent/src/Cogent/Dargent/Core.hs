@@ -15,16 +15,19 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ViewPatterns #-}
+
 module Cogent.Dargent.Core where
 
 import Data.Binary
 import Data.IntMap as IM hiding (foldr)
-import Data.Map (Map)
+import Data.Map as M (Map, toList)
 import GHC.Generics (Generic)
 import Text.Parsec.Pos (SourcePos)
 
 import Cogent.Common.Syntax (TagName, FieldName, Size, DLVarName)
 import Cogent.Common.Types (PrimInt (..))
+import Cogent.Compiler (__impossible)
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Surface (Endianness)
 import Cogent.Dargent.Util
@@ -57,7 +60,7 @@ data DataLayout' bits
     { fieldsDL        :: Map FieldName (DataLayout' bits)
     }
 #ifdef BUILTIN_ARRAYS
-  | ArrayLayout (DataLayout' bits)
+  | ArrayLayout (DataLayout' bits) Integer
 #endif
   | VarLayout Nat Size  -- the second argument remembers the pending offset (always in bits)
   deriving (Show, Eq, Functor, Foldable, Generic)
@@ -85,17 +88,47 @@ instance Binary a => Binary (DataLayout a)
 
 {- * @DataLayout BitRange@ helpers -}
 
-endAllocatedBits' :: DataLayout' BitRange -> Size
-endAllocatedBits' = foldr (\range start -> max (bitOffsetBR range + bitSizeBR range) start) 0
+loBitRange :: BitRange -> Size
+loBitRange (BitRange sz off) = off
 
-endAllocatedBits :: DataLayout BitRange -> Size
-endAllocatedBits = foldr (\range start -> max (bitOffsetBR range + bitSizeBR range) start) 0
+hiBitRange :: BitRange -> Size
+hiBitRange (BitRange sz off) = sz + off
+
+loDataLayout' :: DataLayout' BitRange -> Size
+loDataLayout' UnitLayout = 0
+loDataLayout' (PrimLayout b _) = loBitRange b
+loDataLayout' (SumLayout tag alts) = foldr (\(_,b) m -> min (loDataLayout' b) m) (loBitRange tag) alts
+loDataLayout' (RecordLayout (M.toList -> (f:fs))) = foldr (\(_,b) m -> min (loDataLayout' b) m) (loDataLayout' (snd f)) fs
+#ifdef BUILTIN_ARRAYS
+loDataLayout' (ArrayLayout d l) = loDataLayout' d
+#endif
+loDataLayout' (VarLayout v off) = __impossible "loDataLayout': don't know the last bit of a variable"
+
+hiDataLayout' :: DataLayout' BitRange -> Size
+hiDataLayout' UnitLayout = 0
+hiDataLayout' (PrimLayout b _) = hiBitRange b
+hiDataLayout' (SumLayout tag alts) = foldr (\(_,b) m -> max (hiDataLayout' b) m) (hiBitRange tag) alts
+hiDataLayout' (RecordLayout fs) = foldr (\b m -> max (hiDataLayout' b) m) 0 fs
+#ifdef BUILTIN_ARRAYS
+hiDataLayout' (ArrayLayout d l) = let low = loDataLayout' d
+                                      sz = dataLayoutSizeInBytes' d
+                                   in low + l * sz * 8
+#endif
+hiDataLayout' (VarLayout v off) = __impossible "hiDataLayout': don't know the last bit of a variable"
+
+loDataLayout :: DataLayout BitRange -> Size
+loDataLayout (Layout d) = loDataLayout' d
+loDataLayout CLayout = __impossible "loDataLayout: CLayout"
+
+hiDataLayout :: DataLayout BitRange -> Size
+hiDataLayout (Layout d) = hiDataLayout' d
+hiDataLayout CLayout = __impossible "hiDataLayout: CLayout"
 
 dataLayoutSizeInWords :: DataLayout BitRange -> Size
-dataLayoutSizeInWords = (`div` wordSizeBits) . (alignSize wordSizeBits) . endAllocatedBits
+dataLayoutSizeInWords d = (`div` wordSizeBits) . alignSize wordSizeBits $ hiDataLayout d - loDataLayout d
 
 dataLayoutSizeInBytes' :: DataLayout' BitRange -> Size
-dataLayoutSizeInBytes' = (`div` byteSizeBits) . (alignSize byteSizeBits) . endAllocatedBits'
+dataLayoutSizeInBytes' d = (`div` byteSizeBits) . alignSize byteSizeBits $ hiDataLayout' d - loDataLayout' d
 
 alignLayout' :: DataLayout' BitRange -> DataLayout' [AlignedBitRange]
 alignLayout' = fmap (rangeToAlignedRanges wordSizeBits)

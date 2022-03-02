@@ -41,7 +41,7 @@ import           Cogent.Glue                      as GL (GlState, GlueMode (..),
 #ifdef WITH_HASKELL
 import           Cogent.Haskell.Shallow           as HS
 #endif
-import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_)
+import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_, unfoldSynsInDefs, filterTypeDefs, unfoldSynsInConsts, unfoldSynsInPragmas)
 import           Cogent.Interpreter               as Repl (replWithState)
 import           Cogent.Isabelle                  as Isa
 #ifdef WITH_LLVM
@@ -70,6 +70,7 @@ import           Data.Binary                      (decodeFileOrFail, encodeFile)
 import           Data.Char                        (isSpace)
 import           Data.Either                      (fromLeft, isLeft)
 import           Data.Foldable                    (fold, foldrM)
+import           Data.IORef                       (writeIORef)
 import           Data.List                        as L (find, intersect, isPrefixOf, nub, partition)
 import           Data.Map                         (empty, fromList)
 import           Data.Maybe                       (fromJust, isJust)
@@ -460,6 +461,7 @@ flags =
   , Option []         ["ext-types"]      1 (ReqArg set_flag_extTypes "FILE")               "give external type names to C parser"
   , Option []         ["infer-c-funcs"]  1 (ReqArg (set_flag_inferCFunc . words) "FILE..") "infer Cogent abstract function definitions"
   , Option []         ["infer-c-types"]  1 (ReqArg (set_flag_inferCType . words) "FILE..") "infer Cogent abstract type definitions"
+  , Option []         ["isabelle-var-avoidance"] 1 (ReqArg (set_flag_isabelleVarAvoidance) "FILE")  "variable names that should be avoided when generation Isabelle embeddings"
   , Option []         ["name-cache"]     1 (ReqArg set_flag_nameCache "FILE")              "specify the name cache file to use"
   , Option []         ["proof-input-c"]  1 (ReqArg set_flag_proofInputC "FILE")            "specify input C file to generate proofs (default to the same base name as input Cogent file)"
   , Option []         ["type-proof-timing"] 3 (NoArg set_flag_proofTiming)                  "Log type proof timings in the generated isabelle embedding to ~/TypeProofTacticTiming.json"
@@ -482,7 +484,6 @@ flags =
   , Option []         ["fffi-c-functions"]    1 (NoArg set_flag_fffiCFunctions)            "generate FFI functions in the C code (should be used when -Q)"
   , Option []         ["fflatten-nestings"]   2 (NoArg set_flag_fflattenNestings)          "flatten out nested structs in C code (does nothing)"
   , Option []         ["ffncall-as-macro"]    3 (NoArg set_flag_ffncallAsMacro)            "generate macros instead of real function calls"
-  , Option []         ["ffold-poly-types"]    2 (NoArg set_flag_ffoldPolyTypes)            "fold back polymorphic type synonyms in the shallow embedding"
   , Option []         ["ffull-src-path"]      2 (NoArg set_flag_ffullSrcPath)              "display full path for source file locations"
   , Option []         ["ffunc-purity-attr"]   2 (NoArg set_flag_ffuncPurityAttr)           "(default) generate GCC attributes to classify purity of Cogent functions"
   , Option []         ["fgen-header"]          2 (NoArg set_flag_fgenHeader)               "generate build info header in all output files, reverse of --fno-gen-header"
@@ -495,7 +496,6 @@ flags =
   , Option []         ["fno-check-undefined"]    1 (NoArg set_flag_fnoCheckUndefined)      "reverse of --fcheck-undefined"
   , Option []         ["fno-flatten-nestings"]   2 (NoArg set_flag_fnoFlattenNestings)     "(default) reverse of --fflatten-nestings"
   , Option []         ["fno-fncall-as-macro"]    2 (NoArg set_flag_fnoFncallAsMacro)       "(default) reverse of --ffncall-as-macro"
-  , Option []         ["fno-fold-poly-types"]    2 (NoArg set_flag_fnoFoldPolyTypes)       "(default) reverse of --ffold-poly-types"
   , Option []         ["fno-func-purity-attr"]   2 (NoArg set_flag_fnoFuncPurityAttr)      "reverse of --ffunc-purity-attr"
   , Option []         ["fno-gen-header"]         2 (NoArg set_flag_fnoGenHeader)           "(default) don't generate build info header in any output files"
   , Option []         ["fno-intermediate-vars"]  1 (NoArg set_flag_fnoIntermediateVars)    "reverse of --fintermediate-vars"
@@ -695,19 +695,26 @@ parseArgs args = case getOpt' Permute options args of
           when (Ast stg `elem` cmds) $ genAst stg desugared'
           when (Pretty stg `elem` cmds) $ genPretty stg desugared'
           when (Deep stg `elem` cmds) $ genDeep cmds source stg desugared' typedefs fts log
-          _ <- genShallow cmds source stg desugared' typedefs fts log (Shallow stg `elem` cmds,
-                                                                       SCorres stg `elem` cmds,
-                                                                       ShallowConsts stg `elem` cmds,
-                                                                       ShallowTuples `elem` cmds,
-                                                                       ShallowConstsTuples `elem` cmds,
-                                                                       ShallowTuplesProof `elem` cmds,
-                                                                       HsShallow `elem` cmds,
-                                                                       HsShallowTuples `elem` cmds)
-          when (TableShallow `elem` cmds) $ putProgressLn ("Generating shallow table...") >> putStrLn (printTable $ st desugared')
-          when (Compile (succ stg) `elem` cmds) $ normal cmds desugared' ctygen' pragmas' source tced tcst typedefs fts buildinfo log
-          exitSuccessWithBuildInfo cmds buildinfo
+          let tsyndefs = filterTypeDefs desugared'
+          case IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts tsyndefs of
+            Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
+            Right (constdefs,_) -> do
+              _ <- genShallow cmds source stg desugared' typedefs fts constdefs log
+                     ( Shallow       stg   `elem` cmds
+                     , SCorres       stg   `elem` cmds
+                     , ShallowConsts stg   `elem` cmds
+                     , ShallowTuples       `elem` cmds
+                     , ShallowConstsTuples `elem` cmds
+                     , ShallowTuplesProof  `elem` cmds
+                     , HsShallow           `elem` cmds
+                     , HsShallowTuples     `elem` cmds)
+              when (TableShallow `elem` cmds) $
+                putProgressLn ("Generating shallow table...") >> putStrLn (printTable $ st desugared')
+              when (Compile (succ stg) `elem` cmds) $
+                normal cmds desugared' ctygen' pragmas' source tced tcst typedefs fts constdefs buildinfo log
+              exitSuccessWithBuildInfo cmds buildinfo
 
-    normal cmds desugared ctygen pragmas source tced tcst typedefs fts buildinfo log = do
+    normal cmds desugared ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log = do
       let stg = STGNormal
       putProgress "Normalising..."
       nfed' <- case __cogent_fnormalisation of
@@ -730,37 +737,44 @@ parseArgs args = case getOpt' Permute options args of
             tpfile = mkThyFileName source suf
             tpthy  = thy ++ suf
         writeFileMsg tpfile
+        let nfed'' = IN.unfoldSynsInDefs nfed'
         output tpfile $ flip LJ.hPutDoc $
-          deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy nfed' fts log
+          deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy nfed'' fts log
       shallowTypeNames <-
-        genShallow cmds source stg nfed' typedefs fts log (Shallow stg `elem` cmds,
-                                                           SCorres stg `elem` cmds,
-                                                           ShallowConsts stg `elem` cmds,
-                                                           False, False, False, False, False)
+        genShallow cmds source stg nfed' typedefs fts constdefs log (Shallow stg `elem` cmds,
+                                                                      SCorres stg `elem` cmds,
+                                                                      ShallowConsts stg `elem` cmds,
+                                                                      False, False, False, False, False)
       when (NormalProof `elem` cmds) $ do
         let npfile = mkThyFileName source __cogent_suffix_of_normal_proof
         writeFileMsg npfile
-        output npfile $ flip LJ.hPutDoc $ normalProof thy shallowTypeNames nfed' log
-      when (Compile (succ stg) `elem` cmds) $ simpl cmds nfed' ctygen pragmas source tced tcst typedefs fts buildinfo log
+        let nfed'' = IN.unfoldSynsInDefs nfed'
+        output npfile $ flip LJ.hPutDoc $ normalProof thy shallowTypeNames nfed'' log
+      when (Compile (succ stg) `elem` cmds) $
+        simpl cmds nfed' ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
 
-    simpl cmds nfed ctygen pragmas source tced tcst typedefs fts buildinfo log = do
+    simpl cmds nfed ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log = do
       let stg = STGSimplify
+      let nfed' = IN.unfoldSynsInDefs nfed
+      let tsyndefs = filterTypeDefs nfed'
+      let constdefs' = IN.unfoldSynsInConsts constdefs tsyndefs
+      let pragmas' = IN.unfoldSynsInPragmas pragmas tsyndefs
       putProgressLn "Simplifying..."
       simpled' <- case __cogent_fsimplifier of
-        False -> putProgressLn "Skipped" >> return nfed
+        False -> putProgressLn "Skipped" >> return nfed'
         True  -> do putProgressLn ""
-                    let simpled = map untypeD $ SM.simplify nfed
+                    let simpled = map untypeD $ SM.simplify nfed'
                     putProgressLn "Re-typing simplified AST..."
                     case IN.tc_ simpled of
                       Left err -> hPutStrLn stderr ("Re-typing simplified AST failed: " ++ err) >> exitFailure
                       Right simpled' -> return simpled'
       when (Ast stg `elem` cmds) $ genAst stg simpled'
       when (Pretty stg `elem` cmds) $ genPretty stg simpled'
-      when (Compile (succ stg) `elem` cmds) $ mono cmds simpled' ctygen pragmas source tced tcst typedefs fts buildinfo log
+      when (Compile (succ stg) `elem` cmds) $ mono cmds simpled' ctygen pragmas' source tced tcst typedefs fts constdefs' tsyndefs buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
 
-    mono cmds simpled ctygen pragmas source tced tcst typedefs fts buildinfo log = do
+    mono cmds simpled ctygen pragmas source tced tcst typedefs fts constdefs tsyndefs buildinfo log = do
       let stg = STGMono
       putProgressLn "Monomorphising..."
       efuns <- T.forM __cogent_entry_funcs $
@@ -784,15 +798,15 @@ parseArgs args = case getOpt' Permute options args of
           when (Ast stg `elem` cmds) $ lessPretty stdout monoed'
           when (Pretty stg `elem` cmds) $ pretty stdout monoed'
           when (Deep stg `elem` cmds) $ genDeep cmds source stg monoed' typedefs fts log
-          _ <- genShallow cmds source stg monoed' typedefs fts log (Shallow stg `elem` cmds,
-                                                                    SCorres stg `elem` cmds,
-                                                                    ShallowConsts stg `elem` cmds,
-                                                                    False, False, False, False, False)
+          _ <- genShallow cmds source stg monoed' typedefs fts constdefs log (Shallow stg `elem` cmds,
+                                                                              SCorres stg `elem` cmds,
+                                                                              ShallowConsts stg `elem` cmds,
+                                                                              False, False, False, False, False)
           -- LLVM Entrance
 #ifdef WITH_LLVM
-          when (LLVMGen `elem` cmds) $ llvmg cmds monoed' ctygen' insts source tced tcst typedefs fts buildinfo log
+          when (LLVMGen `elem` cmds) $ llvmg cmds monoed' ctygen' insts source tced tcst typedefs fts tsyndefs buildinfo log
 #endif
-          when (Compile (succ stg) `elem` cmds) $ cg cmds monoed' ctygen' pragmas' insts source tced tcst typedefs fts buildinfo log
+          when (Compile (succ stg) `elem` cmds) $ cg cmds monoed' ctygen' pragmas' insts source tced tcst typedefs fts tsyndefs buildinfo log
           c_refinement source monoed' insts log (ACInstall `elem` cmds, CorresSetup `elem` cmds, CorresProof `elem` cmds)
           when (MonoProof `elem` cmds) $ do
             let mpfile = mkThyFileName source __cogent_suffix_of_mono_proof
@@ -815,12 +829,12 @@ parseArgs args = case getOpt' Permute options args of
           exitSuccessWithBuildInfo cmds buildinfo
 
 #ifdef WITH_LLVM
-    llvmg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
+    llvmg cmds monoed ctygen insts source tced tcst typedefs fts tsyndefs buildinfo log = do
       putProgressLn "Now using the LLVM backend"
       LLVM.to_llvm monoed source
 #endif
 
-    cg cmds monoed ctygen pragmas insts source tced tcst typedefs fts buildinfo log = do
+    cg cmds monoed ctygen pragmas insts source tced tcst typedefs fts tsyndefs buildinfo log = do
       let hName = mkOutputName source Nothing <.> __cogent_ext_of_h
           hscName = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi_types)
           hsName  = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi)
@@ -872,7 +886,7 @@ parseArgs args = case getOpt' Permute options args of
         writeFileMsg cf
         output cf $ flip M.hPutDoc (ppr c </> M.line)       -- .c file gen
         unless (null $ __cogent_infer_c_func_files ++ __cogent_infer_c_type_files) $
-          glue cmds tced tcst typedefs fts insts genst buildinfo log
+          glue cmds tced tcst typedefs fts insts genst tsyndefs buildinfo log
         forM_ __cogent_name_cache $ \cacheFile -> do
           unless decodingFailed $ do
             putProgressLn ("Writing name cache file: " ++ cacheFile)
@@ -903,9 +917,9 @@ parseArgs args = case getOpt' Permute options args of
         writeFileMsg cpfile
         output cpfile $ flip LJ.hPutDoc corresProofThy
 
-    glue cmds tced tcst typedefs fts insts genst buildinfo log = do
+    glue cmds tced tcst typedefs fts insts genst tsyndefs buildinfo log = do
       putProgressLn "Generating glue code..."
-      let glreader = GL.mkGlState tced tcst typedefs fts insts genst
+      let glreader = GL.mkGlState tced tcst typedefs fts tsyndefs insts genst
       runExceptT (GL.glue glreader defaultTypnames GL.TypeMode __cogent_infer_c_type_files) >>= \case
         Left err -> hPutStrLn stderr ("Glue code (types) generation failed: \n" ++ err) >> exitFailure
         Right infed -> do forM_ infed $ \(filename, defs) -> do
@@ -954,15 +968,18 @@ parseArgs args = case getOpt' Permute options args of
     genPretty stg defns = pretty stdout defns >> exitSuccess
 
     genDeep cmds source stg defns typedefs fts log = do
+      let defns' = if stg == STGDesugar || stg == STGNormal then IN.unfoldSynsInDefs defns else defns
       let dpfile = mkThyFileName source (__cogent_suffix_of_deep ++ __cogent_suffix_of_stage stg)
           thy = mkProofName source (Just $ __cogent_suffix_of_deep ++ __cogent_suffix_of_stage stg)
-          de = deep thy stg defns fts log
+          de = deep thy stg defns' fts log
       putProgressLn ("Generating deep embedding (" ++ stgMsg stg ++ ")...")
       writeFileMsg dpfile
       output dpfile $ flip LJ.hPutDoc de
 
-    genShallow cmds source stg defns typedefs fts log (False,False,False,False,False,False,False,False) = return empty
-    genShallow cmds source stg defns typedefs fts log (sh,sc,ks,sh_tup,ks_tup,tup_proof,shhs,shhs_tup) = do
+    genShallow cmds source stg defns typedefs fts constdefs log (False,False,False,False,False,False,False,False) = return empty
+    genShallow cmds source stg defns typedefs fts constdefs log (sh,sc,ks,sh_tup,ks_tup,tup_proof,shhs,shhs_tup) = do
+      isaResvNames <- concat <$> flip mapM __cogent_isabelle_var_avoidance_file simpleLineParser
+      writeIORef __cogent_isa_vars_avoided_ref isaResvNames
           -- Isabelle files
       let shfile = mkThyFileName source (__cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
           ssfile = mkThyFileName source (__cogent_suffix_of_shallow_shared)
@@ -977,15 +994,14 @@ parseArgs args = case getOpt' Permute options args of
           -- Run the generators
           (shal    ,shrd    ,scorr,shallowTypeNames) = Isa.shallow False thy stg        defns log
           (shal_tup,shrd_tup,_    ,_               ) = Isa.shallow True  thy STGDesugar defns log
-          constsTypeCheck = IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts
 #ifdef WITH_HASKELL
           -- Haskell shallow embedding
           hsShalName    = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
           hsShalTupName = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
           hsShalFile         = nameToFileName hsShalName    __cogent_ext_of_hs
           hsShalTupFile      = nameToFileName hsShalTupName __cogent_ext_of_hs
-          hsShal    = \consts -> HS.shallow False hsShalName    stg defns consts log
-          hsShalTup = \consts -> HS.shallow True  hsShalTupName stg defns consts log
+          hsShal    = HS.shallow False hsShalName    stg defns constdefs log
+          hsShalTup = HS.shallow True  hsShalTupName stg defns constdefs log
 #endif
           tup_proof_thy = shallowTuplesProof thy
                             (mkProofName source (Just $ __cogent_suffix_of_shallow_shared))
@@ -1002,17 +1018,13 @@ parseArgs args = case getOpt' Permute options args of
 #ifdef WITH_HASKELL
       when shhs $ do
         putProgressLn ("Generating Haskell shallow embedding (" ++ stgMsg stg ++ ")...")
-        case constsTypeCheck of
-          Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
-          Right (cs,_) -> do writeFileMsg hsShalFile
-                             output hsShalFile $ flip hPutStrLn (hsShal cs)
+        writeFileMsg hsShalFile
+        output hsShalFile $ flip hPutStrLn hsShal
 #endif
       when ks $ do
         putProgressLn ("Generating shallow constants (" ++ stgMsg stg ++ ")...")
-        case constsTypeCheck of
-          Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
-          Right (cs,_) -> do writeFileMsg ksfile
-                             output ksfile $ flip LJ.hPutDoc $ shallowConsts False thy stg cs defns log
+        writeFileMsg ksfile
+        output ksfile $ flip LJ.hPutDoc $ shallowConsts False thy stg constdefs defns log
       when sc $ do
         putProgressLn ("Generating scorres (" ++ stgMsg stg ++ ")...")
         writeFileMsg scfile
@@ -1026,17 +1038,13 @@ parseArgs args = case getOpt' Permute options args of
 #ifdef WITH_HASKELL
       when shhs_tup $ do
         putProgressLn ("Generating Haskell shallow embedding (with Haskell tuples)...")
-        case constsTypeCheck of
-          Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
-          Right (cs,_) -> do writeFileMsg hsShalTupFile
-                             output hsShalTupFile $ flip hPutStrLn (hsShalTup cs)
+        writeFileMsg hsShalTupFile
+        output hsShalTupFile $ flip hPutStrLn hsShalTup
 #endif
       when ks_tup $ do
         putProgressLn ("Generating shallow constants (with HOL tuples)...")
-        case constsTypeCheck of
-          Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
-          Right (cs,_) -> do writeFileMsg ks_tupfile
-                             output ks_tupfile $ flip LJ.hPutDoc $ shallowConsts True thy stg cs defns log
+        writeFileMsg ks_tupfile
+        output ks_tupfile $ flip LJ.hPutDoc $ shallowConsts True thy stg constdefs defns log
 
       when tup_proof $ do
         putProgressLn ("Generating shallow tuple proof...")

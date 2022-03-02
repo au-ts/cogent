@@ -164,7 +164,7 @@ lemma serialise_le16_ret:
    "unat offs + 2 < length (\<alpha>wa (data\<^sub>f buf))"
 shows
   "(serialise_le16 (buf, offs, v)) =
-  buf\<lparr>data\<^sub>f:=WordArrayT.make (buf_sub_slice buf offs (offs+2) (sle16 v))\<rparr>"
+   buf \<lparr>data\<^sub>f:=WordArrayT.make (buf_sub_slice buf offs (offs+2) (sle16 v))\<rparr>"
 proof -
   have unat_plus:
     "\<And>n. n \<le> 2 \<longrightarrow> unat (offs + n) = unat offs + unat n"
@@ -175,7 +175,7 @@ proof -
   apply (simp add: serialise_le16_def[unfolded sanitizers] serialise_u8_def[unfolded sanitizers] Let_def)
   apply (handle_wa_mod "offs")
   apply (handle_wa_mod "offs+1")
-  apply (simp add: serial_le16_helper[OF valid_offs, where v=v,symmetric])
+    apply (simp add: serial_le16_helper[OF valid_offs, where v=v,symmetric])
   apply (rule arg_cong[where f="\<lambda>v. Buffer.data\<^sub>f_update v buf"])
   apply (rule ext)
   apply (rule arg_cong[where f="WordArrayT.make"])
@@ -200,6 +200,7 @@ proof -
    apply simp
  done
 qed
+
 
 lemma ple16_take:
  assumes offs:"offs < offs+2"
@@ -452,7 +453,8 @@ proof -
   apply (handle_wa_mod "offs+5")
   apply (handle_wa_mod "offs+6")
   apply (handle_wa_mod "offs+7")
-  apply (simp add: serial_le64_helper[OF valid_offs, where v=v,symmetric])
+          apply (simp add: serial_le64_helper[OF valid_offs, where v=v,symmetric])
+
   apply (rule arg_cong[where f="\<lambda>v. Buffer.data\<^sub>f_update v buf"])
   apply (rule ext)
   apply (rule arg_cong[where f="WordArrayT.make"])
@@ -509,4 +511,5 @@ proof -
    using len_ys apply clarsimp
   using assms by unat_arith
 qed
+
 end

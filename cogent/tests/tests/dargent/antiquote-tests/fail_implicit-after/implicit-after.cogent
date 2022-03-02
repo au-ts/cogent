@@ -1,0 +1,52 @@
+--
+-- Copyright 2021, Trustworthy Systems Group (UNSW)
+--
+-- This software may be distributed and modified according to the terms of
+-- the GNU General Public License version 2. Note that NO WARRANTY is provided.
+-- See "LICENSE_GPLv2.txt" for details.
+--
+-- @TAG(UNSW_GPL)
+--
+
+-- Program checks the default layout behaviour places fields
+-- after one another in the layout order. The previous behaviour
+-- would place any field with unspecified offset at offset 0b.
+
+type A = { x : U8 , y : U8 }
+
+-- Layout L1 creates a one-byte space before the data of the
+-- structure.
+--
+-- Old set-up: x is given offset 0b in L1 (and L0)
+--
+-- New set-up: Unspecified offset (for x in L1) defaults to
+-- 'after' the previous field (after y) in L1. Layout L0 is
+-- unchanged; x given offset 0b.
+--
+layout L1 = record { y : 1B at 1B , x : 1B }
+
+layout L0 = record { x : 1B, y : 1B at 1B }
+
+-- Return zeroed instances of A
+
+getZeroedL1 : () -> A layout L1
+
+getZeroedL0 : () -> A layout L0
+
+-- Compare the memory of A with layout L1 & A with layout L0
+-- If comparison is true, return 0 otherwise non-zero.
+--
+-- Old version: Comparison is true since layouts
+-- agree on the placement of x.
+--
+-- New version: Result should be false since L1 places x
+-- after y at offset 2B.
+--
+assert_memcmp : (A layout L0 , A layout L1) -> U8
+
+setup : () -> U8
+setup () = let (a1 { x }) = getZeroedL1 ()
+           and (a0 { x }) = getZeroedL0 ()
+           and a1' = a1 { x = 42 }
+           and a0' = a0 { x = 42 }
+           in assert_memcmp (a0', a1')

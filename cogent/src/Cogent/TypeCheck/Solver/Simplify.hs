@@ -183,8 +183,8 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
     -> hoistMaybe $ Just $ (\(l,(t,_)) -> l :~ t) <$> M.elems cs
 
 #ifdef BUILTIN_ARRAYS
-  TLArray e _    :~ A t _ (Left Unboxed) _ -> hoistMaybe $ Just [e :~ t]
-  TLArray e _    :~ A _ _ (Right _) _ -> __todo "TLArray e p :~ A t l (Right n) h => is this possible?"
+  TLArray e l _  :~ A t len (Left Unboxed) _ -> hoistMaybe $ Just [e :~ t, SE (T u32) (IntLit l) :==: len]
+  TLArray e l _  :~ A _ _ (Right _) _ -> __todo "TLArray e p :~ A t l (Right n) h => is this possible?"
 #endif
 
   TLOffset e _   :~ tau -> hoistMaybe $ Just [e :~ tau]
@@ -198,6 +198,9 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
     , primTypeSize tau == evalSize n
     -> hoistMaybe $ Just []
     | isBoxedType tau
+    , evalSize n == pointerSizeBits
+    -> hoistMaybe $ Just []
+    | isFunType tau
     , evalSize n == pointerSizeBits
     -> hoistMaybe $ Just []
 
@@ -241,7 +244,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
     -> hoistMaybe $ Just $ ((\((_,l1,_),(_,l2,_)) -> l1 :~< l2) <$> LRow.common r1 r2) <> [e1 :~< e2]
 
 #ifdef BUILTIN_ARRAYS
-  TLArray e1 _     :~< TLArray e2 _ -> hoistMaybe $ Just [e1 :~< e2]
+  TLArray e1 l1 _ :~< TLArray e2 l2 _ -> hoistMaybe $ Just [e1 :~< e2, SE (T u32) (IntLit l1) :==: SE (T u32) (IntLit l2)]
 #endif
 
   t1 :~~ t2 | isBoxedType t1, isBoxedType t2 -> hoistMaybe $ Just []  -- If both are pointers, then their layouts will be compatible
@@ -264,6 +267,8 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   t1 :~~ t2 | t1 == t2 -> hoistMaybe $ Just []
             | isPrimType t1 && isPrimType t2
             , primTypeSize t1 <= primTypeSize t2
+            -> hoistMaybe $ Just []
+            | isFunType t1 && isFunType t2
             -> hoistMaybe $ Just []
             | otherwise -> hoistMaybe Nothing
 
@@ -319,22 +324,24 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
   A t1 l1 s1 (Left r1) :<  A t2 l2 s2 (Left r2) | Just c <- sigilMatch s1 s2 -> do
     guard (not $ isJust r1 && isNothing r2)
     let drop = case (r1,r2) of
-                 (r1, r2) | r1 == r2 -> Sat
+                 _ | r1 == r2 -> Sat
                  (Nothing, Just i2) -> Drop t1 ImplicitlyTaken
-                 (Just i1, Just i2) -> Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [i1,i2]))
-    hoistMaybe $ Just (c <> [Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :< t2, drop])
+                 (Just i1, Just i2) -> i1 :==: i2
+    hoistMaybe $ Just (c <> [l1 :==: l2, t1 :< t2, drop])
 
   A t1 l1 s1 (Left r1) :=: A t2 l2 s2 (Left r2) | Just c <- sigilMatch s1 s2 -> do
     guard (isJust r1 && isJust r2 || isNothing r1 && isNothing r2)
     let drop = case (r1,r2) of
-                 (r1, r2) | r1 == r2 -> Sat
-                 (Just i1, Just i2) -> Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [i1,i2]))
-    hoistMaybe $ Just (c <> [Arith (SE (T (TCon "Bool" [] Unboxed)) (PrimOp "==" [l1,l2])), t1 :=: t2, drop])
+                 _ | r1 == r2 -> Sat
+                 (Just i1, Just i2) -> i1 :==: i2
+    hoistMaybe $ Just (c <> [l1 :==: l2, t1 :=: t2, drop])
 
   a :-> b -> __fixme $ hoistMaybe $ Just [b]  -- FIXME: cuerently we ignore the impls. / zilinc
 
   -- TODO: Here we will call a SMT procedure to simplify all the Arith constraints.
   -- The only things left will be non-trivial predicates. / zilinc
+  e1 :==: e2 | e1 == e2 -> hoistMaybe $ Just []
+  Arith e -> hoistMaybe $ Just []  -- FIXME: pretend they're all correct for now. / zilinc
   Arith e | isTrivialSE e -> do
               r <- lift $ smtSat e
               if r then hoistMaybe $ Just []
@@ -405,6 +412,10 @@ isPrimType (T (TCon n [] Unboxed))
 isPrimType (T (TBang t)) = isPrimType t
 isPrimType (T (TUnbox t)) = isPrimType t
 isPrimType _ = False
+
+isFunType :: TCType -> Bool
+isFunType (T (TFun _ _)) = True
+isFunType _ = False
 
 fullyNormalise :: TCType -> Rewrite.RewriteT TcSolvM TCType
 fullyNormalise t = undefined

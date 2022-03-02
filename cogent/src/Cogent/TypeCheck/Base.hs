@@ -223,6 +223,7 @@ data Constraint' t l = (:<) t t
                      | IsPrimType t
 #ifdef BUILTIN_ARRAYS
                      | Arith (SExpr t l)
+                     | (:==:) (SExpr t l) (SExpr t l)  -- arithmetically equal
                      | (:->) (Constraint' t l) (Constraint' t l)
 #endif
                      deriving (Eq, Show, Ord)
@@ -301,6 +302,7 @@ instance Bifunctor Constraint' where
   bimap f g (IsPrimType t)     = IsPrimType (f t)
 #ifdef BUILTIN_ARRAYS
   bimap f g (Arith se)         = Arith (bimap f g se)
+  bimap f g (e1 :==: e2)       = bimap f g e1 :==: bimap f g e2
   bimap f g (c1 :-> c2)        = (bimap f g c1) :-> (bimap f g c2)
 #endif
   bimap f g Sat                = Sat
@@ -330,6 +332,7 @@ instance Bitraversable Constraint' where
   bitraverse f g (NotReadOnly s)    = pure $ NotReadOnly s
 #ifdef BUILTIN_ARRAYS
   bitraverse f g (Arith se)         = Arith <$> bitraverse f g se
+  bitraverse f g (e1 :==: e2)       = (:==:) <$> bitraverse f g e1 <*> bitraverse f g e2
   bitraverse f g (c1 :-> c2)        = (:->) <$> bitraverse f g c1 <*> bitraverse f g c2
 #endif
   bitraverse f g Sat                = pure Sat
@@ -526,6 +529,8 @@ type TypedIrrefPatn = TIrrefPatn DepType DataLayoutExpr
 type RawTypedExpr = TExpr RawType DataLayoutExpr
 type RawTypedPatn = TPatn RawType DataLayoutExpr
 type RawTypedIrrefPatn = TIrrefPatn RawType DataLayoutExpr
+
+type Typedefs   = M.Map TypeName ([VarName], DepType)  -- typenames |-> typeargs * strltype
 
 -- --------------------------------
 -- And their conversion functions
@@ -739,7 +744,7 @@ substLayoutL vs (TLVar n) | Just x <- lookup n vs = x
 substLayoutL vs (TLRecord fs) = TLRecord $ (\(x,y,z) -> (x,y,substLayoutL vs z)) <$> fs
 substLayoutL vs (TLVariant e fs) = TLVariant e $ (\(x,y,z,v) -> (x,y,z,substLayoutL vs v)) <$> fs
 #ifdef BUILTIN_ARRAYS
-substLayoutL vs (TLArray e p) = TLArray (substLayoutL vs e) p
+substLayoutL vs (TLArray e l p) = TLArray (substLayoutL vs e) l p
 #endif
 substLayoutL vs (TLOffset e s) = TLOffset (substLayoutL vs e) s
 substLayoutL vs (TLAfter e f) = TLAfter (substLayoutL vs e) f
@@ -756,6 +761,65 @@ substLayout vs (R rp x s) = R rp (substLayout vs <$> x) (first (fmap (fmap (subs
 substLayout vs (A t l s tkns) = A (substLayout vs t) l (bimap (fmap (fmap (substLayoutL vs))) id s) tkns
 #endif
 substLayout vs (Synonym n ts) = Synonym n $ substLayout vs <$> ts
+
+substDepType :: Typedefs -> [(VarName, DepType)] -> DepType -> DepType
+substDepType d vs (DT (TVar v b u)) | Just x <- lookup v vs =
+  case (b,u) of
+       (False, False) -> x
+       (True , False) -> applyBang d x
+       (_    , True ) -> applyUnbox x
+substDepType d vs (DT t) = DT (fmap (substDepType d vs) t)
+
+applyBang :: Typedefs -> DepType -> DepType
+applyBang d (DT (TCon tn ts Unboxed)) = 
+    case M.lookup tn d of
+         Just _ -> DT $ TBang res  -- type synonym, preserve bang
+         _ -> res                  -- unboxed abstract or primitive type, ignore bang
+    where res = DT $ TCon tn (map (applyBang d) ts) Unboxed
+applyBang d (DT (TCon tn ts s)) = DT $ TCon tn (map (applyBang d) ts) (bangSigil s)
+applyBang _ (DT (TVar v b u)) = DT $ TVar v True u
+applyBang _ ft@(DT (TFun _ _)) = ft
+applyBang d (DT (TRecord rp l s)) = DT $ TRecord rp (map (\(fn,(t,tk)) -> (fn,(applyBang d t,tk))) l) (bangSigil s)
+#ifdef BUILTIN_ARRAYS
+applyBang d (DT (TArray t e (Boxed False l) h)) = DT $ TArray (applyBang d t) e (Boxed True l) h
+#endif
+applyBang d (DT o) = DT $ fmap (applyBang d) o
+
+applyUnbox :: DepType -> DepType
+applyUnbox (DT (TCon tn ts _)) = DT $ TCon tn ts Unboxed
+applyUnbox (DT (TVar v b _)) = DT $ TVar v b True
+-- Cannot have an unboxed record with a recursive parameter
+applyUnbox (DT (TRecord NonRec l _)) = DT $ TRecord NonRec l Unboxed
+#ifdef BUILTIN_ARRAYS
+applyUnbox (DT (TArray t e _ h)) = DT $ TArray t e Unboxed h
+#endif
+applyUnbox t = t
+
+applyLayout :: DataLayoutExpr -> DepType -> DepType
+applyLayout l (DT (TCon tn ts (Boxed r Nothing))) = DT $ TCon tn ts $ Boxed r $ Just l
+applyLayout l (DT (TRecord rp fs (Boxed r Nothing))) = DT $ TRecord rp fs $ Boxed r $ Just l
+#ifdef BUILTIN_ARRAYS
+applyLayout l (DT (TArray t e (Boxed r Nothing) h)) = DT $ TArray t e (Boxed r $ Just l)  h
+#endif
+applyLayout _ t = t
+
+unfoldSynsShallow :: Typedefs -> DepType -> DepType
+unfoldSynsShallow d t@(DT (TCon n ts b)) =
+  case M.lookup n d of
+    Just (ts', bdy) -> let applySigil = 
+                             case b of 
+                                Unboxed -> applyUnbox
+                                Boxed True Nothing -> applyBang d
+                                Boxed False Nothing -> id
+                                Boxed True (Just l) -> applyLayout l . applyBang d
+                                Boxed False (Just l) -> applyLayout l
+                       in unfoldSynsShallow d $ applySigil $ substDepType d (zip ts' ts) bdy
+    _ -> t
+unfoldSynsShallow d t@(DT (TBang (DT (TCon n ts Unboxed)))) =
+  case M.lookup n d of
+    Just (ts', bdy) -> unfoldSynsShallow d $ applyBang d $ applyUnbox $ substDepType d (zip ts' ts) bdy
+    _ -> __impossible "unfoldSynsShallow: no type synonym"
+unfoldSynsShallow _ t = t
 
 flexOf (U x) = Just x
 flexOf (T (TTake _ t))   = flexOf t
@@ -808,7 +872,7 @@ unifLVars (TLU n) = [n]
 unifLVars (TLRecord ps) = concatMap unifLVars (thd3 <$> ps)
 unifLVars (TLVariant t ps) = unifLVars t <> concatMap unifLVars ((\(_,_,_,a) -> a) <$> ps)
 #ifdef BUILTIN_ARRAYS
-unifLVars (TLArray e _) = unifLVars e
+unifLVars (TLArray e _ _) = unifLVars e
 #endif
 unifLVars (TLOffset e _) = unifLVars e
 unifLVars (TLAfter e _) = unifLVars e

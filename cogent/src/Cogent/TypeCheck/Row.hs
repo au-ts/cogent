@@ -185,6 +185,8 @@ pointwise (e : es) (e' : es') rs
   | fname e == fname e' = pointwise es es' ((e,e') : rs)
   | otherwise = []
 pointwise [] [] rs = rs
+pointwise [] _ _ = [] -- invariant broken
+pointwise _ [] _ = [] -- invariant broken
 
 -- | Internel helper function for extracting common fields from a
 -- (in)complete record and an incomplete record.
@@ -276,10 +278,10 @@ setAll b r = setMany b (map fname $ entries r) r
 take :: FieldName -> Row t -> Row t
 take = set True
 
-takeMany :: [FieldName] -> Row t -> Row t 
+takeMany :: [FieldName] -> Row t -> Row t
 takeMany = setMany True
 
-takeAll :: Row t -> Row t 
+takeAll :: Row t -> Row t
 takeAll = setAll True
 
 put :: FieldName -> Row t -> Row t

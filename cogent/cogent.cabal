@@ -157,6 +157,7 @@ library
               , Cogent.TypeCheck.Subst
               , Cogent.TypeCheck.Util
               , Cogent.Util
+              , Data.Bwd
               , Data.DList
               , Data.Ex
               , Data.Fin

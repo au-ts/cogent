@@ -49,9 +49,9 @@ import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
 #ifdef BUILTIN_ARRAYS
-import           Cogent.Dargent.CodeGen       (genGSRecord, genBoxedArrayGetSet)
+import           Cogent.Dargent.CodeGen       (genGSRecord, genGSArray, genGSFuncDecls)
 #else
-import           Cogent.Dargent.CodeGen       (genGSRecord)
+import           Cogent.Dargent.CodeGen       (genGSRecord, genGSFuncDecls)
 #endif
 import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
@@ -376,7 +376,7 @@ genExpr mv (TE t (ArrayIndex e i)) = do  -- FIXME: varpool - as above
     Boxed _ CLayout -> return $ CArrayDeref e' i'
     -- boxed array of unboxed type
     _ -> do
-      elemGetter <- genBoxedArrayGetSet tarr Get
+      elemGetter <- genGSArray tarr Get
       return $ CEFnCall (variable elemGetter) [e', i']
   (v,adecl,astm,vp) <- maybeAssign t' mv drexpr ep
   return (v, edecl++idecl++adecl, estm++istm++astm, vp)
@@ -400,7 +400,7 @@ genExpr mv (TE t (ArrayMap2 (_,f) (e1,e2))) = do  -- FIXME: varpool - as above
   let drexp s e t i = case s of
                         Unboxed -> return $ CArrayDeref (strDot e arrField) i
                         Boxed _ CLayout -> return $ CArrayDeref e i
-                        _ -> do f <- genBoxedArrayGetSet t Get
+                        _ -> do f <- genGSArray t Get
                                 return $ CEFnCall (variable f) [e, i]
   drexp1 <- drexp s1 e1' tarr1 (variable i)
   drexp2 <- drexp s2 e2' tarr2 (variable i)
@@ -409,7 +409,7 @@ genExpr mv (TE t (ArrayMap2 (_,f) (e1,e2))) = do  -- FIXME: varpool - as above
                                Unboxed -> assign et (CArrayDeref (strDot a arrField) i) e
                                Boxed _ CLayout -> assign et (CArrayDeref a i) e
                                _ -> do
-                                 f <- genBoxedArrayGetSet at Set
+                                 f <- genGSArray at Set
                                  return $ ([], [CBIStmt $ CAssignFnCall Nothing (variable f) [a, i, e]])
   (a1decl,a1stm) <- assdns s1 telt1' tarr1 e1' (variable i) (strDot f' p1)
   (a2decl,a2stm) <- assdns s2 telt2' tarr2 e2' (variable i) (strDot f' p2)
@@ -463,7 +463,7 @@ genExpr mv (TE t (ArrayPut arr i e)) = do
     Unboxed -> assign telt' (CArrayDeref (strDot arr' arrField) i') e'
     Boxed _ CLayout -> assign telt' (CArrayDeref arr' i') e'
     _ -> do
-      elemSetter <- genBoxedArrayGetSet t Set
+      elemSetter <- genGSArray t Set
       return $ ([], [CBIStmt $ CAssignFnCall Nothing (variable elemSetter) [arr', i', e']])
   (v,vdecl,vstm,vp) <- maybeAssign t' mv arr' M.empty
   return (v, arrdecl++idecl++edecl++assdecl++vdecl, arrstm++istm++estm++assstm++vstm, M.empty)
@@ -476,7 +476,7 @@ genExpr mv (TE t (ArrayTake _ arr i e)) = do  -- FIXME: varpool - as above
     Unboxed -> return $ CArrayDeref (strDot arr' arrField) i'
     Boxed _ CLayout -> return $ CArrayDeref arr' i'
     _ -> do
-      elemGetter <- genBoxedArrayGetSet tarr Get
+      elemGetter <- genGSArray tarr Get
       return $ CEFnCall (variable elemGetter) [arr', i']
   telt' <- genType telt
   (v,vdecl,vstm) <- declareInit telt' drexpr M.empty
@@ -866,6 +866,14 @@ genAllGSetters | not __cogent_funused_dargent_accessors = return ()
         Just fn -> return ()
         Nothing -> genGSRecord t fld Set >> return ()
 
+genGSetterDecls :: [Definition TypedExpr VarName VarName] -> Gen 'Zero ()
+genGSetterDecls defs = do
+  mg <- M.toList <$> use boxedRecordGetters
+  ms <- M.toList <$> use boxedRecordSetters
+  forM_ mg $ \(StrlCogentType t, m) ->
+    genGSFuncDecls t m Get defs
+  forM_ ms $ \(StrlCogentType t, m) ->
+    genGSFuncDecls t m Set defs
 
  -- NOTE: This function excessively uses `unsafeCoerce' because of existentials / zilinc
 genDefinition :: Definition TypedExpr VarName VarName -> Gen 'Zero [CExtDecl]
@@ -963,13 +971,11 @@ compile defs mcache ctygen pragmas =
                                     , _boxedRecordGetters = prgmGetters
                                     , _boxedArraySetters = M.empty
                                     , _boxedArrayGetters = M.empty
-                                    , _boxedArrayElemSetters = M.empty
-                                    , _boxedArrayElemGetters = M.empty
                                     }
       -- vvv The writer stores the Dargent getter/setter definitions.
       (extDecls, st, gsDecls) = runRWS (runGen $
         (concat <$> mapM genDefinition (fdefs ++ tdefs)) <*  -- `fdefs' will collect the types that are used in the program, and `tdefs' can generate synonyms
-        genAllGSetters
+        genAllGSetters <* genGSetterDecls defs
         ) Nil state
       (enum, st', _) = runRWS (runGen $ (mappend <$> genLetTrueEnum <*> genEnum)) Nil st  -- `LET_TRUE', `LETBANG_TRUE' & `_tag' enums
       ((funclasses,tns), st'', _) = runRWS (runGen genFunClasses) Nil st'  -- fun_enums & dispatch functions

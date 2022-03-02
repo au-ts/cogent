@@ -1,0 +1,3 @@
+type A = { a : <X U8 | Y U16> }
+                  layout record { a : variant (1b) { X(0) : 1B
+                                                   , Y(1) : 2B } }

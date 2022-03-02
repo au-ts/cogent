@@ -11,9 +11,6 @@
 include <gum/common/iterator.cogent>
 include <gum/common/vector.cogent>
 
--- An abstract type of variable length
-type DataStream
-
 -- Common header object
 -- Designed akin to a "dependent record" with the first field
 -- being the length of the whole object.
@@ -26,12 +23,12 @@ type Hdr = {
 
 -- The layout ensures the different object payloads start at the same
 -- offset.
-layout L = record { id : 4B
-                  , value : 4B after id
-                  , len   : 4B after value
-                  , obj : variant (2b at 12B) { TKindA(0) : LA at 13B
-                                       , TKindB(1) : LB at 13B
-                                       , TKindC(2) : LC at 13B } }
+layout L = record { len : 4B using LE
+                  , id : 4B using LE
+                  , value : 4B using LE
+                  , obj : variant (2b) { TKindA(0) : LA at 1B
+                                       , TKindB(1) : LB at 1B
+                                       , TKindC(2) : LC at 1B } }
 
 -- The possible objects all with a common header
 -- All these objects are deliberately 4-byte aligned to ensure they do
@@ -44,9 +41,9 @@ type ObjB = { x : Bool , y : U16 }
 
 type ObjC = { z : U64 }
 
-layout LA = record { w : 2B at 0B }
-layout LB = record { x : 1b at 0B , y : 2B at 1B }
-layout LC = record { z : 8B }
+layout LA = record { w : 2B using LE }
+layout LB = record { x : 1b, y : 2B at 1B using BE }
+layout LC = record { z : 8B using BE }
 
 -- Example-specific abstract functions
 
@@ -86,15 +83,21 @@ display_kind : (Hdr!) -> ()
 display_kind hdr =
   let _ = display_string "  <Obj "
   in hdr.obj
-  | TKindA a -> let _ = display_string "A { w ="
+  | TKindA a -> let _ = display_string "A { w = "
                 and _ = display_u16 a.w in
                 display_string " }>\n"
-  | TKindB b -> let _ = display_bool b.x in display_u16 b.y
-  | TKindC c -> display_u64 c.z
+  | TKindB b -> let _ = display_string "B { x = "
+                and _ = display_bool b.x
+                and _ = display_string ", "
+                and _ = display_u16 b.y
+                in display_string " }>\n"
+  | TKindC c -> let _ = display_string "C { z = "
+                and _ = display_u64 c.z in
+                display_string " }>\n"
 
 sethdr : Hdr -> Hdr
-sethdr (h { id = i , value = v , obj = _}) =
-  h { id = i + 1 , value = v + 2 , obj = TKindA #{ w = 1234 } }
+sethdr (h { value = v , obj = _}) =
+  h { value = v + 2 , obj = TKindA #{ w = 1234 } }
 
 -- We use the general iteration scheme in Cogent to scan the contents of
 -- a buffer, and display each object using our defined helper functions

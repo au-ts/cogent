@@ -1,0 +1,301 @@
+/*
+ * Copyright 2021, Trustworthy Systems Group (UNSW)
+ *
+ * This software may be distributed and modified according to the terms of
+ * the GNU General Public License version 2. Note that NO WARRANTY is provided.
+ * See "LICENSE_GPLv2.txt" for details.
+ *
+ * @TAG(DATA61_GPL)
+ */
+
+$esc:(#include <stdio.h>)
+$esc:(#include <string.h>)
+$esc:(#include <stdint.h>)
+$esc:(#include <stddef.h>)
+
+enum Gender { Male = 0, Female };
+
+struct __attribute__ ((__packed__)) PersonC {
+  unsigned char len;
+  unsigned char gender :1;
+  char nationality[2];
+  char name[];
+};
+typedef struct PersonC PersonC;
+
+struct __attribute__ ((__packed__)) AddrC {
+  unsigned char len;
+  char addr[];
+};
+typedef struct AddrC AddrC;
+
+struct __attribute__ ((__packed__)) DateC {
+  unsigned short yr;
+  unsigned char mon;
+  unsigned char day;
+};
+typedef struct DateC DateC;
+
+struct __attribute__ ((__packed__)) DataC {
+  unsigned char     :6;
+  unsigned char tag :2;
+  union {
+    PersonC Person;
+    AddrC   Addr;
+    DateC   Date;
+  } payload;
+};
+typedef struct DataC DataC;
+
+struct __attribute__ ((__packed__)) EntryC {
+  unsigned int id;
+  unsigned int size;
+  DataC        data;
+};
+typedef struct EntryC EntryC;
+
+typedef char Buffer;
+typedef char CString;
+typedef void *SysState;
+typedef struct entry BUsed;
+typedef struct entry BFree;
+typedef DataC BoxedData;
+typedef DataC BoxedData_take_Person;
+
+#define MAXCAP 4096
+
+#include "generated.c"
+#include <gum/anti/iterator.ac>
+#include <gum/anti/common.ac>
+
+unsigned long buffer_size = 0;
+char block[MAXCAP]; // Contains Entry's jammed together; terminated by
+                    // size==0.
+
+$ty:r $id:focus_buffer_ro ($ty:(#{buf : Buffer!, acc : a, obsv : b, f : FocusROFArg a b -> r}) args) {
+   $ty:r fret;
+   $ty:(FocusROFArg a b) fargs;
+   fargs.bu = (BUsed*)args.buf;
+   fargs.bf = (BFree*)(args.buf + buffer_size);
+   fargs.acc = args.acc;
+   fargs.obsv = args.obsv;
+   fret = (($spec:(FocusROFArg a b -> r))args.f) (fargs);
+   return fret;
+}
+
+$ty:(<This | Next (BUsed!)>) next_ro ($ty:((BUsed!, BFree!)) args) {
+   $ty:(<This | Next (BUsed!)>) ret;
+   BUsed *next = (BUsed *)((char *)args.p1 + ((EntryC *)args.p1)->size);
+   if ((uintptr_t)next < (uintptr_t)args.p2 && ((EntryC *)next)->size != 0) {
+      ret.tag = TAG_ENUM_Next;
+      ret.Next = next;
+   } else {
+      ret.tag = TAG_ENUM_This;
+   }
+   return ret;
+}
+
+Entry *read (BUsed *item) {
+   return (Entry *)item;
+}
+
+$ty:(U8#[2]) get_TPersonL_nationality ($ty:(TPersonL) args) {
+  $ty:(U8#[2]) ret;
+  ret.data[0] = ((PersonC *)args)->nationality[0];
+  ret.data[1] = ((PersonC *)args)->nationality[1];
+  return ret;
+}
+
+
+
+
+$ty:(CString!) get_Person_name ($ty:(TPersonL!) args) {
+// $ty:(CString!) get_Person_name($ty:(TPerson!) args) {
+   // printf ("the name we got is: %s\n", ((PersonC *)args)->name);
+   // printf ("the pointer to the payload person is: %p\n", (PersonC *)args);
+   return ((PersonC *)args)->name;
+}
+
+$ty:(CString!) get_Addr_addr ($ty:(TAddrL!) args) {
+  return ((AddrC *)args)->addr;
+}
+
+$ty:(Bool) cstring_eq ($ty:((CString!, CString!)) args) {
+   $ty:(Bool) ret;
+   // printf ("arg1 = %s, arg2 = %s\n", args.p1, args.p2);
+   if (!strcmp(args.p1, args.p2)) {
+      ret.boolean = 1;
+   } else {
+      ret.boolean = 0;
+   }
+
+   return ret;
+}
+
+$ty:(BoxedData!) get_Entry_data ($ty:(Entry!) args) {
+  // printf ("the pointer to the data variant is: %p\n", &((EntryC *)args)->data);
+  return &((EntryC *)args)->data;
+}
+
+$ty:((r, acc)) $id:match_BoxedData ($ty:(#{ scr  : BoxedData!
+                                       , acc  : acc
+                                       , obsv : obsv
+                                       , person : (TPersonL!, acc, obsv) -> (r, acc)
+                                       , addr   : (TAddrL!  , acc, obsv) -> (r, acc)
+                                       , date   : (#TDateL  , acc, obsv) -> (r, acc)
+                                       }) args) {
+  $ty:((r, acc)) ret;
+  if ((int)args.scr->tag == 0) {  // person
+     $ty:((TPersonL!, acc, obsv)) fargs;
+     fargs.p1 = ($ty:(TPersonL!))(&args.scr->payload);
+     // printf ("Nationality(1)=%c%c\n", ((PersonC*)&args.scr->payload)->nationality[0], ((PersonC*)&args.scr->payload)->nationality[1]);
+     // printf ("Nationality(2)=%c%c\n", ((PersonC*)fargs.p1)->nationality[0], ((PersonC*)fargs.p1)->nationality[1]);
+     fargs.p2 = args.acc;
+     fargs.p3 = args.obsv;
+     ret = (($spec:((TPersonL!, acc, obsv) -> (r, acc)))args.person) (fargs);
+  } else if ((int)args.scr->tag == 1) {  // addr
+     $ty:((TAddrL!, acc, obsv)) fargs;
+     fargs.p1 = ($ty:(TAddrL!))(&args.scr->payload);
+     fargs.p2 = args.acc;
+     fargs.p3 = args.obsv;
+     ret = (($spec:((TAddrL!, acc, obsv) -> (r, acc)))args.addr) (fargs);
+  } else if ((int)args.scr->tag == 2) {  // date
+     $ty:((#TDate, acc, obsv)) fargs;
+     fargs.p1 = *($ty:(TDate))((DateC*)&args.scr->payload);
+     // printf ("yr  = %u\n", ((DateC*)&fargs.p1)->yr );
+     // printf ("mon = %u\n", ((DateC*)&fargs.p1)->mon);
+     // printf ("day = %u\n", ((DateC*)&fargs.p1)->day);
+     fargs.p2 = args.acc;
+     fargs.p3 = args.obsv;
+     ret = (($spec:((#TDate, acc, obsv) -> (r, acc)))args.date) (fargs);
+  } else { // impossible!
+
+  }
+
+  return ret;
+}
+
+
+
+int in_range (void* e, unsigned long nlen) {
+  return (uintptr_t)e + nlen - (uintptr_t)block < MAXCAP;
+}
+
+/* Initialise our block of entries. */
+/* Not translated into Cogent. */
+void init (void) {
+  FILE *fp;
+  EntryC* e;
+  char type;
+  unsigned int size, len;
+  unsigned int id;
+  unsigned char gender;
+  char nationality[2];
+  unsigned int year;
+  unsigned int month, day;
+  char buf[256];
+
+  memset(block, 0, MAXCAP);
+
+  if ((fp = fopen("entries.txt", "r")) != NULL) {
+    e = (EntryC *)block;
+    while (fscanf(fp, "%c %u ", &type, &id) == 2) {
+      // printf ("buffer pointer: %p\n", (uintptr_t)e);
+      switch (type) {
+        case 'p':  // person
+          fscanf (fp, " %c", &gender);
+          fscanf (fp, " %c%c", nationality, nationality + 1);
+          fscanf (fp, " %[^\n]%*c\n", buf);
+          // printf("gender: %c, nationality: %c%c, name: %s\n", gender, nationality[0], nationality[1], buf);
+          len = strlen(buf)+1;
+          size = 13 + len;
+          // printf ("Person: len = %u, size = %u\n", len, size);
+          if (!in_range((void*)e, size)) {
+            break;
+          }
+          e->id = id;
+          e->size = size;
+          e->data.tag = 0;
+          ((PersonC *)&e->data.payload)->gender = (gender == 'M') ? 0 : 1;
+          ((PersonC *)&e->data.payload)->nationality[0] = nationality[0];
+          ((PersonC *)&e->data.payload)->nationality[1] = nationality[1];
+          ((PersonC *)&e->data.payload)->len = len;
+          strcpy(((PersonC *)&e->data.payload)->name, buf);
+          // printf ("!!!!!e->size=%u; e=%p\n", e->size, (void*)e);
+          e = (EntryC *) ((uintptr_t)e + e->size);
+          break;
+        case 'a':  // addr
+          fscanf (fp, "%[^\n]%*c\n", buf);
+          // printf ("addr: %s\n", buf);
+          len = strlen(buf)+1;
+          size = 10 + len;
+          // printf ("Addr: len = %u, size = %u\n", len, size);
+          if (!in_range((void*)e, size)) {
+            break;
+          }
+          e->id = id;
+          e->size = size;
+          e->data.tag = 1;
+          ((AddrC*)&e->data.payload)->len = len;
+          strcpy(((AddrC*)&e->data.payload)->addr, buf);
+          e = (EntryC *) ((uintptr_t)e + e->size);
+          break;
+        case 'd':  // date
+          fscanf (fp, "%u %u %u\n", &year, &month, &day);
+          // printf ("year: %u, mon: %u, day: %u\n", year, month, day);
+          size = 13;
+          if (!in_range((void*)e, size)) {
+            break;
+          }
+          e->id = id;
+          e->size = size;
+          e->data.tag = 2;
+          ((DateC *)&e->data.payload)->yr  = (unsigned short)year;
+          ((DateC *)&e->data.payload)->mon = (unsigned char)month;
+          ((DateC *)&e->data.payload)->day = (unsigned char)day;
+          // printf ("!!!!day = %u\n", ((DateC *)&e->data.payload)->day);
+          e = (EntryC *) ((uintptr_t)e + e->size);
+          break;
+        default: // do nothing
+          // should probably skip line.
+          printf ("Invalid type: %c\n", type);
+          break;
+      }
+      buffer_size += size;
+      // printf ("buffer_size = %u\n", buffer_size);
+    }
+    fclose(fp);
+  }
+}
+
+int main (int argc, char **argv){
+  if (argc != 2) {
+    printf ("Error: please specify a name you want to lookup.\n");
+    return 1;
+  }
+  $ty:(Option PersonInfo) ret;
+  init();
+  // printf ("buffer_size = %u\n", buffer_size);
+  // for (int i = 0; i < buffer_size; i++) {
+  //    printf ("%u: %u(%c)\n", i, (unsigned char)block[i], (block[i] >= 32 && block[i] < 127) ? block[i] : ' ');
+  //    // printf ("-");
+  // }
+
+  $ty:((Buffer, CString!)) args = {.p1 = block , .p2 = argv[1]};
+  ret = find_PersonInfo (args);
+  if (ret.tag == TAG_ENUM_Some) {
+    $ty:(PersonInfo) p = ret.Some;
+    printf ("%s's record has been found. Details:\n", p.name);
+    printf ("  Gender: %c\n", (p.gender.tag == TAG_ENUM_Male) ? 'M' : 'F');
+    printf ("  Nationality: %c%c\n", p.nationality.data[0], p.nationality.data[1]);
+    printf ("  DoB: ");
+    if (p.dob.tag == TAG_ENUM_None) { printf ("unknown\n"); }
+    else { printf ("%d/%d/%d\n", p.dob.Some.yr, p.dob.Some.mon, p.dob.Some.day); }
+    printf ("  Address: ");
+    if (p.addr.tag == TAG_ENUM_None) { printf ("unknown\n"); }
+    else { printf ("%s\n", p.addr.Some); }
+  } else {
+    printf ("%s was not found.\n", argv[1]);
+  }
+  return 0;
+}

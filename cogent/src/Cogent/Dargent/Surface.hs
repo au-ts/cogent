@@ -70,7 +70,7 @@ data DataLayoutExpr' e
   | Record  [(FieldName, SourcePos, e)]
   | Variant e [(TagName, SourcePos, Integer, e)]
 #ifdef BUILTIN_ARRAYS
-  | Array   e SourcePos
+  | Array   e Integer SourcePos  -- for now use int for length
 #endif
   | Offset  e DataLayoutSize
   | Endian  e Endianness
@@ -88,7 +88,7 @@ pattern DLPrim s       = DL (Prim s)
 pattern DLRecord ps    = DL (Record ps)
 pattern DLVariant t ps = DL (Variant t ps)
 #ifdef BUILTIN_ARRAYS
-pattern DLArray e s    = DL (Array e s)
+pattern DLArray e l s  = DL (Array e l s)
 #endif
 pattern DLOffset e s   = DL (Offset e s)
 pattern DLEndian e n   = DL (Endian e n)

@@ -135,7 +135,6 @@ set_flag_fdumpToStdout = writeIORef __cogent_fdump_to_stdout_ref True
 set_flag_fffiCFunctions = writeIORef __cogent_fffi_c_functions_ref True
 set_flag_fflattenNestings = writeIORef __cogent_fflatten_nestings_ref (__fixme False)  -- FIXME after fixing the impl'n
 set_flag_ffncallAsMacro = writeIORef __cogent_ffncall_as_macro_ref True
-set_flag_ffoldPolyTypes = writeIORef __cogent_ffold_poly_types_ref True
 set_flag_ffullSrcPath = writeIORef __cogent_ffull_src_path_ref True
 set_flag_ffuncPurityAttr = writeIORef __cogent_ffunc_purity_attr_ref True
 set_flag_fgenHeader = writeIORef __cogent_fgen_header_ref True
@@ -147,7 +146,6 @@ set_flag_fmlTypingTree = writeIORef __cogent_fml_typing_tree_ref True
 set_flag_fnoCheckUndefined = writeIORef __cogent_fcheck_undefined_ref False
 set_flag_fnoFlattenNestings = writeIORef __cogent_fflatten_nestings_ref False
 set_flag_fnoFncallAsMacro = writeIORef __cogent_ffncall_as_macro_ref False
-set_flag_fnoFoldPolyTypes = writeIORef __cogent_ffold_poly_types_ref False
 set_flag_fnoFuncPurityAttr = writeIORef __cogent_ffunc_purity_attr_ref False
 set_flag_fnoGenHeader = writeIORef __cogent_fgen_header_ref False
 set_flag_fnoIntermediateVars = writeIORef __cogent_fintermediate_vars_ref False
@@ -199,6 +197,7 @@ add_flag_include p = modifyIORef __cogent_include_ref (++[p])
 set_flag_inferCFunc = writeIORef __cogent_infer_c_func_files_ref
 set_flag_inferCType = writeIORef __cogent_infer_c_type_files_ref
 set_flag_interactive = writeIORef __cogent_interactive_ref True
+set_flag_isabelleVarAvoidance = writeIORef __cogent_isabelle_var_avoidance_file_ref . Just
 set_flag_nameCache = writeIORef __cogent_name_cache_ref . Just
 set_flag_O Nothing = return ()
 set_flag_O (Just n :: Maybe String)
@@ -464,13 +463,6 @@ __cogent_ffncall_as_macro_ref :: IORef Bool
 {-# NOINLINE __cogent_ffncall_as_macro_ref #-}
 __cogent_ffncall_as_macro_ref = unsafePerformIO $ newIORef False
 
-__cogent_ffold_poly_types :: Bool
-__cogent_ffold_poly_types = unsafePerformIO $ readIORef __cogent_ffold_poly_types_ref
-
-__cogent_ffold_poly_types_ref :: IORef Bool
-{-# NOINLINE __cogent_ffold_poly_types_ref #-}
-__cogent_ffold_poly_types_ref = unsafePerformIO $ newIORef False
-
 __cogent_ffull_src_path :: Bool
 __cogent_ffull_src_path = unsafePerformIO $ readIORef __cogent_ffull_src_path_ref
 
@@ -723,6 +715,13 @@ __cogent_interactive_ref :: IORef Bool
 {-# NOINLINE __cogent_interactive_ref #-}
 __cogent_interactive_ref = unsafePerformIO $ newIORef False
 
+__cogent_isabelle_var_avoidance_file :: Maybe FilePath
+__cogent_isabelle_var_avoidance_file = unsafePerformIO $ readIORef __cogent_isabelle_var_avoidance_file_ref
+
+__cogent_isabelle_var_avoidance_file_ref :: IORef (Maybe FilePath)
+{-# NOINLINE __cogent_isabelle_var_avoidance_file_ref #-}
+__cogent_isabelle_var_avoidance_file_ref = unsafePerformIO $ newIORef Nothing
+
 __cogent_name_cache :: Maybe FilePath
 __cogent_name_cache = unsafePerformIO $ readIORef __cogent_name_cache_ref
 
@@ -931,6 +930,12 @@ __cogent_dump_handle :: IORef Handle
 {-# NOINLINE __cogent_dump_handle #-}
 __cogent_dump_handle = unsafePerformIO $ newIORef stderr
 
+__cogent_isa_vars_avoided :: [String]
+__cogent_isa_vars_avoided = unsafePerformIO $ readIORef __cogent_isa_vars_avoided_ref
+
+__cogent_isa_vars_avoided_ref :: IORef [String]
+{-# NOINLINE __cogent_isa_vars_avoided_ref #-}
+__cogent_isa_vars_avoided_ref = unsafePerformIO $ newIORef []
 
 -- Bad hacks
 __cogent_type_proof_sorry_before :: Maybe String
