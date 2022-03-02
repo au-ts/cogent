@@ -142,6 +142,7 @@ validateType' t = do
       traceTc "gen" (text "unifier for array length" <+> pretty l L.<$> 
                      text "is" <+> pretty x)
       (cl,l') <- cg (rawToLocE ?loc l) (T u32)
+      let l'' = toTCSExpr l'
       (ctkn,mhole) <- case tkns of
         [] -> return (Sat, Nothing)
         [(i,True)] -> do

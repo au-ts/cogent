@@ -222,14 +222,13 @@ genGS s root t@(TArray elt l (Boxed {}) _) (PrimLayout br ω) path m = do
   genGSBlock s br ω root t' path m
 
 -- vvv FIXME!!!
-genGS s root t@(TArray telt l Unboxed _) (ArrayLayout lelt) path m = do
+genGS s root t@(TArray telt l Unboxed _) (ArrayLayout lelt l') path m = do
   fn <- genGSName path m
   tarr' <- genType t
   telt' <- genType telt
   eltGsName <- genGS s root telt lelt (path ++ ["arr"]) m
   tell [mkGSDeclUArray root tarr' telt' fn eltGsName m]
-  return fn
-  
+  return fn  
 #endif
 
 genGS s root t l _ _ = __impossible $ "genGS"
