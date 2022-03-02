@@ -1361,7 +1361,7 @@ typically:
 valid_tags (layout_from_trecord type) (data_C t) \<Longrightarrow>  val_rel (uval_from_array_toplevel type (data_C t)) t"
 
 *)
-fun uval_from_array :: "ptr_layout \<Rightarrow> type \<Rightarrow> (('a::len) word)['n::finite] \<Rightarrow> (char list, unit, 32 word) uval"
+fun uval_from_array :: "ptr_layout \<Rightarrow> type \<Rightarrow> (('a::len) word)['n::finite] \<Rightarrow> (char list, 'b, 32 word) uval"
   where "uval_from_array (LayRecord ls) (TRecord ts Unboxed) a = 
               URecord (map (\<lambda> (n, t, _). 
                       let l = assoc ls n in
@@ -1467,7 +1467,7 @@ lemma corres_getter_variant :
     by metis
 
 
-fun uval_from_array_toplevel :: " type \<Rightarrow> (('a::len) word)['n::finite] \<Rightarrow> (char list, unit, 32 word) uval"
+fun uval_from_array_toplevel :: " type \<Rightarrow> (('a::len) word)['n::finite] \<Rightarrow> (char list, 'b, 32 word) uval"
 where "uval_from_array_toplevel  (TRecord ts (Boxed _ (Some (LayRecord ls)))) a = 
               URecord (map (\<lambda> (n, t, _). 
                       let l = assoc ls n in
