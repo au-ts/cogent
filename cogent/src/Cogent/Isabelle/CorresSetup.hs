@@ -146,6 +146,8 @@ locale thy cfile =
   , "where"
   , "  \"state_rel  = {(\\<sigma>, h). heap_rel \\<sigma> h}\""
   , ""
+  , "(* Proving correctness of getters *)"
+  , "local_setup \\<open> local_setup_getter_correctness \"" ++ cfile ++ "\" \\<close>"
   , "(* Generating the specialised take and put lemmas *)"
   , ""
   , "local_setup \\<open> local_setup_take_put_member_case_esac_specialised_lemmas \"" ++ cfile ++ "\" \\<close>"
