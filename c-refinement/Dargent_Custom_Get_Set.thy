@@ -320,9 +320,7 @@ fun define_function name vars term ctxt =
  \<close>
 
 ML \<open>
-(* given the name of a C function, returns the definition theorem*)
-fun fn_C_def_thm fn_C_name ctxt =
-  Proof_Context.get_thm ctxt (fn_C_name ^ "'_def")
+
 
 
 (* returns a definition theorem for a C function named fn_named, where
@@ -379,6 +377,15 @@ end
 fun generate_isa_get g heap_fn fn_name ctxt =
 generate_isa_get_or_set g fn_name ["w"] tidy_C_fun_def
   (generate_getter_term ctxt fn_name heap_fn) ctxt
+
+(* given the name of a C function, returns the definition theorem and 
+slightly simplifies it *)
+fun fn_C_def_thm fn_C_name ctxt =
+  Proof_Context.get_thm ctxt (fn_C_name ^ "'_def")
+ |> thm_simp ctxt @{thms unknown_bind_ignore }  
+  (* this additionnal simplification is useful when unfolding
+   endianness auxiliary functions, such as le_u16_swap
+  *)
 
 (* heap_fn : the name of the heap setter, e.g. heap_t1_C_update *)
 fun generate_isa_set g heap_fn fn_name heap_setter_thms ctxt =
@@ -1342,12 +1349,125 @@ fun valid_tags :: "ptr_layout \<Rightarrow> (('a::len) word)['n::finite] \<Right
 | "valid_tags (LayRecord ls) a = (\<forall> (_, l) \<in> set ls. (valid_tags l a))"
 | "valid_tags (LayProduct l1 l2 ) a = (valid_tags l1 a \<and> valid_tags l2 a)"
 | "valid_tags (LayVar _ _) _ = True"
-| "valid_tags (LayBitRange _) _ = True"
+| "valid_tags (LayBitRange _ _) _ = True"
 
 definition get_name_layout 
 where get_name_layout_def : "get_name_layout   =  (\<lambda> n s a ls. 
   let (name, _, l) = the (find (\<lambda> (_, v, _). of_nat v = (sized_word_from_array n s a :: 32 word)) ls)
 in (name, l))"
+
+(* 
+
+Endianness
+
+*)
+
+
+(*
+is_reverse_of v v' means that v and v' represent the same value with opposite
+endianness (i.e., one is the reverse of the other, as a list of bytes)
+*)
+definition is_reverse_of :: "('a :: len0) word \<Rightarrow> 'a word \<Rightarrow> bool"
+  where "is_reverse_of v v' =
+ (\<forall> p < (LENGTH('a) div 8). (v >> (p * 8)) && 0xFF = (v' >> (LENGTH('a) - (p + 1) * 8)) && 0xFF)"
+
+
+(* Following the definition of swap_u8 in cogent-endianness.h *)
+definition swap_u8 :: " 8 word \<Rightarrow> 8 word" 
+  where "swap_u8 v = v"
+
+
+(* swap does indeed reverse *)
+lemma "is_reverse_of v (swap_u8 v)"
+  apply (simp add:swap_u8_def is_reverse_of_def)
+  done
+
+
+(* Following the definition of swap_u16 in cogent-endianness.h *)
+definition swap_u16 :: " 16 word \<Rightarrow> 16 word" 
+  where "swap_u16 v = ((v << 8) || (v >> 8))"
+
+
+(* swap does indeed reverse *)
+lemma "is_reverse_of v (swap_u16 v)"
+  apply (simp add:swap_u16_def is_reverse_of_def)
+  apply (intro allI impI)
+  apply (case_tac p; simp) 
+  apply word_bitwise_signed+
+  done
+
+(* following the definition of swap_u32 in cogent-endianness.h *)
+definition swap_u32 :: "32 word \<Rightarrow> 32 word" 
+  where swap_u32_def[simplified HOL.Let_def]:
+  "swap_u32 v = (let v' = ((v << 8) && 0xFF00FF00) ||  ((v >> 8) && 0xFF00FF)
+in 
+(v' << 16) || (v' >> 16))"
+
+
+(* swap does indeed reverse *)
+lemma "is_reverse_of v (swap_u32 v)"
+  apply (simp add:swap_u32_def is_reverse_of_def)
+  apply (intro allI impI)
+  apply (case_tac p; clarsimp) 
+   apply word_bitwise_signed
+  apply(rename_tac p)
+  apply (case_tac p; clarsimp) 
+   apply word_bitwise_signed
+  apply(rename_tac p)
+  apply (case_tac p; clarsimp)
+  apply word_bitwise_signed+
+done
+
+
+(* following the definition of swap_u64 in cogent-endianness.h *)
+definition swap_u64 :: "64 word \<Rightarrow> 64 word" 
+  where swap_u64_def[simplified HOL.Let_def]:
+  "swap_u64 v = (
+ let v = ((v << 8) && 0xFF00FF00FF00FF00) || ((v >> 8) && 0x00FF00FF00FF00FF) in
+ let  v = ((v << 16) && 0xFFFF0000FFFF0000) || ((v >> 16) && 0x0000FFFF0000FFFF) in
+   (v << 32) || (v >> 32)
+)"
+
+
+(* swap does indeed reverse *)
+lemma "is_reverse_of v (swap_u64 v)"
+  apply (simp add:swap_u64_def is_reverse_of_def)
+  apply (intro allI impI)
+  apply (case_tac p; clarsimp)
+   apply word_bitwise_signed
+  apply(rename_tac p)
+  apply (case_tac p; clarsimp) 
+   apply word_bitwise_signed
+  apply(rename_tac p)
+  apply (case_tac p; clarsimp)
+   apply word_bitwise_signed
+  apply(rename_tac p)
+  apply (case_tac p; clarsimp)
+   apply word_bitwise_signed
+  apply(rename_tac p)
+  apply (case_tac p; clarsimp)
+   apply word_bitwise_signed
+  apply(rename_tac p)
+  apply (case_tac p; clarsimp)
+   apply word_bitwise_signed
+  apply(rename_tac p)
+  apply (case_tac p; clarsimp)
+   apply word_bitwise_signed+
+  done
+
+
+
+lemmas reverse_word8_lems = swap_u8_def swap_u16_def swap_u32_def swap_u64_def
+
+(* We assume a little endian architecture, following AutoCorres. *)
+fun endianize :: "(('a :: len) word \<Rightarrow> 'a word) \<Rightarrow> 'a word \<Rightarrow> Endianness \<Rightarrow> 'a word"
+  where 
+    "endianize _ w ME = w"
+  | "endianize _ w LE = w" 
+  | "endianize swap w BE  = swap w" 
+
+
+ 
 
 (* 
 
@@ -1367,12 +1487,12 @@ fun uval_from_array :: "ptr_layout \<Rightarrow> type \<Rightarrow> (('a::len) w
                       let l = assoc ls n in
                         (uval_from_array l t a, type_repr t))
                    ts) None" 
-  | "uval_from_array (LayBitRange (_, n)) (TRecord ts (Boxed rw ptrl)) a = UPtr (word_from_array n a) (type_repr ((TRecord ts (Boxed rw ptrl)))) "
-  | "uval_from_array (LayBitRange (_, n)) (TPrim (Num U8)) a = UPrim (LU8 (word_from_array n a)) "
-  | "uval_from_array (LayBitRange (_, n)) (TPrim (Num U16)) a = UPrim (LU16 (word_from_array n a)) "
-  | "uval_from_array (LayBitRange (_, n)) (TPrim (Num U32)) a = UPrim (LU32 (word_from_array n a)) "
-  | "uval_from_array (LayBitRange (_, n)) (TPrim (Num U64)) a = UPrim (LU64 (word_from_array n a)) "
-  | "uval_from_array (LayBitRange (_, n)) (TPrim Bool) a = UPrim (LBool (get_bit a n)) "
+  | "uval_from_array (LayBitRange (_, n) e) (TRecord ts (Boxed rw ptrl)) a = UPtr (endianize swap_u32 (word_from_array n a) e) (type_repr ((TRecord ts (Boxed rw ptrl)))) "
+  | "uval_from_array (LayBitRange (_, n) e) (TPrim (Num U8)) a = UPrim (LU8 (endianize swap_u8 (word_from_array n a) e )) "
+  | "uval_from_array (LayBitRange (_, n) e) (TPrim (Num U16)) a = UPrim (LU16 (endianize swap_u16 (word_from_array n a) e)) "
+  | "uval_from_array (LayBitRange (_, n) e) (TPrim (Num U32)) a = UPrim (LU32 (endianize swap_u32 (word_from_array n a) e)) "
+  | "uval_from_array (LayBitRange (_, n) e) (TPrim (Num U64)) a = UPrim (LU64 (endianize swap_u64 (word_from_array n a) e)) "
+  | "uval_from_array (LayBitRange (_, n) e) (TPrim Bool) a = UPrim (LBool (get_bit a n)) "
   | "uval_from_array _ TUnit a = UUnit "
   | uval_from_array_variant: 
   (* the variant case is a bit convoluted because it must satisfy Isabelle termination checker.
@@ -1588,8 +1708,9 @@ proves correctness of getters, i.e., a goal of the form
 valid_tags (layout_from_trecord type) (data_C t) \<Longrightarrow>  val_rel (uval_from_array_toplevel type (data_C t)) t
 
 *)
-fun solve_corres_getters ctxt = 
+fun solve_corres_getters ctxt0 = 
 let
+  val ctxt = ctxt0 addsimps @{thms reverse_word8_lems}
   val gets = Proof_Context.get_thms ctxt
   val tags = gets "tag_t_defs" handle ERROR _ => []
 in

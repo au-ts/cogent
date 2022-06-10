@@ -68,7 +68,9 @@ fun size_prim_layout :: "prim_type \<Rightarrow> nat" where
 | "size_prim_layout (Num U64) = 64"
 | "size_prim_layout String = undefined"
 
-datatype ptr_layout = LayBitRange BitRange 
+datatype Endianness = LE | BE | ME
+
+datatype ptr_layout = LayBitRange BitRange Endianness
   | LayVar index nat (* offset *)
   | LayProduct ptr_layout ptr_layout
   | LayVariant BitRange (* size and offset of the tag  *) "(name \<times> nat \<times> ptr_layout) list"
@@ -80,7 +82,7 @@ fun bitrange_offset :: "nat \<Rightarrow> BitRange \<Rightarrow> BitRange" where
 fun layout_offset :: "nat \<Rightarrow> ptr_layout \<Rightarrow> ptr_layout" where
     "layout_offset n (LayVar v off) = LayVar v (off + n)"
   | "layout_offset n (LayProduct p1 p2) = LayProduct (layout_offset n p1) (layout_offset n p2)"
-  | "layout_offset n (LayBitRange b) = LayBitRange (bitrange_offset n b)"
+  | "layout_offset n (LayBitRange b e) = LayBitRange (bitrange_offset n b) e"
   | "layout_offset n (LayVariant b l) = LayVariant (bitrange_offset n b) 
                         (map (\<lambda>(name, i, p). (name, i, layout_offset n p)) l)"
   | "layout_offset n (LayRecord l) = LayRecord  
@@ -104,7 +106,7 @@ fun layout_taken_bits :: "ptr_layout \<Rightarrow> nat \<Rightarrow> bool" where
 | "layout_taken_bits (LayProduct p1 p2) n =
    (layout_taken_bits p1 n \<or>
    layout_taken_bits p2 n )"
-| "layout_taken_bits (LayBitRange v) n = bitrange_taken_bits v n "
+| "layout_taken_bits (LayBitRange v _) n = bitrange_taken_bits v n "
 
 fun layout_taken_bit_list :: "ptr_layout \<Rightarrow> nat list" where
   "layout_taken_bit_list (LayVar _ _) = []"
@@ -117,7 +119,7 @@ fun layout_taken_bit_list :: "ptr_layout \<Rightarrow> nat list" where
 | "layout_taken_bit_list (LayProduct p1 p2) =
       (layout_taken_bit_list p1 @
          layout_taken_bit_list p2 )"
-| "layout_taken_bit_list (LayBitRange b) =
+| "layout_taken_bit_list (LayBitRange b _) =
             bitrange_taken_bit_list b "
 
 
@@ -128,7 +130,7 @@ definition at_most_one :: "('a \<Rightarrow> bool) \<Rightarrow> 'a list \<Right
 
 fun layout_wellformed :: "nat \<Rightarrow> ptr_layout \<Rightarrow> bool" where
   "layout_wellformed n (LayVar i _) = (i < n)"
-| "layout_wellformed _ (LayBitRange _) = True"
+| "layout_wellformed _ (LayBitRange _ _) = True"
 | "layout_wellformed m (LayVariant b ls) = 
     (list_all (\<lambda> (_, _, l) . layout_wellformed m l) ls
   \<and> (list_all   
@@ -549,7 +551,7 @@ inductive match_repr_layout :: "lrepr \<Rightarrow> ptr_layout \<Rightarrow> boo
   where
   match_lrtvar :  "match_repr_layout (LRVar i) l"
 | match_lrcon :   "match_repr_layout (LRCon n ts) l"
-| match_lrprim : "(s = size_prim_layout t) \<Longrightarrow> match_repr_layout (LRPrim t) (LayBitRange (s, x))"
+| match_lrprim : "(s = size_prim_layout t) \<Longrightarrow> match_repr_layout (LRPrim t) (LayBitRange (s, x) e)"
 | match_lrsum : "\<lbrakk> 
 \<comment> \<open>the order does not matter\<close>
  set (map fst ts) = set (map fst ls) ;
@@ -560,7 +562,7 @@ inductive match_repr_layout :: "lrepr \<Rightarrow> ptr_layout \<Rightarrow> boo
 | match_lrproduct : "\<lbrakk> match_repr_layout t1 p1
    ; match_repr_layout t2 p2
    \<rbrakk> \<Longrightarrow> match_repr_layout (LRProduct t1 t2) (LayProduct p1 p2)"
-| match_lrptr : "(s = size_ptr) \<Longrightarrow> match_repr_layout LRPtr (LayBitRange (s, n))"
+| match_lrptr : "(s = size_ptr) \<Longrightarrow> match_repr_layout LRPtr (LayBitRange (s, n) e)"
 | match_lrrecord : "\<lbrakk>
     set (map fst ts) = set (map fst ls) ;
    list_all2 match_repr_layout      
@@ -569,14 +571,14 @@ inductive match_repr_layout :: "lrepr \<Rightarrow> ptr_layout \<Rightarrow> boo
        (map snd (sort_key (SString o fst) ls))
  \<comment> \<open>(* ;list_all (\<lambda> (name, l). match_repr_layout (the (map_of ts name)) l) ls  *)\<close>
    \<rbrakk> \<Longrightarrow> match_repr_layout (LRRecord ts) (LayRecord ls)"
-| match_lrunit : "s = 0 \<Longrightarrow> match_repr_layout LRUnit (LayBitRange (s, n))"
+| match_lrunit : "s = 0 \<Longrightarrow> match_repr_layout LRUnit (LayBitRange (s, n) e)"
 | match_lrlvar : "match_repr_layout t (LayVar i off)"
 
 
 lemma match_repr_layout_simps:
   "\<And> l i. match_repr_layout (LRVar i) l"
   "\<And> l n ts. match_repr_layout (LRCon n ts) l"
-  "\<And>t p. match_repr_layout (LRPrim t) (LayBitRange p) \<longleftrightarrow> fst p = size_prim_layout t"
+  "\<And>t p e. match_repr_layout (LRPrim t) (LayBitRange p e) \<longleftrightarrow> fst p = size_prim_layout t"
   "\<And>ts ls x. match_repr_layout (LRSum ts) (LayVariant x ls) \<longleftrightarrow>
       set (map fst ts) = set (map fst ls)  \<and> 
        list_all2 match_repr_layout      
@@ -584,13 +586,13 @@ lemma match_repr_layout_simps:
        (map (snd o snd) (sort_key (SString o fst) ls))" 
   "\<And>t1 t2 p1 p2. match_repr_layout (LRProduct t1 t2) (LayProduct p1 p2) \<longleftrightarrow>
       match_repr_layout t1 p1 \<and> match_repr_layout t2 p2"
-  "\<And>p. match_repr_layout LRPtr (LayBitRange p) \<longleftrightarrow> fst p = size_ptr"
+  "\<And>p e. match_repr_layout LRPtr (LayBitRange p e) \<longleftrightarrow> fst p = size_ptr"
   "\<And>ts ls. match_repr_layout (LRRecord ts) (LayRecord ls) \<longleftrightarrow>
      set (map fst ts) = set (map fst ls)  \<and>
      list_all2 match_repr_layout (map snd (sort_key (SString o fst) ts)) 
  (map snd (sort_key (SString o fst) ls))
 " 
-  "\<And>p. match_repr_layout LRUnit (LayBitRange p) \<longleftrightarrow> fst p = 0"
+  "\<And>p e. match_repr_layout LRUnit (LayBitRange p e) \<longleftrightarrow> fst p = 0"
   "\<And>t i off. match_repr_layout t (LayVar i off)"
   by (fastforce intro: match_repr_layout.intros
       elim: match_repr_layout.cases)+
@@ -754,7 +756,7 @@ in the dargent write-up *)
 | "instantiate_lay \<delta> (LayProduct l1 l2) = LayProduct (instantiate_lay \<delta> l1) (instantiate_lay \<delta> l2)"
 | "instantiate_lay \<delta> (LayVariant b ls) = LayVariant b (map (\<lambda>(n, tag, l). (n, tag, instantiate_lay \<delta> l)) ls)"
 | "instantiate_lay \<delta> (LayRecord ls) = LayRecord (map (\<lambda>(n, l). (n, instantiate_lay \<delta> l)) ls)"
-| "instantiate_lay _ (LayBitRange v) = LayBitRange v"
+| "instantiate_lay _ (LayBitRange v e) = LayBitRange v e"
 
 fun instantiate_sigil :: "ptr_layout substitution \<Rightarrow> sigil \<Rightarrow> sigil"
   where
@@ -2091,7 +2093,7 @@ lemma layout_offset_layout_offset[simp] : "layout_offset n1 (layout_offset n2 pt
 
 lemma instantiate_lay_layout_offset[simp] : "instantiate_lay \<epsilon> (layout_offset offset ptrl) = layout_offset offset (instantiate_lay \<epsilon> ptrl)"
 proof(induct ptrl)
-  case (LayBitRange b)
+  case (LayBitRange b e)
   then show ?case
     by(induct b)simp
   next  case (LayVar x1a x2)

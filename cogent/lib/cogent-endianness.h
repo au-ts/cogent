@@ -1,8 +1,11 @@
 #ifndef __COGENT_ENDIANNESS_H__
 #define __COGENT_ENDIANNESS_H__
 
-const int ENDIANNESS_TEST = 1;
-#define IS_BIG_ENDIAN (*(char *)&ENDIANNESS_TEST == 0)
+// const int ENDIANNESS_TEST = 1;
+// For verification purposes, we assume a little endian architecture,
+// following AutoCorres.
+#define IS_BIG_ENDIAN 0
+//#define IS_BIG_ENDIAN *(char *)&ENDIANNESS_TEST == 0)
 
 static inline u16 swap_u16(u16 v) {
   return (v << 8) | (v >> 8);

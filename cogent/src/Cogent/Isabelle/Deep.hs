@@ -20,6 +20,7 @@ module Cogent.Isabelle.Deep where
 import Cogent.Common.Syntax as CS
 import Cogent.Common.Types
 import Cogent.Dargent.Core (DataLayout)
+import Cogent.Dargent.Surface (Endianness(..))
 import Cogent.Dargent.Allocation (BitRange(..))
 import Cogent.Compiler
 import Cogent.Core as CC
@@ -59,8 +60,8 @@ deepDataLayout CLayout = mkId "None"
 deepDataLayout (Layout l) = mkApp (mkId "Some") [deepDataLayout' l]
 
 deepDataLayout' :: DataLayout' BitRange -> Term
-deepDataLayout' UnitLayout = deepDLBitRange (BitRange 0 0)
-deepDataLayout' (PrimLayout b _) = deepDLBitRange b
+deepDataLayout' UnitLayout = deepDLBitRange (BitRange 0 0) ME
+deepDataLayout' (PrimLayout b e) = deepDLBitRange b e
 deepDataLayout' (RecordLayout fs) = 
   mkApp (mkId "LayRecord") [
     mkList $
@@ -77,8 +78,13 @@ deepDataLayout' (VarLayout v offset) = mkApp (mkId "LayVar") [mkInt1S0 (toIntege
 deepDataLayout' (ArrayLayout _) = mkId "undefined"
 #endif
 
-deepDLBitRange :: BitRange -> Term
-deepDLBitRange b = mkApp (mkId "LayBitRange")  [ deepBitRange b ]
+deepEndianness :: Endianness -> Term
+deepEndianness ME = mkId "ME"
+deepEndianness BE = mkId "BE"
+deepEndianness LE = mkId "LE"
+
+deepDLBitRange :: BitRange -> Endianness -> Term
+deepDLBitRange b e = mkApp (mkId "LayBitRange")  [ deepBitRange b, deepEndianness e ]
 
 deepBitRange :: BitRange -> Term
 deepBitRange (BitRange size offset) = mkTuple [mkInt1S0 size, mkInt1S0 offset]
