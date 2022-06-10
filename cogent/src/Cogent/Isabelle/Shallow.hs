@@ -54,6 +54,7 @@ import Isabelle.OuterAST as O
 
 import Control.Applicative
 import Control.Arrow ((***))
+import Control.Monad.Fail
 import Control.Monad.RWS hiding (Product, Sum, mapM)
 import Control.Monad.State
 import Control.Monad.Writer (Writer, runWriter)
@@ -98,10 +99,8 @@ newtype SG b a = SG { runSG :: RWS (SGTables b) [Warning] StateGen a }
                            MonadWriter [Warning],
                            MonadState  StateGen)
 
-#if MIN_VERSION_base(4,13,0)
 instance MonadFail (SG b) where
   fail = __impossible
-#endif
 
 unfoldSynsShallowM :: CC.Type t b -> SG b (CC.Type t b)
 unfoldSynsShallowM t = do

@@ -49,6 +49,7 @@ import Control.Applicative
 #endif
 import Control.Arrow
 import Control.Monad
+import Control.Monad.Fail
 import Control.Monad.State
 import Data.List as L
 import Data.Map as M
@@ -81,10 +82,8 @@ newtype Occ v b x = Occ { unOcc :: State (OccEnv v b) x }
                   deriving (Functor, Applicative, Monad,
                             MonadState (OccEnv v b))
 
-#if MIN_VERSION_base(4,13,0)
 instance MonadFail (Occ v b) where
   fail = __impossible
-#endif
 
 evalOcc :: OccEnv v b -> Occ v b x -> x
 evalOcc = (. unOcc) . flip evalState

@@ -174,7 +174,7 @@ graphType (TRecord _ e s)   = do
     res <- mapM (\x -> liftM (\y -> (fst x, y)) (graphType $ (fst . snd) x)) e
     return $ GEGStruct res IsUnboxed
 graphType (TUnit)         = return $ GEGUnit
-graphType (t @ (TCon {}))
+graphType (t@(TCon {}))
     = failure ("graphType: no repr known for: " ++ show t)
 -- graphType (TCon {}) = return $ GEGSingle ptrGTyp
 graphType (TSum alts) = do
@@ -444,7 +444,7 @@ atom (TE (TPrim _) (Promote ty e)) vs = do
     atm <- singleAtom e vs
     return ([GOp WordCast (singleType gt) [atm]],[])
 
-atom (TE (ty @ (TSum _)) (Promote _ e)) vs = do
+atom (TE (ty@(TSum _)) (Promote _ e)) vs = do
     gTy <- graphType (exprType e)
     gTy2 <- graphType ty
     fields <- atomNoUpds e vs
@@ -464,7 +464,7 @@ atom (TE _ (Struct flds)) vs = do
     gexprs <- mapM (flip atomNoUpds vs) (map snd flds)
     return (concat gexprs, [])
 
-atom te@(TE _ (Member (rec @ (TE (TRecord _ flds s) _)) ix)) vs = do
+atom te@(TE _ (Member (rec@(TE (TRecord _ flds s) _)) ix)) vs = do
     recFields <- atomNoUpds rec vs
     tys <- mapM (\(_,(t,_)) -> graphType t) flds
     flds <- getFieldsFromConcat tys ix recFields
