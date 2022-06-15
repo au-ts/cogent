@@ -39,6 +39,7 @@
     - fail_bits-endianness.cogent
     - fail_record-endianness.cogent
     - fail_too-big-tag.cogent
+    - fail_dup-layout-vars.cogent
   expected_result: fail
   flags:
     - -t
