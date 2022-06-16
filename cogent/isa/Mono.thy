@@ -445,4 +445,9 @@ qed
 
 end
 
+type_synonym funtyp = "char list"
+
+locale monomorph_sem = value_sem +
+  constrains abs_typing :: "(funtyp \<Rightarrow> poly_type) \<Rightarrow> 'a \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> bool"
+
 end

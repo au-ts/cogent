@@ -1,0 +1,105 @@
+#include "repeat.cogent"
+#include "wordarray.cogent"
+
+log2stop: StopF (U64, U64) U64
+log2stop #{acc, obsv} =
+    let (a, b) = acc
+    in a >= obsv
+
+log2step: StepF (U64, U64) U64
+log2step #{acc, obsv} = 
+    let (a, b) = acc
+    in (a * 2, b + 1)
+
+mylog2: U64 -> U64
+mylog2 n =
+    let args = #{n = n, stop = log2stop, step = log2step, acc = (1, 0), obsv = n}
+    and (a, b) = repeat args
+    in b
+
+expstop: StopF U32 U32
+expstop x = False
+
+expstep: StepF U32 U32
+expstep #{acc, obsv} = acc * obsv
+
+myexp: (U32, U32) -> U32
+myexp (a, b) =
+    let args = #{n = upcast b, stop = expstop, step = expstep, acc = 1, obsv = a}
+    in repeat args
+
+searchNext : StepF (U32, U32, Bool) (WordArray U32, U32)
+searchNext #{acc, obsv} =
+    let (l, r, b) = acc
+    and (arr, v) = obsv
+    and m = l + (r - l) / 2
+    and args = #{arr = arr, idx = m, val = 0}
+    and x = wordarray_get args
+    in 
+        if | x < v -> (m + 1, r, b)
+           | x > v -> (l, m, b) 
+           | else -> (m, r, True)
+
+searchStop : StopF (U32, U32, Bool) (WordArray U32, U32)
+searchStop #{acc, obsv} =
+    let (l, r, b) = acc
+    in 
+        if | b -> True
+           | l >= r -> True
+           | else -> False
+
+binarySearch : ((WordArray U32)!, U32) -> U32
+binarySearch (arr, v) =
+	let len = wordarray_length arr
+	and args = #{n = upcast len, stop = searchStop, step = searchNext, acc = (0, len, False), obsv = (arr, v)}
+	and (l, r, b) = repeat args
+	in
+		if | b -> l
+		   | else -> len
+
+wordarray_get_opt32 : WordArrayGetOP U32 -> Opt U32
+wordarray_get_opt32 args = wordarray_get_opt args
+
+wordarray_put32 : WordArrayPutP U32 -> WordArray U32
+wordarray_put32 args = wordarray_put args
+
+--type WordArrayFoldP a acc obsv = #{elem: a, acc: acc, obsv: obsv!}
+--type WordArrayFoldF a acc obsv = WordArrayFoldP a acc obsv -> acc
+--
+--type WordArrayFoldNoBreakP a acc obsv =
+--  #{arr: (WordArray a)!,
+--    frm: U32, -- Index indicating the beginning of the range
+--    to: U32, -- Index indicating the end of the range (inclusive)
+--    f: WordArrayFoldF a acc obsv, -- loop body
+--    acc: acc, 
+--    obsv: obsv!
+--   }
+--
+--alwaysFalse : all(acc, obsv). StopF (U32, acc) (WordArray U32, WordArrayFoldF U32 acc obsv, obsv)
+--alwaysFalse x = False
+--
+--wordarray_fold_body : all(acc, obsv). StepF (U32, acc) (WordArray U32, WordArrayFoldF U32 acc obsv, obsv)
+--wordarray_fold_body #{acc, obsv} =
+--	let (w, f, r1) = obsv
+--	and (i, r2) = acc
+--	and args = #{arr = w, idx = i}
+--	and r = (wordarray_get_opt [U32] args
+--		| Something v => f #{elem = v, acc = r2,  obsv = r1}
+--		| Nothing ~> r2)
+--	in (i+1, r)
+--
+--ternaryLessU32 : all(a :< DSE). (U32, U32, a, a) -> a
+--ternaryLessU32 (x, y, r1, r2) =
+--	if | x < y -> r1
+--	   | else -> r2
+--
+--wordarray_fold_no_break: all(acc,obsv). WordArrayFoldNoBreakP U32 acc obsv -> acc 
+--wordarray_fold_no_break #{arr, frm, to, f, acc, obsv} =
+--	let l = wordarray_length [U32] arr 
+--	and e : U32 = ternaryLessU32 (to, l, to, l) 
+--	and n : U32 = ternaryLessU32 (frm, l, l - frm, 0)
+--	and ac : (U32, acc) = (frm, acc)
+--	and ob : ((WordArray U32)!, WordArrayFoldF U32 acc obsv!, obsv!)! = (arr, f, obsv)
+--	and args = #{n = upcast n, stop = alwaysFalse, step = wordarray_fold_body, acc = ac, obsv = ob}
+--	and (i, r) = repeat args
+--	in r

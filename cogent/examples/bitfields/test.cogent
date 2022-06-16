@@ -1,0 +1,34 @@
+type R = { f1 : Bool, f2 : #U2, f3 : #U4 }
+
+type U2
+type U4
+
+-- these functions are needed so that AutoCorres
+-- generate heap getters / setters
+-- (otherwise it does not because there is no
+-- U2 or U4 pointer)
+id2 : U2 -> U2
+id2 x = x
+
+id4 : U4 -> U4
+id4 x = x
+
+layout L = record { f1 : 1b, f2 : 2b at 1b, f3 : 4b at 4b }
+-- NOTE that the first bit is the least significant bit in a byte
+
+
+u4_to_u8 : #U4 -> U8
+u8_to_u4 : U8 -> #U4
+
+u2_to_u8 : #U2 -> U8
+u8_to_u2 : U8 -> #U2
+
+type RL = R layout L
+
+foo : RL -> RL
+foo r = if r.f1 !r then
+          let v = u8_to_u4 (u4_to_u8 r.f3 .&. 0x0c) !r in
+          r {f3 = v}
+        else
+          let v = u8_to_u2 (u2_to_u8 r.f2 + 1) !r in
+          r {f2 = v}

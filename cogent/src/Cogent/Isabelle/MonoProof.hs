@@ -56,7 +56,7 @@ monoRename = TheoryString $ unlines
   ]
 
 monoExprThms :: String -> TheoryDecl I.Type I.Term
-monoExprThms src = ContextDecl $ Context "value_sem" $ ctxBody
+monoExprThms src = ContextDecl $ Context "monomorph_sem" $ ctxBody
   where ctxBody = [TheoryString $ unlines
                      [ "ML \\<open>"
                      , "local"

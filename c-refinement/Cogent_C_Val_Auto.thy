@@ -16,7 +16,7 @@ imports
  Type_Relation_Generation
 begin
 
-ML\<open> fun local_setup_val_rel_type_rel_put_them_in_buckets file_nm ctxt =
+ML\<open> fun local_setup_val_rel_type_rel_put_them_in_buckets file_nm ign ctxt =
 (* local_setup_val_rel_type_rel defines and registers all the necessary val_rels and type_rels.*)
  let
   fun val_rel_type_rel_def uval lthy = lthy |> type_rel_def file_nm uval |> val_rel_def file_nm uval;
@@ -30,12 +30,17 @@ ML\<open> fun local_setup_val_rel_type_rel_put_them_in_buckets file_nm ctxt =
 
   val thy = Proof_Context.theory_of ctxt;
 
+  fun notin_ign_list' [] _ = true
+   |  notin_ign_list' (x::xs) y = if x <> y then notin_ign_list' xs y else false;
+
+  val notin_ign_list = filter (fn x => notin_ign_list' ign x);
   val uvals' =
     (case get_uvals file_nm (Proof_Context.theory_of ctxt) of
       NONE => raise ERROR (prefix "no uvals for " file_nm)
     | SOME uvals' => uvals');
+
   val uvals = uvals' |> map (unify_usum_tys o unify_sigils) |> rm_redundancy |> rev |>
-               get_uvals_for_which_ac_mk_st_info file_nm thy;
+               get_uvals_for_which_ac_mk_st_info file_nm thy |> notin_ign_list;
 
   val lthy' = local_setup_val_rel_type_rel' uvals ctxt;
  in

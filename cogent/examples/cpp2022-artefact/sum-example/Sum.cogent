@@ -1,0 +1,51 @@
+include "wordarray.cogent"
+
+---- Core Word Array methods
+
+wordarray_length_u32 : (WordArray U32)! -> U32
+wordarray_length_u32 x = wordarray_length [U32] x
+
+wordarray_get_u32 : ((WordArray U32)!, WordArrayIndex) -> U32
+wordarray_get_u32 x = wordarray_get x
+
+wordarray_put2_u32 : WordArrayPutP U32 -> WordArray U32
+wordarray_put2_u32 x = wordarray_put2 x
+
+---- Function bodies used to modify elements or in higher order functions
+
+inc : ElemAO U32 () () -> (U32, ())
+inc #{elem, acc, obsv} = (elem + 1, acc)
+
+dec : ElemAO U32 () () -> (U32, ())
+dec #{elem, acc, obsv} = (elem - 1, acc)
+
+add : ElemAO U32 U32 () -> U32
+add #{elem, acc, obsv} = elem + acc
+
+mul : ElemAO U32 U32 () -> U32
+mul #{elem, acc, obsv} = elem * acc
+---- Tests to make higher order functions exist
+
+---- For map_no_break
+
+inc_arr : WordArray U32 -> (WordArray U32, ())
+inc_arr wa = let end = wordarray_length wa !wa and
+                 arg = #{arr = wa, frm = 0, to = end, f = inc, acc = (), obsv = ()}
+             in wordarray_map_no_break arg
+
+dec_arr : WordArray U32 -> (WordArray U32, ())
+dec_arr wa = let end = wordarray_length wa !wa and
+                 arg = #{arr = wa, frm = 0, to = end, f = dec, acc = (), obsv = ()}
+             in wordarray_map_no_break arg
+
+---- For fold_no_break
+
+sum_arr : (WordArray U32)! -> U32
+sum_arr wa = let e = wordarray_length wa and
+             arg = #{arr = wa, frm = 0, to = e, f = add, acc = 0, obsv = ()}
+         in wordarray_fold_no_break arg
+
+mul_arr : (WordArray U32)! -> U32
+mul_arr wa = let e = wordarray_length wa and
+             arg = #{arr = wa, frm = 0, to = e, f = mul, acc = 0, obsv = ()}
+         in wordarray_fold_no_break arg

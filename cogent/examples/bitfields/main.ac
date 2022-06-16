@@ -1,0 +1,25 @@
+
+#include <cogent-defns.h>
+
+typedef struct U2 { u8 v; } U2;
+typedef struct U4 { u8 v; } U4;
+
+#include "build/generated.c"
+
+u8 u2_to_u8 (U2 x) {
+  return x.v;
+}
+
+u8 u4_to_u8 (U4 x) {
+  return x.v;
+}
+
+U2 u8_to_u2 (u8 x) {
+  return (U2) { (x & 0x03) };
+}
+
+U4 u8_to_u4 (u8 x) {
+  return (U4) { (x & 0x0F) };
+}
+
+

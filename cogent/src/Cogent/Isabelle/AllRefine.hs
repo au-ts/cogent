@@ -93,7 +93,7 @@ exportThms thy = TheoryString $ unlines
   , "end"
   , ""
   , "(* Monomorphisation (exported to f_monomorphic) *)"
-  , "context value_sem begin"
+  , "context monomorph_sem begin"
   , "local_setup \\<open>"
   , "fold (fn (f, thm) => Utils.define_lemmas (f ^ \"_monomorphic\") [thm] #> snd)"
   , "     (Symtab.dest monoexpr_thms |> filter (member op= entry_func_names o fst))"
@@ -113,10 +113,10 @@ initFinalLocale thy output = TheoryString $ unlines
   [ "(* Initialise final locale. *)"
   , "locale " ++ thy ++ "_cogent_shallow ="
   , "  \"" ++ output ++ "\" + correspondence +"
-  , "  constrains val_abs_typing :: \"'b \\<Rightarrow> name \\<Rightarrow> type list \\<Rightarrow> bool\""
-  , "         and upd_abs_typing :: \"abstyp \\<Rightarrow> name \\<Rightarrow> type list \\<Rightarrow> sigil \\<Rightarrow> ptrtyp set \\<Rightarrow> ptrtyp set \\<Rightarrow> (funtyp, abstyp, ptrtyp) store \\<Rightarrow> bool\""
+  , "  constrains val_abs_typing :: \"(funtyp \\<Rightarrow> poly_type) \\<Rightarrow> 'b \\<Rightarrow> name \\<Rightarrow> type list \\<Rightarrow> bool\""
+  , "         and upd_abs_typing :: \"(funtyp \\<Rightarrow> poly_type) \\<Rightarrow> abstyp \\<Rightarrow> name \\<Rightarrow> type list \\<Rightarrow> sigil \\<Rightarrow> ptrtyp set \\<Rightarrow> ptrtyp set \\<Rightarrow> (funtyp, abstyp, ptrtyp) store \\<Rightarrow> bool\""
   , "         and abs_repr       :: \"abstyp \\<Rightarrow> name \\<times> repr list\""
-  , "         and abs_upd_val    :: \"abstyp \\<Rightarrow> 'b \\<Rightarrow> char list \\<Rightarrow> Cogent.type list \\<Rightarrow> sigil \\<Rightarrow> " ++ wordSize ++ " word set \\<Rightarrow> " ++ wordSize ++ " word set \\<Rightarrow> (char list, abstyp, " ++ wordSize ++ " word) store \\<Rightarrow> bool\""
+  , "         and abs_upd_val    :: \"(funtyp \\<Rightarrow> poly_type) \\<Rightarrow> abstyp \\<Rightarrow> 'b \\<Rightarrow> char list \\<Rightarrow> Cogent.type list \\<Rightarrow> sigil \\<Rightarrow> " ++ wordSize ++ " word set \\<Rightarrow> " ++ wordSize ++ " word set \\<Rightarrow> (char list, abstyp, " ++ wordSize ++ " word) store \\<Rightarrow> bool\""
   ]
  where wordSize = show $ primIntSizeBits machineWordType
 
