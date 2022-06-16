@@ -56,7 +56,7 @@ See [impl/fs/ext2/README](./impl/fs/ext2/README) and [impl/fs/bilby/README](./im
 
 ## Proofs
 
-Firstly, download the AutoCorres release v1.6.1 from [https://trustworthy.systems/projects/TS/autocorres](https://trustworthy.systems/projects/TS/autocorres/),
+Firstly, download the patched version of AutoCorres release v1.6.1 from [https://github.com/amblafont/AutoCorres](https://github.com/amblafont/AutoCorres),
 move the extracted folder to this directory, and rename the folder to `autocorres`.
 
 To build the proofs, it is recommended that your machine (or virtual machine)
@@ -69,7 +69,7 @@ provides 32G of memory and 4–8 CPU threads.
  export L4V_ARCH="ARM";
  isabelle build -d plat/verification -d ../../../../cogent/isa -d ../../../../autocorres -b Ext2_AllRefine)
 
-# Build compilation correctness proof for BilbyFs. (ETA: 120 CPU hours)
+# Build compilation correctness proof for BilbyFs. (currently broken, previous ETA: 120 CPU hours)
 (cd impl/fs/bilby/cogent;
  make verification;
  patch -d plat/verification < ../../../../BilbyFs_CorresProof.patch;
