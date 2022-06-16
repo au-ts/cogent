@@ -181,9 +181,11 @@ isZeroSizedAllocation :: Allocation' p -> Bool
 isZeroSizedAllocation = all (isZeroSizedBR . fst) . unAllocation
 
 beginningOfAllocation :: Allocation -> Integer
+beginningOfAllocation (Allocation []) = 0
 beginningOfAllocation (Allocation abs) = minimum $ fmap (\(BitRange s o, _) -> o) abs
 
 endOfAllocation :: Allocation -> Integer  -- calculates the last bit of an allocation
+endOfAllocation (Allocation []) = 0
 endOfAllocation (Allocation abs) = maximum $ fmap (\(BitRange s o, _) -> s + o) abs
 
 type Allocation = Allocation' DataLayoutPath
