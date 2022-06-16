@@ -61,6 +61,7 @@ import           Data.Vec            as Vec  hiding (repeat, zipWith)
 
 import           Control.Applicative         hiding (empty)
 import           Control.Arrow                      ((***), (&&&), second)
+import           Control.Monad.Fail
 import           Control.Monad.RWS.Strict    hiding (mapM, mapM_, Dual, (<>), Product, Sum)
 import           Data.Binary
 import           Data.Char                   (isAlphaNum, toUpper)
@@ -159,10 +160,8 @@ newtype Gen v a = Gen { runGen :: RWS (GenRead v) [CExtDecl] GenState a }
                           MonadWriter [CExtDecl],
                           MonadState  GenState)
 
-#if MIN_VERSION_base(4,13,0)
 instance MonadFail (Gen v) where
   fail = __impossible
-#endif
 
 freshLocalCId :: Char -> Gen v CId
 freshLocalCId c = do (localOracle += 1); (c:) . show <$> use localOracle

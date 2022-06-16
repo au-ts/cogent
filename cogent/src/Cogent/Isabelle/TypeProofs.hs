@@ -48,7 +48,11 @@ import Control.Arrow (second)
 import Control.Monad.State.Strict
 import Data.Char
 import Data.Foldable
+#if MIN_VERSION_base(4,15,0)
+import Data.List hiding (singleton)
+#else
 import Data.List
+#endif
 import qualified Data.Map as M
 import Data.Map (Map)
 import qualified Data.Nat as Nat

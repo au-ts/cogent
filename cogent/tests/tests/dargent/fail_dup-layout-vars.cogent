@@ -1,0 +1,1 @@
+cast : all (l :~ U16,  l :~ U32). { f : U16 } layout record { f : l } -> { f : U32 } layout record { f : l }

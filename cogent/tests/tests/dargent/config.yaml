@@ -5,6 +5,7 @@
     - pass_zero-sized-field.cogent
     - pass_inner-synonym.cogent
     - pass_layout-poly.cogent
+    - pass_layout-poly-after.cogent
     - pass_dargent-unspec.cogent
     - pass_l-matches-record.cogent
     - pass_after.cogent
@@ -39,6 +40,7 @@
     - fail_bits-endianness.cogent
     - fail_record-endianness.cogent
     - fail_too-big-tag.cogent
+    - fail_dup-layout-vars.cogent
   expected_result: fail
   flags:
     - -t

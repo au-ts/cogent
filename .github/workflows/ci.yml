@@ -20,6 +20,7 @@ jobs:
     
     env:
       COGENT_FULL_FEATURE: '+builtin-arrays +refinement-types +docgent +haskell-backend +llvm-backend'
+      COGENT_NOLLVM: '+builtin-arrays +refinement-types +docgent +haskell-backend -llvm-backend'
       COGENT_NO_FEATURE: '-builtin-arrays -refinement-types -docgent -haskell-backend -llvm-backend'
     
     # The type of runner that the job will run on
@@ -30,8 +31,10 @@ jobs:
         ghc-ver: [8.6.5, 8.8.4, 8.10.4]
         feature-flags: [ full ]
         include:
-        - ghc-ver: 8.10.4
+        - ghc-ver: 9.0.1
           feature-flags: no
+        - ghc-ver: 9.0.1
+          feature-flags: no-llvm
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -82,7 +85,7 @@ jobs:
           echo "AC_DIR=$GITHUB_WORKSPACE/autocorres-1.6.1" >> $GITHUB_ENV
       
       - name: Install z3
-        if: matrix.feature-flags == 'full' && steps.cache-z3.outputs.cache-hit != 'true'
+        if: matrix.feature-flags != 'no' && steps.cache-z3.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/z3
           # build z3
@@ -100,9 +103,12 @@ jobs:
           ghc-${{ matrix.ghc-ver }} --version
           cabal --version
           
-          if ${{matrix.feature-flags == 'full'}}; then
+          if ${{matrix.feature-flags != 'no-llvm'}}; then
             sudo ln -s `which llvm-config-9` /usr/bin/llvm-config
             llvm-config --version
+          fi
+
+          if ${{matrix.feature-flags != 'no'}}; then
             ls -l ~/z3
             ls -l ~/z3/bin
             z3 --version
@@ -118,6 +124,8 @@ jobs:
           cabal new-update
           if ${{ matrix.feature-flags == 'full'}}; then
             COGENT_FLAGS="${{ env.COGENT_FULL_FEATURE }}"
+          elif ${{ matrix.feature-flags == 'no-llvm' }}; then
+            COGENT_FLAGS="${{ env.COGENT_NOLLVM }}"
           else
             COGENT_FLAGS="${{ env.COGENT_NO_FEATURE }}"
           fi

@@ -1,0 +1,5 @@
+type A a = { f : a, g : a }
+layout L l = record { f : l, g : l }
+
+main : all (a, l :~ a). (A a) layout (L l) -> (A a) layout (L l)
+main x = x

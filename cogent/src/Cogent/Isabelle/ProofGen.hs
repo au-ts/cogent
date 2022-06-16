@@ -39,7 +39,11 @@ import qualified Data.Vec as Vec
 import Lens.Micro.TH (makeLenses)
 import Lens.Micro.Mtl ((%=), (.=), use)
 import Control.Monad.State.Strict
+#if MIN_VERSION_base(4,15,0)
+import Data.List hiding (singleton)
+#else
 import Data.List
+#endif
 import Data.Map (Map)
 import Data.Maybe (catMaybes, fromMaybe)
 import Control.Arrow (second)

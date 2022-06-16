@@ -54,6 +54,7 @@ import qualified Data.Vec as Vec
 import Control.Applicative
 import Control.Arrow
 import Control.Monad.Except hiding (fmap, forM_)
+import Control.Monad.Fail
 import Control.Monad.Reader hiding (fmap, forM_)
 import Control.Monad.State hiding (fmap, forM_)
 import Control.Monad.Trans.Maybe
@@ -318,10 +319,8 @@ newtype TC (t :: Nat) (v :: Nat) b x
   deriving (Functor, Applicative, Alternative, Monad, MonadPlus,
             MonadReader (Vec t Kind, Map FunName (FunctionType b), [Definition TypedExpr b b]))
 
-#if MIN_VERSION_base(4,13,0)
 instance MonadFail (TC t v b) where
   fail = __impossible
-#endif
 
 infixl 4 <||>
 (<||>) :: TC t v b (x -> y) -> TC t v b x -> TC t v b y

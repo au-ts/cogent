@@ -293,7 +293,7 @@ class Test:
         elif res.returncode != 0:
             status = "error"
 
-        result = (status, res.stdout.decode("utf-8"), test_info["expected_result"])
+        result = (status, res.stdout.decode("utf-8", "backslashreplace"), test_info["expected_result"])
 
         return TestResult(result, fname, test_info['test_name'])
 
@@ -329,7 +329,7 @@ class Test:
         elif res.returncode != 0:
             status = "error"
 
-        result = (status, res.stdout.decode("utf-8"), test_info["expected_result"])
+        result = (status, res.stdout.decode("utf-8", "backslashreplace"), test_info["expected_result"])
 
         return TestResult(result, fname, test_info['test_name'])
 
@@ -353,7 +353,7 @@ class Test:
                                      stdout = subprocess.PIPE)
             if cmd_res.returncode != 0:
                 status = "fail"
-                output.append(cmd_res.stdout.decode("utf-8"))
+                output.append(cmd_res.stdout.decode("utf-8", "backslashreplace"))
                 break
         result = (status, "\n".join(output), test_info["expected_result"])
 
