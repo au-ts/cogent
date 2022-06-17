@@ -353,6 +353,7 @@ flags =
   , Option []         ["ddump-pretty-normal-no-tc"]  3 (NoArg set_flag_ddumpPrettyNormalNoTc)        "dump the pretty printed normalised expression before typechecking"
   -- behaviour
   , Option []         ["fcheck-undefined"]    2 (NoArg set_flag_fcheckUndefined)           "(default) check for undefined behaviours in C"
+  , Option []         ["fdargent-word-size"]  3 (ReqArg set_flag_fdargentWordSize "SIZE")  "set the word size (8, 16, 32, 64) for storing data when Dargent is used"
   , Option ['B']      ["fdisambiguate-pp"]    3 (NoArg set_flag_fdisambiguatePp)           "when pretty-printing, also display internal representation as comments"
   , Option []         ["fffi-c-functions"]    1 (NoArg set_flag_fffiCFunctions)            "generate FFI functions in the C code (should be used when -Q)"
   , Option []         ["fflatten-nestings"]   2 (NoArg set_flag_fflattenNestings)          "flatten out nested structs in C code (does nothing)"

@@ -26,6 +26,35 @@
   flags:
     - -g
 
+- test_name: pass-dargent-8bits
+  files:
+    - pass_dargent-layout-preserved.cogent
+    - pass_layout-operator.cogent
+    - pass_zero-sized-field.cogent
+    - pass_inner-synonym.cogent
+    - pass_layout-poly.cogent
+    - pass_layout-poly-after.cogent
+    - pass_dargent-unspec.cogent
+    - pass_l-matches-record.cogent
+    - pass_after.cogent
+    - pass_record-fields-order.cogent
+    - pass_abstract-type.cogent
+    - pass_deserial.cogent
+    - pass_serial-unboxed.cogent
+    - pass_endianness.cogent
+    - pass_layout-prims.cogent
+    - pass_lrec-reorder.cogent
+    - pass_variant-tag-size.cogent
+    - pass_pragma-gsetters.cogent
+    - pass_layout-variant-implicit-after.cogent
+    - pass_layout-no-overlapping-variant.cogent
+    - pass_dargent-fn.cogent
+    - pass_core-tc-fun-lsubst.cogent
+  expected_result: pass
+  flags:
+    - -g
+    - --fdargent-word-size=8
+
 - test_name: fail-dargent
   files:
     - fail_zero-sized-tag.cogent

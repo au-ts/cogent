@@ -23,7 +23,9 @@ byteSizeBits = 8
 
 pointerSizeBits, wordSizeBits :: Size
 pointerSizeBits = primIntSizeBits machineWordType
-wordSizeBits    = primIntSizeBits machineWordType
+wordSizeBits    = case __cogent_fdargent_word_size of
+                    Nothing -> primIntSizeBits machineWordType
+                    Just s  -> fromIntegral s
 
 
 -- When transforming (Offset repExpr offsetSize),
