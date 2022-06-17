@@ -105,6 +105,7 @@ library
               , Cogent.Dargent.TypeCheck
               , Cogent.Dargent.Util
               , Cogent.Desugar
+              , Cogent.Flags
               , Cogent.GetOpt
               , Cogent.Glue
               , Cogent.Inference
