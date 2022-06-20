@@ -233,7 +233,7 @@ substitute vs (TArray t l s mhole) = TArray (substitute vs t) (substituteLE vs l
 
 substituteL :: [DataLayout BitRange] -> Type t b -> Type t b
 substituteL ls (TCon n ts s)     = TCon n (map (substituteL ls) ts) s
-substituteL ls (TSyn n ts s r)   = TSyn n (map (substituteL ls) ts) s r
+substituteL ls (TSyn n ts s r)   = TSyn n (map (substituteL ls) ts) (substituteS ls s) r
 substituteL ls (TFun ti to)      = TFun (substituteL ls ti) (substituteL ls to)
 substituteL ls (TProduct t1 t2)  = TProduct (substituteL ls t1) (substituteL ls t2)
 substituteL ls (TRecord rp ts s) = TRecord rp (map (second (first $ substituteL ls)) ts) (substituteS ls s)
@@ -814,19 +814,18 @@ infer (E (Variable v))
 infer (E (Fun f ts ls note))
    | ExI (Flip ts') <- Vec.fromList ts
    , ExI (Flip ls') <- Vec.fromList ls
-   = do x <- funType f
-        case x of
-          Just (FT ks nl lts ti to) ->
-            case (Vec.length ts' =? Vec.length ks, Vec.length ls' =? nl)
-              of (Just Refl, Just Refl) -> let ti' = substitute ts' $ substituteL ls ti
-                                               to' = substitute ts' $ substituteL ls to
-                                            in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
-                                                    t' <- unfoldSynsDeepM t
-                                                    k' <- kindcheck t'
-                                                    when ((k <> k') /= k) $ __impossible "kind not matched in type instantiation"
-                                                  return $ TE (TFun ti' to') (Fun f ts ls note)
-                 _ -> __impossible "lengths don't match"
-          _        -> error $ "Something went wrong in lookup of function type: '" ++ unCoreFunName f ++ "'"
+   = funType f >>= \case
+       Just (FT ks nl lts ti to) ->
+         case (Vec.length ts' =? Vec.length ks, Vec.length ls' =? nl)
+           of (Just Refl, Just Refl) -> let ti' = substitute ts' $ substituteL ls ti
+                                            to' = substitute ts' $ substituteL ls to
+                                         in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
+                                                 t' <- unfoldSynsDeepM t
+                                                 k' <- kindcheck t'
+                                                 when ((k <> k') /= k) $ __impossible "kind not matched in type instantiation"
+                                               return $ TE (TFun ti' to') (Fun f ts ls note)
+              _ -> __impossible "lengths don't match"
+       _        -> error $ "Something went wrong in lookup of function type: '" ++ unCoreFunName f ++ "'"
 infer (E (App e1 e2))
    = do e1'@(TE tf _) <- infer e1
         TFun ti to <- unfoldSynsShallowM tf

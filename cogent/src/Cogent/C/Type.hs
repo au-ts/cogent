@@ -46,6 +46,7 @@ import           Cogent.Compiler
 import           Cogent.Common.Syntax  as Syn
 import           Cogent.Common.Types   as Typ
 import           Cogent.Core           as CC
+import           Cogent.Dargent.Util          (wordSizeBits)
 import           Cogent.Inference             (kindcheck_)
 import           Cogent.Isabelle.Deep
 import           Cogent.Mono                  (Instance)
@@ -102,7 +103,7 @@ genTyDecl (Record x, n) _ = ([CDecl $ CStructDecl n (map (second Just . swap) x)
 genTyDecl (RecordL layout, n) _ =
   let bitsize   = hiDataLayout layout
       size      = dataLayoutSizeInWords layout
-      arrayType = CArray (CInt False CIntT) (CArraySize $ CConst $ CNumConst size (CInt False CIntT) DEC)
+      arrayType = CArray dargentWordType (CArraySize $ CConst $ CNumConst size (CInt False CIntT) DEC)
   in if size == 0
        then ([],[])
        else ([CDecl $ CStructDecl n [(arrayType, Just "data")]], [genTySynDecl (n, CStruct n)])
@@ -130,6 +131,15 @@ genTyDecl (AbsType x, n) _ = ([CMacro $ "#include <abstract/" ++ x ++ ".h>"], []
 
 genTySynDecl :: (TypeName, CType) -> CExtDecl
 genTySynDecl (n,t) = CDecl $ CTypeDecl t [n]
+
+dargentWordType :: CType
+dargentWordType = case wordSizeBits of
+                    8  -> CogentPrim U8
+                    16 -> CogentPrim U16
+                    32 -> CogentPrim U32
+                    64 -> CogentPrim U64
+                    _  -> __impossible "dargentWordType: word size invalid"
+
 
 lookupStrlTypeCId :: StrlType -> Gen v (Maybe CId)
 lookupStrlTypeCId st = M.lookup st <$> use cTypeDefMap

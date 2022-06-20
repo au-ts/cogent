@@ -130,6 +130,10 @@ set_flag_entryFuncs = writeIORef __cogent_entry_funcs_ref . Just
 set_flag_extTypes = writeIORef __cogent_ext_types_ref . Just
 set_flag_fakeHeaderDir dir = writeIORef __cogent_fake_header_dir_ref $ Just (cogentRelDir dir __cogent_dist_dir)
 set_flag_fcheckUndefined = writeIORef __cogent_fcheck_undefined_ref True
+set_flag_fdargentWordSize s =
+  case read s :: Int of
+    s' | s' `elem` [8, 16, 32, 64] -> writeIORef __cogent_fdargent_word_size_ref $ Just s'
+    _ -> error $ "unsupported Dargent word size: " ++ show s
 set_flag_fdisambiguatePp = writeIORef __cogent_fdisambiguate_pp_ref True
 set_flag_fdumpToStdout = writeIORef __cogent_fdump_to_stdout_ref True
 set_flag_fffiCFunctions = writeIORef __cogent_fffi_c_functions_ref True
@@ -424,7 +428,13 @@ __cogent_fcheck_undefined_ref = unsafePerformIO $ newIORef True
 -- __cogent_fcondition_knf :: Bool
 -- __cogent_fcondition_knf = True
 
--- TODO
+__cogent_fdargent_word_size :: Maybe Int
+__cogent_fdargent_word_size = unsafePerformIO $ readIORef __cogent_fdargent_word_size_ref
+
+__cogent_fdargent_word_size_ref :: IORef (Maybe Int)
+{-# NOINLINE __cogent_fdargent_word_size_ref #-}
+__cogent_fdargent_word_size_ref = unsafePerformIO $ newIORef Nothing
+
 
 -- Mostly used for disambiguating types that are normalised and not;
 -- they look the same in PP but internally distinct / zilinc

@@ -474,7 +474,7 @@ mkGsDeclBlock brs@((br0,gs0):brrest) ω root t fn m
                 ME -> e
                 _  -> CEFnCall (variable convEndian) [e]
        in CAssignFnCall Nothing (variable s)
-                        [boxVar, CTypeCast uintCTy (CBinOp And (CBinOp Rsh e' (uint offset)) (uint(sizeToMask sz)))]
+                        [boxVar, CTypeCast uintCTy (CBinOp And (CBinOp Rsh e' (uint offset)) (uint (sizeToMask sz)))]
 
 mkGsDeclBlock _ _ _ _ _ _ = __impossible $ "mkGsDeclBlock should never be called on an empty list of ranges!"
 
