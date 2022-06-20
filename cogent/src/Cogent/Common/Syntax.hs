@@ -47,7 +47,7 @@ type FieldIndex = Int
 type ArrayIndex = Word32  -- It actually can be large on 64-bit machines, but for now we just leave them Word32 for simplicity / zilinc
 type ArraySize  = Word32
 
-type Size = Integer -- Not sure why quickcheck tests infinite loop if Size = Word32.
+type Size = Integer  -- Not sure why quickcheck tests infinite loop if Size = Word32.
 
 type OpName = String
 

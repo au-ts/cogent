@@ -4,3 +4,6 @@ type R = {f : U8 -> U8, g : U8}
 foo : R -> R
 foo r {g} = let g' = r.f g !r
              in r {g = g'}
+
+id_u8 : U8 -> U8
+id_u8 x = x

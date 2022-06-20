@@ -1,0 +1,8 @@
+type B2 = { a : Bool, b : Bool }
+layout R2 x = record { a : x, b : x at 1B }
+
+id : all (x :~ Bool). B2 layout R2 x -> B2 layout R2 x
+id x = x
+
+id_1b : B2 layout R2 1b -> B2 layout R2 1b
+id_1b x = id x
