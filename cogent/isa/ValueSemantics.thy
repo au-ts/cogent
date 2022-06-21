@@ -16,6 +16,8 @@ begin
 
 
 datatype ('f, 'a) vval = VPrim lit
+                                  (* size *) (* value *)
+                       | VCustomInt nat nat
                        | VProduct "('f, 'a) vval" "('f, 'a) vval"
                        | VSum name "('f, 'a) vval"
                        | VRecord "('f, 'a) vval list"
@@ -58,6 +60,7 @@ where
   v_sem_var     : "\<xi> , \<gamma> \<turnstile> (Var i) \<Down> (\<gamma> ! i)"
 
 | v_sem_lit     : "\<xi> , \<gamma> \<turnstile> (Lit l) \<Down> VPrim l"
+| v_sem_customint     : "\<xi> , \<gamma> \<turnstile> (CustomInt n v) \<Down> VCustomInt n v"
 
 | v_sem_prim    : "\<lbrakk> \<xi> , \<gamma> \<turnstile>* as \<Down> as'
                    \<rbrakk> \<Longrightarrow>  \<xi> , \<gamma> \<turnstile> (Prim p as) \<Down> eval_prim p as'"
@@ -74,6 +77,14 @@ where
 | v_sem_cast    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> e \<Down> VPrim l
                    ; cast_to \<tau> l = Some l'
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> Cast \<tau> e \<Down> VPrim l'"
+
+| v_sem_custom_ucast    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> e \<Down> VCustomInt n v
+                   ; custom_ucast_to n v = Some l'
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> CustomUCast \<tau> e \<Down> VPrim l'"
+
+| v_sem_custom_dcast    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> e \<Down> VPrim l
+                   ; custom_dcast_to n l = Some v                   
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> CustomDCast n e \<Down> VCustomInt n v"
 
 | v_sem_app     : "\<lbrakk> \<xi> , \<gamma> \<turnstile> x \<Down> VFunction e ts ls
                    ; \<xi> , \<gamma> \<turnstile> y \<Down> a
@@ -159,7 +170,8 @@ and vval_typing_record :: "('f \<Rightarrow> poly_type) \<Rightarrow> ('f, 'a) v
           ("_ \<turnstile>* _ :vr _" [30,0,20] 80) where
 
   v_t_prim     : "\<Xi> \<turnstile> VPrim l :v TPrim (lit_type l)"
-
+| v_t_custom_int : "\<lbrakk> n \<le> 64                  
+                  \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VCustomInt n v :v TCustomNum n"
 | v_t_product  : "\<lbrakk> \<Xi> \<turnstile> a :v t
                   ; \<Xi> \<turnstile> b :v u
                   \<rbrakk> \<Longrightarrow> \<Xi> \<turnstile> VProduct a b :v TProduct t u"
@@ -228,6 +240,7 @@ inductive_cases v_t_recordE   [elim]: "\<Xi> \<turnstile> VRecord fs :v \<tau>"
 inductive_cases v_t_productE  [elim]: "\<Xi> \<turnstile> VProduct a b :v \<tau>"
 inductive_cases v_t_sumE'     [elim]: "\<Xi> \<turnstile> e :v TSum ts"
 inductive_cases v_t_primE     [elim]: "\<Xi> \<turnstile> VPrim l :v TPrim (Num \<tau>)"
+inductive_cases v_t_customintE[elim]: "\<Xi> \<turnstile> VCustomInt n l :v TCustomNum n'"
 
 inductive_cases v_t_r_emptyE  [elim]: "\<Xi> \<turnstile>* [] :vr \<tau>s"
 inductive_cases v_t_r_consE   [elim]: "\<Xi> \<turnstile>* (x # xs) :vr \<tau>s"
@@ -529,7 +542,7 @@ next
     by simp
 
   moreover have "\<Xi> \<turnstile>* fs :vr ts'"
-    using elims subty_trecord subtyping_simps(6) v_t_record by presburger
+    using elims subty_trecord subtyping_simps(7) v_t_record by presburger
 
   ultimately show ?case
 
@@ -893,15 +906,79 @@ using assms proof (induct "specialise \<epsilon> \<tau>s e"        v
                                                        intro: matches_proj
                                                        simp:  empty_length empty_def)
 
-next case v_sem_lit     then show ?case by ( case_tac e, simp_all
+    next case v_sem_lit     then show ?case by ( case_tac e, simp_all
                                            , fastforce intro: vval_typing_vval_typing_record.intros)
+    next case v_sem_customint     then show ?case by ( case_tac e, simp_all
+                                           , fastforce intro: vval_typing_vval_typing_record.intros)
+
 
 next case v_sem_prim    then show ?case 
     apply( case_tac e, simp_all)
     using eval_prim_preservation
     by fastforce
-next case v_sem_cast    then show ?case by ( case_tac e, simp_all
-                                           , fastforce elim!: upcast_valid_cast_to)
+next case v_sem_cast    then show ?case 
+    apply ( case_tac e, simp_all)
+    apply(fastforce elim:upcast_valid_cast_to)
+(*
+    apply clarsimp
+    apply(erule typing_castE) 
+    apply(drule v_sem_cast(2))
+         apply assumption+  
+    apply clarsimp
+    apply(intro v_t_prim')
+apply(erule v_t_primE)
+    apply(erule upcast_valid_cast_to)
+    apply simp
+     apply simp
+*)
+    
+    done
+
+next case v_sem_custom_ucast    then show ?case 
+    apply ( case_tac e, simp_all)
+    apply fastforce
+    done
+(*
+    apply clarsimp
+    apply(erule typing_custom_ucastE) 
+    apply(drule v_sem_custom_ucast(2))
+         apply assumption+  
+
+    apply clarsimp
+    apply(erule v_t_customintE)
+    apply (intro conjI impI;clarsimp)+
+    
+       apply(intro v_t_prim',simp)+
+    apply simp
+
+    apply(erule upcast_valid_cast_to)
+    apply simp
+     apply simp *)
+
+  next case v_sem_custom_dcast    then show ?case 
+apply ( case_tac e, simp_all)
+ apply(fastforce elim:upcast_valid_cast_to intro:v_t_custom_int) 
+      done
+    (*apply clarsimp
+    apply(erule typing_custom_dcastE) 
+    apply(drule v_sem_custom_dcast(2))
+         apply assumption+  
+
+    apply clarsimp
+      apply(erule v_t_primE)
+      apply(intro v_t_custom_int)
+      apply clarsimp
+    apply (intro conjI impI;clarsimp)+
+    
+       apply(intro v_t_prim',simp)+
+    apply simp
+
+    apply(erule upcast_valid_cast_to)
+    apply simp
+     apply simp 
+*)
+
+
 next case v_sem_afun    then show ?case 
     apply ( case_tac e, simp_all)
     apply(fastforce intro: v_t_afun_instantiate)
@@ -939,7 +1016,7 @@ next case (v_sem_con \<xi> \<gamma> x_spec x' ts_inst tag)
     next
       show "0, [], {} \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ts) wellformed"
         using con_elims v_sem_con.prems
-        by (metis instantiate.simps(6) kinding_iff_wellformed(1) substitutivity_single)
+        by (metis instantiate.simps(7) kinding_iff_wellformed(1) substitutivity_single)
     qed auto
     then show ?thesis
       using con_elims by auto
@@ -1262,7 +1339,10 @@ function monoexpr :: "'f expr \<Rightarrow> ('f \<times> type list \<times> ptr_
 | "monoexpr (Member v f)      = Member (monoexpr v) f"
 | "monoexpr (Unit)            = Unit"
 | "monoexpr (Cast t e)        = Cast t (monoexpr e)"
+| "monoexpr (CustomUCast t e) = CustomUCast t (monoexpr e)"
+| "monoexpr (CustomDCast t e) = CustomDCast t (monoexpr e)"
 | "monoexpr (Lit v)           = Lit v"
+| "monoexpr (CustomInt n v)   = CustomInt n v"
 | "monoexpr (SLit v)          = SLit v"
 | "monoexpr (Tuple a b)       = Tuple (monoexpr a) (monoexpr b)"
 | "monoexpr (Put e f e')      = Put (monoexpr e) f (monoexpr e')"
@@ -1279,7 +1359,8 @@ function monoexpr :: "'f expr \<Rightarrow> ('f \<times> type list \<times> ptr_
 termination by (relation "measure expr_size", (simp add: order_sum_list)+)
 
 fun monoval :: "('f, 'a) vval \<Rightarrow> ('f \<times> type list \<times> ptr_layout list, 'a) vval"
-where "monoval (VPrim lit) = VPrim lit"
+  where "monoval (VPrim lit) = VPrim lit"
+    | "monoval (VCustomInt v va) = (VCustomInt v va)"
     | "monoval (VProduct t u) = VProduct (monoval t) (monoval u)"
     | "monoval (VSum name v) = VSum name (monoval v)"
     | "monoval (VRecord vs) = VRecord (map monoval vs)"
@@ -1348,9 +1429,15 @@ then show ?case
 done
 next case v_sem_var then show ?case by (simp, metis matches_length nth_map typing_varE v_sem_v_sem_all.v_sem_var)
 next case v_sem_lit then show ?case by (fastforce intro!: v_sem_v_sem_all.v_sem_lit)
+next case v_sem_customint then show ?case by (fastforce intro!: v_sem_v_sem_all.v_sem_customint)
 next case v_sem_fun then show ?case by (fastforce intro!: v_sem_v_sem_all.v_sem_fun)
 next case v_sem_afun then show ?case by (fastforce intro!: v_sem_v_sem_all.v_sem_afun)
 next case v_sem_cast then show ?case by (fastforce intro!: v_sem_v_sem_all.v_sem_cast)
+next case v_sem_custom_ucast then show ?case 
+    apply -
+    apply (fastforce intro!: v_sem_v_sem_all.v_sem_custom_ucast)
+    done
+next case v_sem_custom_dcast then show ?case by (fastforce intro!: v_sem_v_sem_all.v_sem_custom_dcast)
 next case v_sem_con then show ?case by (fastforce intro!: v_sem_v_sem_all.v_sem_con)
 next case v_sem_unit then show ?case by (simp add: v_sem_v_sem_all.v_sem_unit)
 next case v_sem_tuple then show ?case by (clarsimp elim!: typing_tupleE simp: matches_split' v_sem_v_sem_all.v_sem_tuple)

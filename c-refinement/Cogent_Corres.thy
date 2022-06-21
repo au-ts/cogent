@@ -107,6 +107,10 @@ lemma corres_lit:
   "val_rel (UPrim lit) mv \<Longrightarrow> corres srel (Lit lit) (gets (\<lambda>_. mv)) \<xi> \<gamma> \<Xi> \<Gamma>  \<sigma> s"
   by (fastforce simp: corres_def snd_return fst_return intro: u_sem_lit)
 
+lemma corres_customint:
+  "val_rel (UCustomInt n v) mv \<Longrightarrow> corres srel (CustomInt n v) (gets (\<lambda>_. mv)) \<xi> \<gamma> \<Xi> \<Gamma>  \<sigma> s"
+  by (fastforce simp: corres_def snd_return fst_return intro: u_sem_customint)
+
 
 lemma corres_cast_8_16:
   assumes typing_cast: "\<Xi>, 0, [], {}, \<Gamma>' \<turnstile> Cast U16 (Var x) : TPrim (Num U16)"
@@ -934,7 +938,7 @@ proof (clarsimp simp: corres_def in_monad snd_bind snd_modify snd_state_assert, 
   then have typ'_is: "typ' = typ"
     using same_type_as_split_weakened_left split_preservation_some_left
       split\<Gamma> typing_put_elim_lems' typing_var_elim_lems' x_sigil
-    by (metis option.inject type.inject(8))
+    by (metis option.inject type.inject(9))
 
   note typing_put_elim_lems =
     typing_put_elim_lems'(2-)[simplified ftag'_fty'_is typ'_is]

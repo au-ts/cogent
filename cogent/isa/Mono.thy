@@ -34,7 +34,10 @@ where
 | "rename_expr rename (Member v f)      = Member (rename_expr rename v) f"
 | "rename_expr rename (Unit)            = Unit"
 | "rename_expr rename (Cast t e)        = Cast t (rename_expr rename e)"
+| "rename_expr rename (CustomUCast t e) = CustomUCast t (rename_expr rename e)"
+| "rename_expr rename (CustomDCast t e) = CustomDCast t (rename_expr rename e)"
 | "rename_expr rename (Lit v)           = Lit v"
+| "rename_expr rename (CustomInt n v)   = CustomInt n v"
 | "rename_expr rename (SLit s)          = SLit s"
 | "rename_expr rename (Tuple a b)       = Tuple (rename_expr rename a) (rename_expr rename b)"
 | "rename_expr rename (Put e f e')      = Put (rename_expr rename e) f (rename_expr rename e')"
@@ -51,6 +54,7 @@ fun
   rename_val :: "('b \<Rightarrow> 'c) \<Rightarrow> ('b, 'a) vval \<Rightarrow> ('c, 'a) vval"
 where
   "rename_val rename (VPrim lit)       = VPrim lit"
+| "rename_val rename (VCustomInt n v)  = VCustomInt n v"
 | "rename_val rename (VProduct t u)    = VProduct (rename_val rename t) (rename_val rename u)"
 | "rename_val rename (VSum name v)     = VSum name (rename_val rename v)"
 | "rename_val rename (VRecord vs)      = VRecord (map (rename_val rename) vs)"
@@ -110,6 +114,9 @@ next
   case (v_sem_lit \<xi> l \<gamma> e  \<tau> \<Gamma>) then show ?case
     by (cases e) (auto intro: v_sem_v_sem_all.v_sem_lit)
 next
+  case (v_sem_customint \<xi> l \<gamma> j e  \<tau> \<Gamma>) then show ?case
+    by (cases e) (auto intro: v_sem_v_sem_all.v_sem_customint)
+next
   case (v_sem_fun \<xi> f ts ls \<gamma> e \<tau> \<Gamma>) then show ?case
     by (cases e) (auto intro: v_sem_v_sem_all.v_sem_fun)
 next
@@ -123,6 +130,30 @@ next
     apply (rule conjI)
      apply (erule typing_castE)
      apply (rule v_sem_v_sem_all.v_sem_cast)
+      apply (rule IH1[THEN exE], simp_all)
+    apply (rename_tac v)
+    apply clarsimp
+    by (case_tac v, simp_all)
+next
+  case (v_sem_custom_ucast \<xi> re l \<tau> l'  \<gamma> j e \<tau>' \<Gamma>)
+  note IH1=this(2) and rest= this(1,3-) then show ?case
+    apply (cases e, simp_all)
+    apply (rule exI)
+    apply (rule conjI)
+     apply (erule typing_custom_ucastE)
+     apply (rule v_sem_v_sem_all.v_sem_custom_ucast)
+      apply (rule IH1[THEN exE], simp_all)
+    apply (rename_tac v)
+    apply clarsimp
+    by (case_tac v, simp_all)
+next
+  case (v_sem_custom_dcast \<xi> re l \<tau> l'  \<gamma> e \<tau>' \<Gamma>)
+  note IH1=this(2) and rest= this(1,3-) then show ?case
+    apply (cases e, simp_all)
+    apply (rule exI)
+    apply (rule conjI)
+     apply (erule typing_custom_dcastE)
+     apply (rule v_sem_v_sem_all.v_sem_custom_dcast)
       apply (rule IH1[THEN exE], simp_all)
     apply (rename_tac v)
     apply clarsimp
