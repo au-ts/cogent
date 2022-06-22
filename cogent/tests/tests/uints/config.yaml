@@ -1,0 +1,6 @@
+- test_name: pass-n-sized-ints
+  files:
+    - pass_uint-take-put.cogent
+  expected_result: pass
+  flags:
+    - -g
