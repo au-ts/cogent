@@ -72,6 +72,7 @@ import Debug.Trace
 
 
 data TypeError = FunctionNotFound VarName
+               | RedefiningPrimType TypeName
                | TooManyTypeArguments FunName (Polytype TCType)
                | TooManyLayoutArguments FunName (Polytype TCType)
                | NotInScope FuncOrVar VarName

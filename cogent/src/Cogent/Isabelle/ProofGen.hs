@@ -353,11 +353,27 @@ typing xi k (EE tc@(TSum ts) (Con tag e t) env) = tacSequence [
   return [simp_solve]                    -- ts = ts'
   ]
 
-typing xi k (EE u (Cast t e) env) | EE (TPrim pt) _ _ <- e, TPrim pt' <- t, pt /= Boolean = tacSequence [
-  return [rule "typing_cast"],   -- Ξ, K, Γ ⊢ Cast τ' e : TPrim (Num τ')
-  typing xi k e,                 -- Ξ, K, Γ ⊢ e : TPrim (Num τ)
-  return [simp_solve]            -- upcast_valid τ τ'
-  ]
+typing xi k (EE u (Cast t e) env)
+  | EE (TPrim pt) _ _ <- e, TPrim pt' <- t, UInt s <- pt, s `elem` wordSizes
+  = tacSequence [
+      return [rule "typing_cast"],   -- Ξ, K, Γ ⊢ Cast τ' e : TPrim (Num τ')
+      typing xi k e,                 -- Ξ, K, Γ ⊢ e : TPrim (Num τ)
+      return [simp_solve]            -- upcast_valid τ τ'
+      ]
+  | otherwise
+  = tacSequence [
+      return [rule "typing_custom_ucast"],
+      typing xi k e,
+      return [simp_solve]
+      ]
+
+typing xi k (EE u (Truncate t e) env)
+  | EE (TPrim pt) _ _ <- e, TPrim pt' <- t, pt /= Boolean
+  = tacSequence [
+      return [rule "typing_custom_dcast"],
+      typing xi k e,
+      return [simp_solve]
+      ]
 
 typing xi k (EE _ (Tuple t u) env) = tacSequence [
   return [rule "typing_tuple"],      -- Ξ, K, Γ ⊢ Tuple t u : TProduct T U if

@@ -396,8 +396,12 @@ shallowExpr (TE _ (Cast (TPrim pt) e)) =
 shallowExpr (TE te (Cast t e)) = do
   t' <- unfoldSynsShallowM t
   shallowExpr $ TE te $ Cast t' e
-shallowExpr (TE te (Truncate t e)) = __todo "shallowExpr: truncate"
-  
+shallowExpr (TE _ (Truncate t e)) = do
+  te@(TPrim pt) <- unfoldSynsShallowM $ exprType e
+  TPrim (UInt small) <- unfoldSynsShallowM t
+  e' <- shallowExpr e
+  return $ TermWithType (mkApp (mkId "ucast") [shallowPrimOp CS.BitAnd [e', mkInt (2^small - 1)]])
+                        (shallowPrimType pt)
 
 
 shallowAlt :: (Show b,Eq b) => (TagName,VarName,TypedExpr t v VarName b) -> SG b (Term,Term)
