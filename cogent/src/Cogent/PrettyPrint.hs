@@ -157,6 +157,7 @@ instance Prec (Expr t p ip l e) where
   -- vvv parsed by the expression builder
   prec (Member {}) = 8
   prec (Upcast {}) = 9
+  prec (Truncate {}) = 9
   prec (App  _ _ False) = 9
   prec (AppC {}) = 9
   prec (Con _ _) = 9
@@ -461,6 +462,7 @@ instance (ExprType e, Prec e, Pretty t, PatnType p, Pretty p, PatnType ip, Prett
      | a  <- associativity n = primop n <+> prettyPrec (prec a) e
   pretty (PrimOp n es)       = primop n <+> tupled (map pretty es)
   pretty (Upcast e)          = keyword "upcast" <+> prettyPrec 9 e
+  pretty (Truncate e)        = keyword "truncate" <+> prettyPrec 9 e
   pretty (Lam p mt e)        = string "\\" <> pretty p <>
                                (case mt of Nothing -> empty; Just t -> space <> symbol ":" <+> pretty t) <+> symbol "=>" <+> prettyPrec 101 e
   pretty (LamC p mt e _)     = pretty (Lam p mt e :: Expr t p ip l e)
@@ -916,6 +918,7 @@ instance Pretty Constraint where
   pretty (a :=: b)        = pretty a </> warn ":=:" </> pretty b
   pretty (a :& b)         = prettyPrec 4 a </> warn ":&" </> prettyPrec 3 b
   pretty (Upcastable a b) = pretty a </> warn "~>" </> pretty b
+  pretty (WordSize t)     = pretty t <+> warn "∈ {U8, U16, U32, U64}"
   pretty (Share  t m)     = warn "Share" <+> pretty t
   pretty (Drop   t m)     = warn "Drop" <+> pretty t
   pretty (Escape t m)     = warn "Escape" <+> pretty t
@@ -1094,7 +1097,7 @@ instance Pretty a => Pretty (DataLayout' a) where
 
   pretty SumLayout {tagDL, alternativesDL} =
     parens (pretty tagDL) <> variant (map prettyAlt $ M.toList alternativesDL)
-    where prettyAlt (n,(v,l)) = tagname n <> parens (integer $ fromIntegral v) <> colon <> pretty l
+    where prettyAlt (n,(v,l)) = tagname n <> parens (integer v) <> colon <> pretty l
 
   pretty RecordLayout {fieldsDL} =
     record (map prettyField $ M.toList fieldsDL)
@@ -1104,7 +1107,7 @@ instance Pretty a => Pretty (DataLayout' a) where
 #endif
   pretty (VarLayout n s) = (dullcyan . string . ("_l" ++) . show $ natToInt n) <> prettyOffset s
     where prettyOffset 0 = empty
-          prettyOffset n = space <> symbol "offset" <+> integer n <> symbol "b"
+          prettyOffset n = space <> symbol "offset" <+> int n <> symbol "b"
 
 instance Pretty (Allocation' p) where
   pretty (Allocation bs) = list $ map pretty bs

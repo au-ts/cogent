@@ -114,7 +114,8 @@ mkId = TermIdent . Id
 mkTru = ConstTerm TrueC
 mkFls = ConstTerm FalseC
 
-mkInt    = ConstTerm . IntLiteral
+mkInt :: (Integral a) => a -> Term
+mkInt    = ConstTerm . IntLiteral . fromIntegral
 mkBool b = if b then mkTru else mkFls
 mkChar   = ConstTerm . CharLiteral
 mkString = ConstTerm . StringLiteral

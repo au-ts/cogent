@@ -14,6 +14,7 @@ module Data.Bwd where
 import Data.List
 import Data.Monoid
 
+-- | Backward list
 data Bwd a = BEmp | Bwd a :< a
   deriving (Eq, Ord, Read, Show, Functor)
 

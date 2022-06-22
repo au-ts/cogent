@@ -182,6 +182,7 @@ applyC s (a :=: b) = apply s a :=: apply s b
 applyC s (a :& b) = applyC s a :& applyC s b
 applyC s (a :@ c) = applyC s a :@ applyCtx s c
 applyC s (Upcastable a b) = apply s a `Upcastable` apply s b
+applyC s (WordSize t) = WordSize $ apply s t
 applyC s (Share t m) = Share (apply s t) m
 applyC s (Drop t m) = Drop (apply s t) m
 applyC s (Escape t m) = Escape (apply s t) m

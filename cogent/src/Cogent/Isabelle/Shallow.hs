@@ -139,11 +139,8 @@ shallowType t@(TArray el _ _ _) = I.TyDatatype "list" <$> mapM shallowType [el]
 #endif
 
 shallowPrimType :: PrimInt -> I.Type
-shallowPrimType U8  = I.TyDatatype "word" [I.AntiType "8"]
-shallowPrimType U16 = I.TyDatatype "word" [I.AntiType "16"]
-shallowPrimType U32 = I.TyDatatype "word" [I.AntiType "32"]
-shallowPrimType U64 = I.TyDatatype "word" [I.AntiType "64"]
-shallowPrimType Boolean = I.TyPrim I.BoolT
+shallowPrimType (UInt n) = I.TyDatatype "word" [I.AntiType $ show n]
+shallowPrimType Boolean  = I.TyPrim I.BoolT
 
 -- The `(foo)` syntax makes an infix operator prefix after Isabelle2018. There
 -- is a special case on `(*)`, which doesn't work because comments start with
@@ -393,12 +390,15 @@ shallowExpr (TE _ (Take (n1,n2) rec fld e)) = do
   mkLet pp take <$> shallowExpr e
 shallowExpr (TE _ (Put rec fld e)) = shallowSetter rec fld e
 shallowExpr (TE _ (Promote ty e)) = shallowExpr e
-shallowExpr (TE _ (Cast    (TPrim pt) (TE _ (ILit n _)))) = pure $ shallowILit n pt
-shallowExpr (TE _ (Cast    (TPrim pt) e)) =
+shallowExpr (TE _ (Cast (TPrim pt) (TE _ (ILit n _)))) = pure $ shallowILit n pt
+shallowExpr (TE _ (Cast (TPrim pt) e)) =
   TermWithType <$> (mkApp (mkId "ucast") <$> ((:[]) <$> shallowExpr e)) <*> pure (shallowPrimType pt)
-shallowExpr (TE te (Cast  t e)) = do
+shallowExpr (TE te (Cast t e)) = do
   t' <- unfoldSynsShallowM t
   shallowExpr $ TE te $ Cast t' e
+shallowExpr (TE te (Truncate t e)) = __todo "shallowExpr: truncate"
+  
+
 
 shallowAlt :: (Show b,Eq b) => (TagName,VarName,TypedExpr t v VarName b) -> SG b (Term,Term)
 shallowAlt (tag,n,e) = do

@@ -209,6 +209,7 @@ monoExpr (TE t e) = TE <$> monoType t <*> monoExpr' e
     monoExpr' (Put     rec fld e  ) = Put  <$> monoExpr rec <*> pure fld <*> monoExpr e
     monoExpr' (Promote ty e       ) = Promote <$> monoType ty <*> monoExpr e
     monoExpr' (Cast    ty e       ) = Cast <$> monoType ty <*> monoExpr e
+    monoExpr' (Truncate ty e      ) = Truncate <$> monoType ty <*> monoExpr e
 
 monoType :: (Ord b) => Type t b -> Mono b (Type 'Zero b)
 monoType (TVar v) = atList <$> (fmap fst ask) <*> pure v
@@ -303,6 +304,7 @@ monoLExpr (LTake    a rec fld e) = LTake a <$> monoLExpr rec <*> pure fld <*> mo
 monoLExpr (LPut     rec fld e  ) = LPut  <$> monoLExpr rec <*> pure fld <*> monoLExpr e
 monoLExpr (LPromote ty e       ) = LPromote <$> monoType ty <*> monoLExpr e
 monoLExpr (LCast    ty e       ) = LCast <$> monoType ty <*> monoLExpr e
+monoLExpr (LTruncate ty e      ) = LTruncate <$> monoType ty <*> monoLExpr e
 
 -- ----------------------------------------------------------------------------
 -- pragmas

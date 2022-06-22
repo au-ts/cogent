@@ -458,14 +458,14 @@ mkGsDeclBlock brs@((br0,gs0):brrest) ω root t fn m
       (CInt _ _)   -> map toLower $ show ω ++ "_" ++ "u8" ++ "_swap"
       _            -> __impossible "convEndian: called with invalid embedded type"
 
-    getPart :: FunName -> Integer -> CExpr
+    getPart :: FunName -> Size -> CExpr
     getPart g offset =
       let e = CBinOp Lsh (CTypeCast (intTypeForType t) (CEFnCall (variable g) [boxVar])) (uint offset)
        in case ω of
             ME -> e
             _  -> CEFnCall (variable convEndian) [e]
     
-    setPart :: FunName -> Integer -> Integer -> CStmt
+    setPart :: FunName -> Size -> Size -> CStmt
     setPart s offset sz =
       let -- If @t@ is a boxed type, we cast @valueVar@ to the integer type of the correct size
           -- If it is a boolean type, we extract the boolean value
@@ -607,7 +607,7 @@ genGSFuncDecls t (M.toList -> l) mode defs = do
 
 -- | @sizeToMask n@ is an integer whose binary representation has
 -- exactly @n@ 1s in the @2^0@ to @2^(n-1)@ places
-sizeToMask :: Integer -> Integer
+sizeToMask :: Size -> Integer
 sizeToMask n
   | 0 <= n && n <= wordSizeBits = 2^n - 1
   | otherwise = __impossible $ "Dargent.CodeGen.sizeToMask " ++ show n ++ ": n not in range [0, " ++ show wordSizeBits ++ "] after alignment"
