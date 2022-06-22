@@ -141,6 +141,8 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
     , Just m' <- elemIndex m primTypeCons
     , n' <= m' , not (m `elem` ["String","Bool"]) -> hoistMaybe $ Just []
 
+  WordSize (T (TCon n [] Unboxed)) | n `elem` words "U8 U16 U32 U64" -> hoistMaybe $ Just []
+
   Drop  (T (TRPar _ True _)) m -> hoistMaybe $ Just []
   Share (T (TRPar _ True _)) m -> hoistMaybe $ Just []
 

@@ -194,7 +194,6 @@ containsAllocVars = not . null . allocVars
 type Allocation = Allocation' DataLayoutPath
 
 
-
 -- | A range of bit indices into a data type.
 --
 --   Should satisfy the following properties:
@@ -270,7 +269,7 @@ alignOffsettable alignBitSize minBitOffset = offset (alignSize alignBitSize minB
 -- | Splits a 'BitRange' into an equivalent collection of 'AlignedBitRange's
 -- satisfying the conditions listed on 'AlignedBitRange'.
 rangeToAlignedRanges
-  :: Integer
+  :: Int
   -> BitRange
     -- Assumes 'bitSizeBR range >= 1'. If 'bitSizeBR range == 0', will return '[]'.
   -> [AlignedBitRange]

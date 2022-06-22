@@ -102,7 +102,7 @@ genTyDecl :: (StrlType, CId) -> [TypeName] -> ([CExtDecl], [CExtDecl])
 genTyDecl (Record x, n) _ = ([CDecl $ CStructDecl n (map (second Just . swap) x)], [genTySynDecl (n, CStruct n)])
 genTyDecl (RecordL layout, n) _ =
   let bitsize   = hiDataLayout layout
-      size      = dataLayoutSizeInWords layout
+      size      = fromIntegral $ dataLayoutSizeInWords layout
       arrayType = CArray dargentWordType (CArraySize $ CConst $ CNumConst size (CInt False CIntT) DEC)
   in if size == 0
        then ([],[])
@@ -133,13 +133,7 @@ genTySynDecl :: (TypeName, CType) -> CExtDecl
 genTySynDecl (n,t) = CDecl $ CTypeDecl t [n]
 
 dargentWordType :: CType
-dargentWordType = case wordSizeBits of
-                    8  -> CogentPrim U8
-                    16 -> CogentPrim U16
-                    32 -> CogentPrim U32
-                    64 -> CogentPrim U64
-                    _  -> __impossible "dargentWordType: word size invalid"
-
+dargentWordType = CogentPrim (UInt wordSizeBits)
 
 lookupStrlTypeCId :: StrlType -> Gen v (Maybe CId)
 lookupStrlTypeCId st = M.lookup st <$> use cTypeDefMap
@@ -381,7 +375,7 @@ genType t@(TArray elt l s _)
   | (Boxed _ al)      <- s = CIdent <$> typeCId (simplifyType t) -- we are going to declare it as a type
   | otherwise              = CIdent <$> typeCId t  -- if the array is unboxed, it's wrapped in a struct
 #endif
-genType t                               = CIdent <$> typeCId t
+genType t                  = CIdent <$> typeCId t
 
 registerGS :: CC.Type 'Zero VarName -> Gen v ()
 registerGS t@(TRecord _ _ (Boxed _ (Layout {}))) = do
@@ -436,7 +430,7 @@ genLExpr :: CC.LExpr 'Zero VarName -> Gen v CExpr
 genLExpr (LVariable var        ) = __todo "genLExpr"
 genLExpr (LFun      fn [] ls   ) = __todo "genLExpr"
 genLExpr (LFun      fn ts ls   ) = __todo "genLExpr"
-genLExpr (LOp       opr es     ) = genOp opr (CC.TPrim U32) <$> mapM genLExpr es  -- FIXME: we assume it's U32 for now / zilinc
+genLExpr (LOp       opr es     ) = genOp opr (CC.TPrim $ UInt 32) <$> mapM genLExpr es  -- FIXME: we assume it's U32 for now / zilinc
 genLExpr (LApp      e1 e2      ) = __todo "genLExpr"
 genLExpr (LCon      tag e t    ) = __todo "genLExpr"
 genLExpr (LUnit                ) = __todo "genLExpr"

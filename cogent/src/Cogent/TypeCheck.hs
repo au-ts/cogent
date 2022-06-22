@@ -65,7 +65,7 @@ tc ds cts ps = runTc (TcState M.empty knownTypes M.empty M.empty)
   -- \ ^^^ Note: It may be important that we do 'typecheckPragmas' after 'typecheck', as it relies on the updated state
   -- which includes the type synonyms / zilinc
   where
-    knownTypes = map (, ([], Nothing)) $ words "U8 U16 U32 U64 String Bool"
+    knownTypes = map (, ([], Nothing)) $ ['U':show x | x <- [1..64]] ++ words "String Bool"
 
 typecheck :: [(SourcePos, TopLevel LocType LocPatn LocExpr)]
           -> TcM [TopLevel DepType TypedPatn TypedExpr]
@@ -231,14 +231,15 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
 
     let ctx = C.addScope (fmap (\(t,e,p) -> (t, p, Seq.singleton p)) base) C.empty
     let ?loc = loc
-    (((clt,lts),(ct,t'),(c,alts')), flx, os) <- runCG ctx vs vs'
-                                        (do x <- validateTypes (stripLocT . snd <$> ls)
-                                            y@(ct,t') <- validateType t
-                                            -- we add our function to the known functions here so they can be recursive
-                                            let ls' = zip (map fst ls) (snd x)
-                                            lift $ knownFuns %= M.insert f (PT ps ls' t')
-                                            z <- cgFunDef alts t'
-                                            pure (x,y,z))
+    (((clt,lts),(ct,t'),(c,alts')), flx, os) <-
+      runCG ctx vs vs' $ do
+        x <- validateTypes (stripLocT . snd <$> ls)
+        y@(ct,t') <- validateType t
+        -- we add our function to the known functions here so they can be recursive
+        let ls' = zip (map fst ls) (snd x)
+        lift $ knownFuns %= M.insert f (PT ps ls' t')
+        z <- cgFunDef alts t'
+        pure (x,y,z)
     traceTc "tc" (text "constraint for fun definition" <+> pretty f <+> text "is"
                   L.<$> prettyC c)
     let ls' = zip (fst <$> ls) lts

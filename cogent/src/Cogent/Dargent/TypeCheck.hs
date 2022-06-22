@@ -19,7 +19,7 @@
 
 module Cogent.Dargent.TypeCheck where
 
-import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, Size, DLVarName, RepName)
+import Cogent.Common.Syntax (FieldName, TagName, DataLayoutName, DLVarName, RepName)
 import Cogent.Common.Types (Sigil)
 import Cogent.Compiler (__fixme, __impossible, __todo)
 import Cogent.Dargent.Allocation
@@ -28,11 +28,11 @@ import Cogent.Dargent.Util
 import Cogent.Surface (Type(..))
 import qualified Cogent.TypeCheck.LRow as LRow
 import Cogent.Util (WriterMaybe, tellEmpty, mapTells, third3, fourth4, fst3, thd3)
+import Data.Bwd
 
 import Control.Monad (guard, foldM, unless, when)
 import Control.Monad.Trans.Except
 import Data.Bifunctor (bimap, first, second)
-import Data.Bwd
 import Data.Data
 import qualified Data.Map as M
 import Data.List ((\\))
@@ -185,7 +185,7 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
   where
     desugar :: BitRange ->
                Bwd (TagName, SourcePos, Integer, DataLayoutExpr) ->
-               (TagName, SourcePos, Integer, DataLayoutExpr) ->
+                   (TagName, SourcePos, Integer, DataLayoutExpr) ->
                Bwd (TagName, SourcePos, Integer, DataLayoutExpr)
     desugar r cx x@(t, p, i, e) = switch e
       where
@@ -197,7 +197,7 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
       :: BitRange -- Of the variant's tag
       -> ([TCDataLayout], Allocation, Map Integer TagName)
       -- ^ The accumulated (list of layouts, allocation, set of used tag values) from already evaluated alternatives
-      -> (TagName, SourcePos, Size, DataLayoutExpr) -- The alternative to evaluate
+      -> (TagName, SourcePos, Integer, DataLayoutExpr) -- The alternative to evaluate
       -> Except DataLayoutTcError ([TCDataLayout], Allocation, Map Integer TagName)
 
     tcAlternative range (exprs, accumAlloc, accumTagValues) (tagName, pos, tagValue, expr) = do
@@ -206,7 +206,7 @@ tcDataLayoutExpr env vs (DLVariant tagExpr alts) =
       tagValues <- checkedTagValues
       return (expr' : exprs, alloc', tagValues)
       where
-        checkedTagValues :: Except DataLayoutTcError (Map Size TagName)
+        checkedTagValues :: Except DataLayoutTcError (Map Integer TagName)
         checkedTagValues
           | tagValue < 0 || tagValue >= 2 ^ bitSizeBR range =
             throwE $ OversizedTagValue (InAlt tagName pos PathEnd) range tagName tagValue
@@ -286,10 +286,10 @@ data DataLayoutTcErrorP p
   | TagLargerThanInt        p
   | TagNotSingleBlock       p
 
-  | SameTagValues           p TagName TagName Size
+  | SameTagValues           p TagName TagName Integer
     -- ^ Path to two tags in the same variant and their common value
 
-  | OversizedTagValue       p BitRange TagName Size
+  | OversizedTagValue       p BitRange TagName Integer
     -- ^ Used a tag value which is too large to fit in the variant's tag bit range
     -- Path to the variant, bits for its bit range, name of the alternative, it's tag value
 

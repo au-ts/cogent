@@ -550,10 +550,10 @@ eval (TE _ (App f e)) = do
 eval (TE _ (Con tn e t)) = VVariant tn <$> eval e
 eval (TE _ (Unit)) = return VUnit
 eval (TE _ (ILit n t))
-  | U8  <- t = return $ VInt (LU8  $ fromIntegral n)
-  | U16 <- t = return $ VInt (LU16 $ fromIntegral n)
-  | U32 <- t = return $ VInt (LU32 $ fromIntegral n)
-  | U64 <- t = return $ VInt (LU64 $ fromIntegral n)
+  | UInt 8  <- t = return $ VInt (LU8  $ fromIntegral n)
+  | UInt 16 <- t = return $ VInt (LU16 $ fromIntegral n)
+  | UInt 32 <- t = return $ VInt (LU32 $ fromIntegral n)
+  | UInt 64 <- t = return $ VInt (LU64 $ fromIntegral n)
   | Boolean <- t = return $ VBool (if n == 0 then False else True)
 eval (TE _ (SLit s)) = return $ VString s
 #ifdef BUILTIN_ARRAYS

@@ -206,6 +206,7 @@ data Constraint' t l = (:<) t t
                      | (:=:) t t
                      | (:&) (Constraint' t l) (Constraint' t l)
                      | Upcastable t t
+                     | WordSize t
                      | Share t Metadata
                      | Drop t Metadata
                      | Escape t Metadata
@@ -291,6 +292,7 @@ instance Bifunctor Constraint' where
   bimap f g (t1 :=: t2)        = (f t1) :=: (f t2)
   bimap f g (c1 :&  c2)        = (bimap f g c1) :& (bimap f g c2)
   bimap f g (Upcastable t1 t2) = Upcastable (f t1) (f t2)
+  bimap f g (WordSize t)       = WordSize (f t)
   bimap f g (Share t m)        = Share (f t) m
   bimap f g (Drop t m)         = Drop (f t) m
   bimap f g (Escape t m)       = Escape (f t) m
@@ -318,6 +320,7 @@ instance Bitraversable Constraint' where
   bitraverse f g (t1 :=: t2)        = (:=:) <$> f t1 <*> f t2
   bitraverse f g (c1 :&  c2)        = (:&)  <$> bitraverse f g c1 <*> bitraverse f g c2
   bitraverse f g (Upcastable t1 t2) = Upcastable <$> f t1 <*> f t2
+  bitraverse f g (WordSize t)       = WordSize <$> f t
   bitraverse f g (Share t m)        = Share <$> f t <*> pure m
   bitraverse f g (Drop t m)         = Drop  <$> f t <*> pure m
   bitraverse f g (Escape t m)       = Escape <$> f t <*> pure m

@@ -508,7 +508,6 @@ pushDown unused (EE ty (Cast ty' e) env)
     = let e' = pushDown unused e
        in EE ty (Cast ty' e') $ unused <|> env
 
-pushDown _ e = __impossible $ "pushDown:" ++ show (pretty e) ++ " is not yet implemented"
 
 treeSplit :: Maybe (Type t VarName) -> Maybe (Type t VarName) -> Maybe (Type t VarName) -> Maybe TypeSplitKind
 treeSplit Nothing  Nothing  Nothing  = Nothing
