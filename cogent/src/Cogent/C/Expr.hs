@@ -443,6 +443,7 @@ genExpr mv (TE t (Pop _ e1 e2)) = do  -- FIXME: varpool - as above
                    -- \ ^^^ v2[i] = e1'[i+1]
                    -- There's a strange bug: ghc doesn't deal with macros after a '
                    -- Running cpphs by hand is fine though.
+                   -- https://gitlab.haskell.org/ghc/ghc/-/issues/860 (opened 15 yrs ago) / zilinc (24/06/22)
   l' <- genLExpr l
   let cond = CBinOp C.Lt (CBinOp C.Add (variable i) (mkConst U32 1)) l'  -- i + 1 < l
       inc  = CAssign (variable i) (CBinOp C.Add (variable i) (mkConst U32 1))  -- i++
