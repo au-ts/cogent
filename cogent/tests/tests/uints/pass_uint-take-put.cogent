@@ -1,0 +1,6 @@
+foo : { x : U3, y : U4 } -> { x : U3, y : U4 }
+foo r = let r' {x} = r
+         in r' {x = truncate 4}
+
+bar : { x : U12, y : U29 } -> { x : U12, y : U29 }
+bar r = r {x = 4}

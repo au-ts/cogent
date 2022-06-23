@@ -371,7 +371,7 @@ desugarAlts e0@(B.TE t v@(S.Var _) _) (S.Alt (B.TP p1 pos1) l1 e1 : alts) =  -- 
     -- FIXME: could do better for PBoolLit because this one is easy to exhaust
     S.PBoolLit b -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (if b then 1 else 0) Boolean])))
                               <*> desugarExpr e1 <*> desugarAlts e0 alts)
-    S.PCharLit c -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (fromIntegral $ ord c) U8])))
+    S.PCharLit c -> E <$> (If <$> (E <$> (Op Eq <$> ((:) <$> desugarExpr e0 <*> pure [E $ ILit (fromIntegral $ ord c) (UInt 8)])))
                               <*> desugarExpr e1 <*> desugarAlts e0 alts)
     S.PIrrefutable _ -> __impossible "desugarAlts"
 desugarAlts e0 alts@(S.Alt _ _ e1:_) = do  -- e0 is not a var, so lift it
@@ -564,19 +564,13 @@ desugarAlt' e0 (S.PBoolLit b) e = desugarExpr e
 desugarAlt' _ _ _ = __impossible "desugarAlt' (_)"  -- literals that cannot be easily exhausted
 
 desugarPrimInt :: B.DepType -> PrimInt
-desugarPrimInt (B.DT (S.TCon "U8"   [] Unboxed)) = U8
-desugarPrimInt (B.DT (S.TCon "U16"  [] Unboxed)) = U16
-desugarPrimInt (B.DT (S.TCon "U32"  [] Unboxed)) = U32
-desugarPrimInt (B.DT (S.TCon "U64"  [] Unboxed)) = U64
+desugarPrimInt (B.DT (S.TCon c [] Unboxed)) | Just n <- S.isUInt c = UInt n
 desugarPrimInt (B.DT (S.TCon "Bool" [] Unboxed)) = Boolean
 desugarPrimInt t = __impossible $ "desugarPrimInt: " ++ show t
 
 desugarType :: B.DepType -> DS t l v (Type t VarName)
 desugarType = \case
-  B.DT (S.TCon "U8"     [] Unboxed) -> return $ TPrim U8
-  B.DT (S.TCon "U16"    [] Unboxed) -> return $ TPrim U16
-  B.DT (S.TCon "U32"    [] Unboxed) -> return $ TPrim U32
-  B.DT (S.TCon "U64"    [] Unboxed) -> return $ TPrim U64
+  B.DT (S.TCon c [] Unboxed) | Just n <- S.isUInt c -> return $ TPrim (UInt n)
   B.DT (S.TCon "Bool"   [] Unboxed) -> return $ TPrim Boolean
   B.DT (S.TCon "String" [] Unboxed) -> return $ TString
   B.DT (S.TBang (B.DT (S.TCon tn tvs Unboxed))) -> TSyn tn <$> mapM desugarType tvs <*> pure Unboxed <*> pure True
@@ -763,7 +757,7 @@ desugarExpr (B.TE t (S.IntLit n) _) = do
   te <- unfoldSynsShallowM t
   return $ E . ILit n $ desugarPrimInt te
 desugarExpr (B.TE _ (S.BoolLit b) _) = return $ E $ ILit (if b then 1 else 0) Boolean
-desugarExpr (B.TE _ (S.CharLit c) _) = return $ E $ ILit (fromIntegral $ ord c) U8
+desugarExpr (B.TE _ (S.CharLit c) _) = return $ E $ ILit (fromIntegral $ ord c) (UInt 8)
 desugarExpr (B.TE _ (S.StringLit s) _) = return $ E $ SLit s
 #ifdef BUILTIN_ARRAYS
 desugarExpr (B.TE _ (S.ArrayLit es) _) = E . ALit <$> mapM desugarExpr es
@@ -837,7 +831,7 @@ desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
       t' = B.DT (S.TRecord rp fs' s)
   desugarExpr $ B.TE t (S.Put (B.TE t' (S.Put e [fa]) l) fas) l
 desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
--- desugarExpr (B.TE t (S.Widen  e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
+desugarExpr (B.TE t (S.Truncate e) _) = E <$> (Truncate <$> desugarType t <*> desugarExpr e)
 desugarExpr (B.TE t (S.Annot e tau) _) = E <$> (Promote <$> desugarType tau <*> desugarExpr e)
   -- \ ^^^ NOTE [How to handle type annotations?]
   -- We need to insert a `Promote' node here, even the type of `e' is the same

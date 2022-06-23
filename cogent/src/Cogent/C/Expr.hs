@@ -129,7 +129,7 @@ genEnum = do
 
 -- NOTE: It's not used becuase it's defined in cogent-defns.h / zilinc
 genBool :: Gen v [CExtDecl]
-genBool = pure [ CDecl $ CStructDecl boolT [(CogentPrim U8, Just boolField)]
+genBool = pure [ CDecl $ CStructDecl boolT [(CogentPrim (UInt 8), Just boolField)]
                , CDecl $ CTypeDecl (CStruct boolT) [boolT]]
 
 -- NOTE: It's not used becuase it's defined in cogent-defns.h / zilinc
@@ -202,10 +202,10 @@ addSynonym f t n = do t' <- f t
 -- (type of assignee/r, assignee, assigner)
 assign :: CType -> CExpr -> CExpr -> Gen v ([CBlockItem], [CBlockItem])
 assign (CArray t (CArraySize l)) lhs rhs = do
-  (i,idecl,istm) <- declareInit u32 (mkConst U32 0) M.empty
+  (i,idecl,istm) <- declareInit u32 (mkConst (UInt 32) 0) M.empty
   (adecl,astm) <- assign t (CArrayDeref lhs (variable i)) (CArrayDeref rhs (variable i))
   let cond = CBinOp C.Lt (variable i) l
-      inc  = CAssign (variable i) (CBinOp C.Add (variable i) (mkConst U32 1))  -- i++
+      inc  = CAssign (variable i) (CBinOp C.Add (variable i) (mkConst (UInt 32) 1))  -- i++
       loop = CWhile cond (CBlock $ astm ++ [CBIStmt inc])
   return (idecl ++ adecl, istm ++ [CBIStmt loop])
 assign t lhs rhs = return ([], [CBIStmt $ CAssign lhs rhs])
@@ -797,12 +797,44 @@ genExpr mv (TE t (Split _ e1 e2)) = do
 genExpr mv (TE t (Promote _ e)) = genExpr mv e
 
 genExpr mv (TE t (Cast _ e)) = do   -- int promotion
+  let TPrim (UInt small) = exprType e
+      TPrim (UInt big  ) = t
   (e',edecl,estm,ep) <- genExpr_ e
   t' <- genType t
-  (v,adecl,astm,vp) <- flip (maybeAssign t' mv) ep $ CTypeCast t' e'
+  let big' = roundUpToWord big
+      toType = TPrim (UInt big')
+  toType' <- genType toType
+  let from = if small `elem` wordSizes
+                then e'
+                else strDot e' uintField
+      cast = CTypeCast toType' from
+      to   = if big `elem` wordSizes
+                then cast
+                else mkUIntLit big cast
+  (v,adecl,astm,vp) <- flip (maybeAssign t' mv) ep to
+  return (v, edecl++adecl, estm++astm, vp)
+
+genExpr mv (TE t (Truncate _ e)) = do
+  let TPrim (UInt big  ) = exprType e
+      TPrim (UInt small) = t
+  (e',edecl,estm,ep) <- genExpr_ e
+  t' <- genType t
+  let small' = roundUpToWord small
+      toType = TPrim (UInt small')
+  toType' <- genType toType
+  let from = if big `elem` wordSizes
+                then e'
+                else strDot e' uintField
+      cast = CTypeCast toType' (CBinOp C.And from $ CConst $ CNumConst (mkMask small') t' HEX)
+      to   = if small `elem` wordSizes
+                then cast
+                else mkUIntLit small cast
+  (v,adecl,astm,vp) <- flip (maybeAssign t' mv) ep to
   return (v, edecl++adecl, estm++astm, vp)
 
 
+mkMask :: Size -> Integer
+mkMask s = 2^s - 1
 
 insertSetMap :: Ord a => a -> Maybe (S.Set a) -> Maybe (S.Set a)
 insertSetMap x Nothing  = Just $ S.singleton x

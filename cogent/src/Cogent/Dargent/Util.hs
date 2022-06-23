@@ -23,9 +23,10 @@ byteSizeBits = 8
 
 pointerSizeBits, wordSizeBits :: Size
 pointerSizeBits = primIntSizeBits machineWordType
+-- vvv The size is already senitised by the Cogent.Compiler module when it's set
 wordSizeBits    = case __cogent_fdargent_word_size of
                     Nothing -> primIntSizeBits machineWordType
-                    Just s  -> fromIntegral s
+                    Just s  -> s
 
 
 -- When transforming (Offset repExpr offsetSize),

@@ -293,6 +293,7 @@ substituteLE vs = \case
   LPut rec f e       -> LPut (go rec) f (go e)
   LPromote t e       -> LPromote (substitute vs t) (go e)
   LCast t e          -> LCast (substitute vs t) (go e)
+  LTruncate t e      -> LTruncate (substitute vs t) (go e)
  where go = substituteLE vs
 
 remove :: (Eq a) => a -> [(a,b)] -> [(a,b)]
@@ -456,6 +457,7 @@ unfoldSynsDeepInTE d (TE t e) =
                Con tag e1 tt -> Con tag e1 (unfoldSynsDeep d tt)
                Promote tt e1 -> Promote (unfoldSynsDeep d tt) e1
                Cast tt e1 -> Cast (unfoldSynsDeep d tt) e1
+               Truncate tt e1 -> Truncate (unfoldSynsDeep d tt) e1
                _ -> e
     in TE (unfoldSynsDeep d t) $ fmapE (unfoldSynsDeepInTE d) e'
 
@@ -953,6 +955,12 @@ infer (E (Cast ty e))
         ty' <- unfoldSynsDeepM ty
         guardShow ("cast: " ++ show t' ++ " <<< " ++ show ty') =<< t' `isUpcastable` ty'
         return $ TE ty (Cast ty $ TE t e')
+infer (E (Truncate ty e))
+   = do (TE t e') <- infer e
+        t' <- unfoldSynsDeepM t
+        ty' <- unfoldSynsDeepM ty
+        guardShow ("truncate: " ++ show t' ++ " >>> " ++ show ty') =<< ty' `isUpcastable` t'
+        return $ TE ty (Truncate ty $ TE t e')
 infer (E (Promote ty e))
    = do (TE t e') <- infer e
         t' <- unfoldSynsDeepM t

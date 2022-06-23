@@ -112,7 +112,7 @@ repSize :: Parser DataLayoutSize
 repSize = avoidInitial >> buildExpressionParser [[Infix (reservedOp "+" *> pure Add) AssocLeft]] repSize'
 
 -- atomic expression: bits or bytes
-repSize' = avoidInitial >> natural >>= \n -> (Bits n <$ reserved "b") <|> (Bytes n <$ reserved "B")
+repSize' = avoidInitial >> (fromIntegral <$> natural) >>= \n -> (Bits n <$ reserved "b") <|> (Bytes n <$ reserved "B")
 
 repEndianness :: Parser Endianness
 repEndianness = (LE <$ reserved "LE" <|> BE <$ reserved "BE" <?> "endianness kind")
@@ -299,6 +299,7 @@ basicExpr m = do e <- basicExpr'
 basicExpr' = avoidInitial >> buildExpressionParser
             [ [postfix ((\f e -> LocExpr (posOfE e) (Member e f)) <$ reservedOp "." <*> variableName)]
             , [ Prefix (getPosition >>= \p -> reserved "upcast" *> pure (LocExpr p . Upcast))
+              , Prefix (getPosition >>= \p -> reserved "truncate" *> pure (LocExpr p . Truncate))
               , Prefix (getPosition >>= \p -> reserved "complement" *> pure (LocExpr p . PrimOp "complement" . (:[])))
               , Prefix (getPosition >>= \p -> reserved "not" *> pure (LocExpr p . PrimOp "not" . (:[])))
               , Infix funapp AssocLeft

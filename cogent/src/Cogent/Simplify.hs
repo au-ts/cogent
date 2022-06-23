@@ -166,6 +166,7 @@ markOcc sv (TE tau (Take (fn, recn) rec fld e)) = do
 markOcc sv (TE tau (Put rec fld e)) = TE tau <$> (Put <$> markOcc sv rec <*> pure fld <*> markOcc sv e)
 markOcc sv (TE tau (Promote t e)) = TE tau . Promote t <$> markOcc sv e
 markOcc sv (TE tau (Cast t e)) = TE tau . Cast t <$> markOcc sv e
+markOcc sv (TE tau (Truncate t e)) = TE tau . Truncate t <$> markOcc sv e
 
 branchEnv, concatEnv :: OccEnv v b -> OccEnv v b -> OccEnv v b
 branchEnv (fe, v) (fe', v') = (branchFuncEnv fe fe', V.zipWith parOcc v v')
@@ -371,6 +372,7 @@ simplExpr sv subst ins (TE tau (Take nn rec fld e)) cont = do  -- FIXME
 simplExpr sv subst ins (TE tau (Put rec fld e)) cont = TE tau <$> (Put <$> simplExpr sv subst ins rec cont <*> pure fld <*> simplExpr sv subst ins e cont)
 simplExpr sv subst ins (TE tau (Promote ty e)) cont = TE tau . Promote ty <$> simplExpr sv subst ins e cont
 simplExpr sv subst ins (TE tau (Cast ty e)) cont = TE tau . Cast ty <$> simplExpr sv subst ins e cont
+simplExpr sv subst ins (TE tau (Truncate ty e)) cont = TE tau . Truncate ty <$> simplExpr sv subst ins e cont
 
 -- Ininlining at occurrence site
 considerInline :: (v ~ 'Suc v') => SNat v -> InScopeSet t v b -> (OutVar v, VarName, Type t b) -> Context t v b -> Simp t b (OutExpr t v b)
@@ -434,6 +436,7 @@ noLinear (TE tau e) = (&&) <$> typeNotLinear tau <*> noLinear' e
     noLinear' (Put rec _ e) = (&&) <$> noLinear rec <*> noLinear e
     noLinear' (Promote ty e) = noLinear e
     noLinear' (Cast ty e) = noLinear e
+    noLinear' (Truncate ty e) = noLinear e
 
 noWorkDup :: OutExpr t v b -> Bool
 noWorkDup _ = __fixme False
@@ -493,7 +496,8 @@ lowerExpr w i (TE tau (Member rec fld))     = TE tau $ Member (lowerExpr w i rec
 lowerExpr w i (TE tau (Take a rec fld e))   = TE tau $ Take a (lowerExpr w i rec) fld (lowerExpr (SSuc (SSuc w)) (FSuc (FSuc i)) e)
 lowerExpr w i (TE tau (Put rec fld e))      = TE tau $ Put (lowerExpr w i rec) fld (lowerExpr w i e)
 lowerExpr w i (TE tau (Promote ty e))       = TE tau $ Promote ty (lowerExpr w i e)
-lowerExpr w i (TE tau (Cast ty e))       = TE tau $ Cast ty (lowerExpr w i e)
+lowerExpr w i (TE tau (Cast ty e))          = TE tau $ Cast ty (lowerExpr w i e)
+lowerExpr w i (TE tau (Truncate ty e))      = TE tau $ Truncate ty (lowerExpr w i e)
 
 liftExpr :: Show a => Fin ('Suc v) -> TypedExpr t v a b -> TypedExpr t ('Suc v) a b
 liftExpr i (TE tau (Variable (v,a)))     = TE tau $ Variable (liftIdx i v,a)
@@ -517,6 +521,7 @@ liftExpr i (TE tau (Take a rec fld e))   = TE tau $ Take a (liftExpr i rec) fld 
 liftExpr i (TE tau (Put rec fld e))      = TE tau $ Put (liftExpr i rec) fld (liftExpr i e)
 liftExpr i (TE tau (Promote ty e))       = TE tau $ Promote ty (liftExpr i e)
 liftExpr i (TE tau (Cast ty e))          = TE tau $ Cast ty (liftExpr i e)
+liftExpr i (TE tau (Truncate ty e))      = TE tau $ Truncate ty (liftExpr i e)
 
 upshiftExpr :: Show a => SNat n -> SNat v -> Fin ('Suc v) -> TypedExpr t v a b -> TypedExpr t (v :+: n) a b
 upshiftExpr SZero _ v e = e
@@ -601,6 +606,7 @@ betaR (TE tau (Take a rec fld e)) idx n arg ts = TE (substitute ts tau) <$> (Tak
 betaR (TE tau (Put rec fld e))    idx n arg ts = TE (substitute ts tau) <$> (Put <$> betaR rec idx n arg ts <*> pure fld <*> betaR e idx n arg ts)
 betaR (TE tau (Promote ty e))     idx n arg ts = TE (substitute ts tau) <$> (Promote (substitute ts ty) <$> betaR e idx n arg ts)
 betaR (TE tau (Cast ty e))        idx n arg ts = TE (substitute ts tau) <$> (Cast (substitute ts ty) <$> betaR e idx n arg ts)
+betaR (TE tau (Truncate ty e))    idx n arg ts = TE (substitute ts tau) <$> (Truncate (substitute ts ty) <$> betaR e idx n arg ts)
 #if __GLASGOW_HASKELL__ < 711
 betaR _ _ _ _ _ = __ghc_t4139 "betaR"
 #endif

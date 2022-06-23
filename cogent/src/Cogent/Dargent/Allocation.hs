@@ -180,11 +180,11 @@ overlaps (BitRange s1 o1) (BitRange s2 o2) =
 isZeroSizedAllocation :: Allocation' p -> Bool
 isZeroSizedAllocation = all (isZeroSizedBR . fst) . unAllocation
 
-beginningOfAllocation :: Allocation -> Integer
+beginningOfAllocation :: Allocation -> Int
 beginningOfAllocation (Allocation []) = 0
 beginningOfAllocation (Allocation abs) = minimum $ fmap (\(BitRange s o, _) -> o) abs
 
-endOfAllocation :: Allocation -> Integer  -- calculates the last bit of an allocation
+endOfAllocation :: Allocation -> Int  -- calculates the last bit of an allocation
 endOfAllocation (Allocation []) = 0
 endOfAllocation (Allocation abs) = maximum $ fmap (\(BitRange s o, _) -> s + o) abs
 
@@ -267,7 +267,7 @@ alignOffsettable alignBitSize minBitOffset = offset (alignSize alignBitSize minB
 -- | Splits a 'BitRange' into an equivalent collection of 'AlignedBitRange's
 -- satisfying the conditions listed on 'AlignedBitRange'.
 rangeToAlignedRanges
-  :: Integer
+  :: Int
   -> BitRange
     -- Assumes 'bitSizeBR range >= 1'. If 'bitSizeBR range == 0', will return '[]'.
   -> [AlignedBitRange]
