@@ -20,7 +20,7 @@ import Cogent.C.Monad
 import Cogent.C.Type (genType, typeCId, simplifyType)
 import Cogent.C.Syntax
 import Cogent.Common.Syntax (FieldName, FunName, funNameToCoreFunName, GetOrSet(..), VarName, Size)
-import Cogent.Common.Types (Sigil(..))
+import Cogent.Common.Types (Sigil(..), roundUpToWord, wordSizes)
 import Cogent.Compiler
   ( __fixme
   , __impossible
@@ -46,7 +46,7 @@ import Data.Char
 
 import Control.Monad (forM, when)
 import Control.Monad.Writer.Class (tell)
-import Data.List as L (foldl', lookup, scanl')
+import Data.List as L (elemIndex, foldl', lookup, scanl')
 import Data.Map as M
   ( Map
   , (!)
@@ -635,6 +635,8 @@ toIntValue (CInt _ _) cexpr               = cexpr
 toIntValue (CIdent t) cexpr
   | t == boolT                            = CStructDot cexpr boolField
   | t `elem` ["u8", "u16", "u32", "u64"]  = cexpr
+  | t `elem` [uintT x | x <- [1..64], x `notElem` wordSizes]
+                                          = CStructDot cexpr uintField
 toIntValue _          cexpr               = CTypeCast archCTy cexpr
 
 fromIntValue :: CType -> CExpr -> CExpr
@@ -642,6 +644,9 @@ fromIntValue (CInt _ _)     cexpr         = cexpr
 fromIntValue (CIdent t)     cexpr
   | t == boolT                            = CCompLit boolCTy [([CDesignFld boolField], CInitE cexpr)]
   | t `elem` ["u8", "u16", "u32", "u64"]  = cexpr
+  | Just x <- t `elemIndex` [uintT x | x <- [1..64]]
+  , x `notElem` (((-) 1) <$> wordSizes)   = CCompLit (CIdent $ uintT (x + 1)) [([CDesignFld uintField], CInitE cexpr)]
+
 fromIntValue ctype          cexpr         = CTypeCast ctype cexpr
 
 -- | Given the 'CType' of an embedded value (leaf of composite type tree) to extract,
@@ -652,6 +657,8 @@ intTypeForType (CIdent t)
   | t == boolT                            = charCTy  -- embedded boolean
   | t == tagsT                            = uintCTy
   | t `elem` ["u8", "u16", "u32", "u64"]  = CIdent t
+  | Just x <- t `elemIndex` [uintT x | x <- [1..64]]
+  , x `notElem` (((-) 1) <$> wordSizes)   = CIdent $ 'u' : show (roundUpToWord (x + 1))
 intTypeForType _                          = archCTy  -- embedded boxed abstract type/record
 
 type IsStruct = Bool
