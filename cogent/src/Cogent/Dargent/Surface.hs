@@ -70,7 +70,7 @@ data DataLayoutExpr' e
   | Record  [(FieldName, SourcePos, e)]
   | Variant e [(TagName, SourcePos, Integer, e)]
 #ifdef BUILTIN_ARRAYS
-  | Array   e Integer SourcePos  -- for now use int for length
+  | Array   e Int SourcePos  -- for now use int for length
 #endif
   | Offset  e DataLayoutSize
   | Endian  e Endianness

@@ -772,7 +772,7 @@ instance (Pretty b) => Pretty (LExpr t b) where
   pretty (LPut rec f v) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
   pretty (LPromote t e) = prettyPrec 1 e <+> symbol ":⇑" <+> pretty t
   pretty (LCast t e) = prettyPrec 1 e <+> symbol ":↑" <+> pretty t
-  pretty (LTruncate t e) = prettyPrec 1 e <$> symbol ":↓" <+> pretty t
+  pretty (LTruncate t e) = prettyPrec 1 e L.<$> symbol ":↓" <+> pretty t
 #endif
 
 
