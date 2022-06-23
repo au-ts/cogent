@@ -60,7 +60,7 @@ data DataLayout' bits
     { fieldsDL        :: Map FieldName (DataLayout' bits)
     }
 #ifdef BUILTIN_ARRAYS
-  | ArrayLayout (DataLayout' bits) Integer
+  | ArrayLayout (DataLayout' bits) Int
 #endif
   | VarLayout Nat Size  -- the second argument remembers the pending offset (always in bits)
   deriving (Show, Eq, Functor, Foldable, Generic)
