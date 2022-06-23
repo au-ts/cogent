@@ -438,8 +438,11 @@ genExpr mv (TE t (Pop _ e1 e2)) = do  -- FIXME: varpool - as above
   -- start a for-loop to copy element-by-element the rest elements in @e1@
   (i,idecl,istm) <- declareInit u32 (mkConst U32 0) M.empty  -- i = 0;
   (adecl,astm) <- assign telt' (CArrayDeref (strDot' v2 arrField) (variable i))
-                               (CArrayDeref (strDot e1' arrField) ((CBinOp C.Add (variable i) (mkConst U32 1))))
+                               (CArrayDeref (strDot e1' arrField)
+                                 ((CBinOp C.Add (variable i) (mkConst U32 1))))
                    -- \ ^^^ v2[i] = e1'[i+1]
+                   -- There's a strange bug: ghc doesn't deal with macros after a '
+                   -- Running cpphs by hand is fine though.
   l' <- genLExpr l
   let cond = CBinOp C.Lt (CBinOp C.Add (variable i) (mkConst U32 1)) l'  -- i + 1 < l
       inc  = CAssign (variable i) (CBinOp C.Add (variable i) (mkConst U32 1))  -- i++
