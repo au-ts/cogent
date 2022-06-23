@@ -34,7 +34,7 @@ gen-anti:
                 --infer-c-funcs="$(ACFILES)" \
 								--cpp="$(CPP)" \
                 --cpp-args="-x c \$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
-                --entry-funcs=entry.cfg \
+								--entry-funcs=entry.cfg
 
 manual:
 	$(CC) main.c -I$(LIBGUM) -o bitfields-manual

@@ -195,6 +195,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
 
   TLPrim n       :~ T TUnit | evalSize n >= 0 -> hoistMaybe $ Just []
   TLPrim n       :~ T (TCon c ts Unboxed) | c `notElem` primTypeCons -> hoistMaybe $ Just []
+                    -- ^^^ Abstract types
   TLPrim n       :~ tau
     | isPrimType tau
     , primTypeSize tau == evalSize n
@@ -431,10 +432,7 @@ isBoxedType (A _ _ (Left (Boxed {})) _) = True
 isBoxedType _ = False
 
 primTypeSize :: TCType -> Size
-primTypeSize (T (TCon "U8"   [] Unboxed)) = 8
-primTypeSize (T (TCon "U16"  [] Unboxed)) = 16
-primTypeSize (T (TCon "U32"  [] Unboxed)) = 32
-primTypeSize (T (TCon "U64"  [] Unboxed)) = 64
+primTypeSize (T (TCon c [] Unboxed)) | Just x <- c `L.elemIndex` primTypeCons, x < 64 = x + 1
 primTypeSize (T (TCon "Bool" [] Unboxed)) = 1
 primTypeSize (T (TBang t))                = primTypeSize t
 primTypeSize (T (TUnbox t))               = primTypeSize t
