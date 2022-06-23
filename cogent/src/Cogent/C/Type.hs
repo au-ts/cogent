@@ -393,7 +393,7 @@ registerGS _ = return ()
 simplifyType :: CC.Type 'Zero VarName -> CC.Type 'Zero VarName
 #ifdef BUILTIN_ARRAYS
 simplifyType (TArray elt _ (Boxed rw (Layout l@(ArrayLayout {}))) _) =
-    TArray elt (LILit 0 U32) (Boxed rw (Layout l)) Nothing
+    TArray elt (LILit 0 (UInt 32)) (Boxed rw (Layout l)) Nothing
 #endif
 -- In the C code, we don't care whether records are readonly or not (at least for recursive types). Thus, we only generate one type of record /emmetm
 simplifyType (TRecord rp fs s) =
@@ -430,7 +430,7 @@ genLExpr :: CC.LExpr 'Zero VarName -> Gen v CExpr
 genLExpr (LVariable var        ) = __todo "genLExpr"
 genLExpr (LFun      fn [] ls   ) = __todo "genLExpr"
 genLExpr (LFun      fn ts ls   ) = __todo "genLExpr"
-genLExpr (LOp       opr es     ) = genOp opr (CC.TPrim $ UInt 32) <$> mapM genLExpr es  -- FIXME: we assume it's U32 for now / zilinc
+genLExpr (LOp       opr es     ) = genOp opr (CC.TPrim $ UInt 32) <$> mapM genLExpr es  -- FIXME: we assume it's UInt 32 for now / zilinc
 genLExpr (LApp      e1 e2      ) = __todo "genLExpr"
 genLExpr (LCon      tag e t    ) = __todo "genLExpr"
 genLExpr (LUnit                ) = __todo "genLExpr"
