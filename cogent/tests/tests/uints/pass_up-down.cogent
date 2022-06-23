@@ -1,0 +1,5 @@
+up : U7 -> U8
+up x = upcast x
+
+down : U16 -> U14
+down x = truncate x
