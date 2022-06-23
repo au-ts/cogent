@@ -250,7 +250,7 @@ deepExpr mod ta defs (TE _ (Cast t e))
        else mkApp (mkId "CustomUCast") [deepNumType pt', deepExpr mod ta defs e]
 deepExpr mod ta defs (TE _ (Truncate t e))
   | TE (TPrim (UInt big)) _ <- e, TPrim (UInt small) <- t
-  = mkApp (mkId "CumtomDCast") [mkInt small, deepExpr mod ta defs e]
+  = mkApp (mkId "CustomDCast") [mkInt small, deepExpr mod ta defs e]
 deepExpr mod ta defs (TE _ e) = __todo $ "deepExpr: " ++ show (pretty e)
 
 deepKind :: Kind -> Term
