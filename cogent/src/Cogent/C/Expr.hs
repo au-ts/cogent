@@ -95,9 +95,11 @@ import           Prelude             as P     hiding (mapM)
 import           System.IO (Handle, hPutChar)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 
-
 -- import Debug.Trace
 import Unsafe.Coerce (unsafeCoerce)
+
+#define U32 (UInt 32)
+
 
 recycleVars :: VarPool -> Gen v ()
 recycleVars pool =
@@ -202,10 +204,10 @@ addSynonym f t n = do t' <- f t
 -- (type of assignee/r, assignee, assigner)
 assign :: CType -> CExpr -> CExpr -> Gen v ([CBlockItem], [CBlockItem])
 assign (CArray t (CArraySize l)) lhs rhs = do
-  (i,idecl,istm) <- declareInit u32 (mkConst (UInt 32) 0) M.empty
+  (i,idecl,istm) <- declareInit u32 (mkConst U32 0) M.empty
   (adecl,astm) <- assign t (CArrayDeref lhs (variable i)) (CArrayDeref rhs (variable i))
   let cond = CBinOp C.Lt (variable i) l
-      inc  = CAssign (variable i) (CBinOp C.Add (variable i) (mkConst (UInt 32) 1))  -- i++
+      inc  = CAssign (variable i) (CBinOp C.Add (variable i) (mkConst U32 1))  -- i++
       loop = CWhile cond (CBlock $ astm ++ [CBIStmt inc])
   return (idecl ++ adecl, istm ++ [CBIStmt loop])
 assign t lhs rhs = return ([], [CBIStmt $ CAssign lhs rhs])
@@ -801,8 +803,7 @@ genExpr mv (TE t (Cast _ e)) = do   -- int promotion
       TPrim (UInt big  ) = t
   (e',edecl,estm,ep) <- genExpr_ e
   t' <- genType t
-  let big' = roundUpToWord big
-      toType = TPrim (UInt big')
+  let toType = TPrim (UInt $ roundUpToWord big)
   toType' <- genType toType
   let from = if small `elem` wordSizes
                 then e'
@@ -819,13 +820,12 @@ genExpr mv (TE t (Truncate _ e)) = do
       TPrim (UInt small) = t
   (e',edecl,estm,ep) <- genExpr_ e
   t' <- genType t
-  let small' = roundUpToWord small
-      toType = TPrim (UInt small')
+  let toType = TPrim (UInt $ roundUpToWord small)
   toType' <- genType toType
   let from = if big `elem` wordSizes
                 then e'
                 else strDot e' uintField
-      cast = CTypeCast toType' (CBinOp C.And from $ CConst $ CNumConst (mkMask small') t' HEX)
+      cast = CTypeCast toType' (CBinOp C.And from $ CConst $ CNumConst (mkMask small) t' HEX)
       to   = if small `elem` wordSizes
                 then cast
                 else mkUIntLit small cast
