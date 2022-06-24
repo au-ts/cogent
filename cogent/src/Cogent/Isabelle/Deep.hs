@@ -173,9 +173,9 @@ deepExpr mod ta defs (TE _ (Struct fs))
 deepExpr mod ta defs (TE _ (Member e fld))
   = mkApp (mkId "Member") [deepExpr mod ta defs e, mkInt (fromIntegral fld)]
 deepExpr mod ta defs (TE _ (Unit)) = mkId "Unit"
-deepExpr mod ta defs (TE _ (ILit n pt@(UInt s)))
-  | s `elem` wordSizes = mkApp (mkId "Lit") [deepILit n pt]
-  | otherwise = mkApp (mkId "CustomInt") [mkInt s, mkInt n]
+deepExpr mod ta defs (TE _ (ILit n pt))
+  | UInt s <- pt, s `notElem` wordSizes = mkApp (mkId "CustomInt") [mkInt s, mkInt n]
+  | otherwise = mkApp (mkId "Lit") [deepILit n pt]
 deepExpr mod ta defs (TE _ (SLit s)) = __fixme $ mkApp (mkId "SLit") [mkString s]  -- FIXME: there's no @SLit@ in the Isabelle definition at the moment / zilinc
 deepExpr mod ta defs (TE _ (Tuple e1 e2))
   = mkApp (mkId "Tuple") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
