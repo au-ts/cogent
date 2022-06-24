@@ -23,7 +23,7 @@ module Cogent.TypeCheck (
 ) where
 
 import Cogent.Common.Syntax (Pragma(..))
-import Cogent.Common.Types (k2)
+import Cogent.Common.Types (k2, primTypeCons)
 import Cogent.Compiler
 import qualified Cogent.Context as C
 import Cogent.Dargent.TypeCheck
@@ -82,6 +82,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (TypeDec n vs (stripLocT -> t)) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck type definition" <+> pretty n)
+    when (n `elem` primTypeCons) $ logErrExit $ RedefiningPrimType n
     let xs = vs \\ nub vs
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     base <- lift . lift $ use knownConsts
@@ -103,6 +104,7 @@ checkOne loc d = lift (errCtx .= [InDefinition loc d]) >> case d of
   (AbsTypeDec n vs (map stripLocT -> ts)) -> do
     traceTc "tc" $ bold (text $ replicate 80 '=')
     traceTc "tc" (text "typecheck abstract type definition" <+> pretty n)
+    when (n `elem` primTypeCons) $ logErrExit $ RedefiningPrimType n
     let xs = vs \\ nub vs
     unless (null xs) $ logErrExit $ DuplicateTypeVariable xs
     base <- lift . lift $ use knownConsts

@@ -759,6 +759,7 @@ instance Pretty TypeError where
   pretty (TypeVariableNotDeclared vs)    = err "Type variable(s) not declared" <+> commaList (map typevar vs)
   pretty (DuplicateRecordFields fs)      = err "Duplicate record field(s)" <+> commaList (map fieldname fs)
   pretty (FunctionNotFound fn)           = err "Function" <+> funname fn <+> err "not found"
+  pretty (RedefiningPrimType tn)         = err "Redefining primitive type" <+> typename tn
   pretty (TooManyTypeArguments fn pt)    = err "Too many type arguments to function"
                                            <+> funname fn <+> err "of type" <+> pretty pt
   pretty (TooManyLayoutArguments fn pt)  = err "Too many layout arguments to function"
