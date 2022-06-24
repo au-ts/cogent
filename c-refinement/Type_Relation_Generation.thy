@@ -155,6 +155,23 @@ fun type_rel_def file_name uval ctxt =
   val _ = tracing ("generating type_rel for " ^ (get_uval_name uval))
  in lthy' end;
 
+(* For custom sized integers *)
+fun type_rel_custom_num_def n ctxt =
+ let
+
+  val ty_name = get_custom_num_ty_nm_C n
+  val ty      = Syntax.read_typ ctxt (ty_name ^ " itself") ;
+  val lhs     = strip_atype @{term "type_rel"} $ Free ("ty", dummyT) $ Free("tag", ty);
+  val rhs     = HOLogic.mk_eq (Free ("ty", dummyT), @{term RCustomNum} $ HOLogic.mk_number @{typ nat} n);
+  val equ     = mk_eq_tm lhs rhs ctxt;
+  val type_rel_name = "type_rel_" ^ ty_name ^"_def";
+  val spec_def = Specification.definition NONE [] [] ((Binding.name type_rel_name, []), equ) ctxt;
+  val thm      = spec_def |> fst |> snd |> snd;
+  val lthy     = snd spec_def;
+  val lthy'    = TypeRelSimp.add_local thm lthy;
+  (* val _ = tracing ("generating type_rel for " ^ ty_name) *)
+ in lthy' end;
+
 end;
 \<close>
 

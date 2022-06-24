@@ -423,9 +423,8 @@ else if s > 16 then Some (LU32 (of_nat v))
 else if s > 8 then Some (LU16 (of_nat v))
 else Some (LU8 (of_nat v))
 )"
-
-fun custom_dcast_to_word :: "nat \<Rightarrow> ('a :: len0) word \<Rightarrow> nat option" where
-  "custom_dcast_to_word s v = Some (nat ((uint v) AND 2^s - 1))"
+fun custom_dcast_to_word :: "nat \<Rightarrow> ('a :: len) word \<Rightarrow> nat option" where
+  "custom_dcast_to_word s v = Some (unat (v AND mask s))"
 
 fun custom_dcast_to :: "nat \<Rightarrow> lit \<Rightarrow> nat option" where
   "custom_dcast_to s (LU8  v) = custom_dcast_to_word s v"
@@ -448,7 +447,8 @@ datatype 'f expr = Var index
                  | Member "'f expr" field
                  | Unit
                  | Lit lit
-                         (* the size *) (* the value*)
+                  (* redundant with CustomDCast (Lit -)*)
+                         (* the size *) (* the value*)                  
                  | CustomInt nat nat
                  | SLit string
                  | Cast num_type "'f expr"

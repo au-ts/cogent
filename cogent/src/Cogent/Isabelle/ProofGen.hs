@@ -410,16 +410,17 @@ typing xi nl k cs (EE u (Cast t e) env)
   | otherwise
   = tacSequence [
       return [rule "typing_custom_ucast"],
-      typing xi nl k cs e,
-      return [simp_solve]
+      typing xi nl k cs e,  --  Ξ, L, K, C, Γ ⊢ e : TCustomNum n
+      return [simp_solve] --  τ = custom_upcast_target n
       ]
 
 typing xi nl k cs (EE u (Truncate t e) env)
   | EE (TPrim pt) _ _ <- e, TPrim pt' <- t, pt /= Boolean
   = tacSequence [
       return [rule "typing_custom_dcast"],
-      typing xi nl k cs e,
-      return [simp_solve]
+      typing xi nl k cs e, --  Ξ, L, K, C, Γ ⊢ e : TPrim (Num τ)
+      return [simp_solve], -- τ = custom_upcast_target n
+      return [simp_solve] -- n ≤ 64
       ]
 -- >>>>>>> nicta/n-size-ints
 

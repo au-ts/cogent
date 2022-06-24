@@ -16,6 +16,13 @@ imports
  Type_Relation_Generation
 begin
 
+ML \<open>
+(* For custom sized integers *)
+fun val_rel_type_rel_custom_num_def n lthy = lthy
+  |> type_rel_custom_num_def n
+  |> val_rel_custom_num_def n
+\<close>
+
 ML\<open> fun local_setup_val_rel_type_rel_put_them_in_buckets file_nm ctxt =
 (* local_setup_val_rel_type_rel defines and registers all the necessary val_rels and type_rels.*)
  let
@@ -38,8 +45,19 @@ ML\<open> fun local_setup_val_rel_type_rel_put_them_in_buckets file_nm ctxt =
                get_uvals_for_which_ac_mk_st_info file_nm thy;
 
   val lthy' = local_setup_val_rel_type_rel' uvals ctxt;
+  val _ = tracing "Generating val_rel and type_rel for custom sized integers"
+  fun make_custom_num_val_rel n ctxt =
+    if n = 0 then ctxt else
+     make_custom_num_val_rel (n - 1)
+    (
+ if n = 32 orelse n = 16 orelse n = 8 then ctxt else
+  local_setup_instantiation_definition_instance_if_needed
+      (get_custom_num_ty_nm_C n) "cogent_C_val" is_cogent_C_val
+       (val_rel_type_rel_custom_num_def n)
+  ctxt)
+     
  in
-  lthy'
+  make_custom_num_val_rel 63 lthy'
  end;
 \<close>
 

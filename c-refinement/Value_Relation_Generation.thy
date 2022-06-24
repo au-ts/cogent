@@ -122,6 +122,29 @@ fun val_rel_def file_name uval ctxt =
   val _ = tracing ("generating val_rel for " ^ (get_uval_name uval))
  in lthy' end;
 
+(* For custom sized integers *)
+fun val_rel_custom_num_def n ctxt =
+ let
+  val ty_name = get_custom_num_ty_nm_C n
+  val c_type  = Syntax.read_typ ctxt ty_name;
+  val field_getter = Syntax.read_term ctxt (ty_name ^ "." ^ custom_num_field_nm_C)
+  val lhs = @{term "val_rel"} $ Free ("uv", dummyT) $ Free("x",c_type);
+(* 
+ update_sem_init.val_rel_custom_int 7 u7_t_C.uint_C uv x
+*)
+  val rhs = @{term update_sem_init.val_rel_custom_int}
+         $ HOLogic.mk_number @{typ nat} n $ field_getter
+         $ Free ("uv", dummyT)
+         $ Free ("x", c_type)
+  val equ = mk_eq_tm lhs rhs ctxt;
+  val val_rel_name = "val_rel_" ^ ty_name ^"_def";
+  val spec_def     = Specification.definition NONE [] [] ((Binding.name (val_rel_name), []), equ) ctxt;
+  val thm     = spec_def |> fst |> snd |> snd;
+  val lthy    = snd spec_def;
+  val lthy'   = ValRelSimp.add_local thm lthy      
+  (* val _ = tracing ("generating val_rel for " ^ ty_name) *)
+ in lthy' end;
+
 end;
 \<close>
 
