@@ -44,7 +44,7 @@ gen-anti:
                 --infer-c-types="$(AHFILES)" \
                 --Wno-warn --infer-c-funcs="$(ACFILES)" \
                 --cpp-args="-E -x c \$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
-								--cpp=$(CC) \
+								--cpp=$(CPP) \
                 --entry-funcs=entrypoints.cfg \
 
 clean:

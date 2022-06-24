@@ -42,6 +42,7 @@ CFLAGS=-I. -I$(LIBGUM) -I$(LIBGUM)/gum/anti -std=gnu99 -I$(BUILD_DIR)
 COGENT_FLAGS=--Wno-warn \
 			 --root-dir="$(REPO)" \
 			 --dist-dir=$(BUILD_DIR) \
+			 --cpp="$(CPP)" \
 			 --cpp-args="\$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
 
 .PHONY: default all clean main
