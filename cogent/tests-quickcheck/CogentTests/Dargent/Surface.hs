@@ -32,7 +32,7 @@ instance Arbitrary DataLayoutSize where
 instance Arbitrary DataLayoutExpr where
   arbitrary = sized genDataLayoutExpr
 
-genDataLayoutExpr :: Int -> Gen DataLayoutExpr
+genDataLayoutExpr :: Size -> Gen DataLayoutExpr
 genDataLayoutExpr size = oneof
   [ genPrim size
   , genRecord size
@@ -40,13 +40,13 @@ genDataLayoutExpr size = oneof
   , genVariant size
   ]
   where
-    genPrim :: Int -> Gen DataLayoutExpr
+    genPrim :: Size -> Gen DataLayoutExpr
     genPrim size = DL . Prim <$> arbitrary
 
-    genRecord :: Int -> Gen DataLayoutExpr
+    genRecord :: Size -> Gen DataLayoutExpr
     genRecord size = DL . Record <$> genFields size
 
-    genFields :: Int -> Gen [(FieldName, SourcePos, DataLayoutExpr)]
+    genFields :: Size -> Gen [(FieldName, SourcePos, DataLayoutExpr)]
     genFields size = do
       fieldSize <- choose (0, size)
       if fieldSize == 0
@@ -57,14 +57,14 @@ genDataLayoutExpr size = oneof
           fieldDataLayoutExpr <- genDataLayoutExpr fieldSize
           return $ (fieldName, noPos, fieldDataLayoutExpr) : otherFields
 
-    genVariant :: Int -> Gen DataLayoutExpr
+    genVariant :: Size -> Gen DataLayoutExpr
     genVariant size = do
       tagSize <- choose (0, size)
       tagExpr <- genPrim tagSize
       alternatives <- genAlternatives (size - tagSize)
       return $ DL $ Variant tagExpr alternatives
 
-    genAlternatives :: Int -> Gen [(TagName, SourcePos, Size, DataLayoutExpr)]
+    genAlternatives :: Size -> Gen [(TagName, SourcePos, Integer, DataLayoutExpr)]
     genAlternatives size = do
       altSize <- choose (0, size)
       if altSize == 0
@@ -76,6 +76,6 @@ genDataLayoutExpr size = oneof
           altDataLayoutExpr <- genDataLayoutExpr altSize
           return $ (altName, noPos, altValue, altDataLayoutExpr) : otherAlts
 
-    genOffset :: Int -> Gen DataLayoutExpr
+    genOffset :: Size -> Gen DataLayoutExpr
     genOffset size = DL <$> (Offset <$> genDataLayoutExpr size <*> arbitrary)
 

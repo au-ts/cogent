@@ -123,16 +123,16 @@ genSumLayout maxBitIndex maxSize alloc =
       first swizzle <$> genAlts (maxSize - maxTagSize) (noAlts - 1) ([],alloc'') alloc''
     return (SumLayout tagBitRange alts, alloc''')
   where
-    swizzle :: [(TagName, Size, DataLayout' BitRange)] ->
-      Map TagName (Size, DataLayout' BitRange)
+    swizzle :: [(TagName, Integer, DataLayout' BitRange)] ->
+      Map TagName (Integer, DataLayout' BitRange)
     swizzle ts = M.fromList $ map (\(t,p,d) -> (t,(p,d))) ts
 
     genAlts
       :: Size     -- max allowed total bit size for remaining constrs.
-      -> Size     -- tag value for alternative
-      -> ([(TagName, Size, DataLayout' BitRange)], Allocation) -- accumlated state
+      -> Integer  -- tag value for alternative
+      -> ([(TagName, Integer, DataLayout' BitRange)], Allocation) -- accumlated state
       -> Allocation -- tag allocation
-      -> Gen ([(TagName, Size, DataLayout' BitRange)], Allocation)
+      -> Gen ([(TagName, Integer, DataLayout' BitRange)], Allocation)
 
     genAlts _ tag (ts,alloc) _ | tag < 0 = return (ts, alloc)
 

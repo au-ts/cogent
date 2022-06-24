@@ -46,4 +46,4 @@ genLayoutableType size =
       (,) <$> arbitrary <*> ((,) <$> genLayoutableType fieldSize <*> arbitrary)
 
 instance Arbitrary PrimInt where
-  arbitrary = elements [U8, U16, U32, U64, Boolean]
+  arbitrary = elements $ Boolean : [UInt x | x <- [1..64]]
