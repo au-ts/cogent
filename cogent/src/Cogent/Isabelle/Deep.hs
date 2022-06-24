@@ -64,9 +64,9 @@ deepTypeInner mod ta (TVar v) = mkApp (mkId "TVar") [deepIndex v]
 deepTypeInner mod ta (TVarBang v) = mkApp (mkId "TVarBang") [deepIndex v]
 deepTypeInner mod ta (TCon tn ts s) = mkApp (mkId "TCon") [mkString tn, mkList (map (deepType mod ta) ts), deepSigil s]
 deepTypeInner mod ta (TFun ti to) = mkApp (mkId "TFun") [deepType mod ta ti, deepType mod ta to]
-deepTypeInner mod ta (TPrim pt@(UInt s))
-  | s `elem` wordSizes = mkApp (mkId "TPrim") [deepPrimType pt]
-  | otherwise = deepCustomUInt pt
+deepTypeInner mod ta (TPrim pt)
+  | UInt s <- pt, s `notElem` wordSizes = deepCustomUInt pt
+  | otherwise = mkApp (mkId "TPrim") [deepPrimType pt]
 deepTypeInner mod ta (TString) = mkApp (mkId "TPrim") [mkId "String"]
 deepTypeInner mod ta (TSum alts)
   = mkApp (mkId "TSum")
