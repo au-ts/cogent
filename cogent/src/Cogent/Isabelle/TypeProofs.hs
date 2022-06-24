@@ -345,6 +345,10 @@ splitEnv env (TE t (Cast ty e))
     = let e' = splitEnv env e
        in EE t (Cast ty e') $ envOf e'
 
+splitEnv env (TE t (Truncate ty e))
+    = let e' = splitEnv env e
+       in EE t (Truncate ty e') $ envOf e'
+
 splitEnv env (TE t (Member e f))
     = let e' = splitEnv env e
        in EE t (Member e' f) $ envOf e'
@@ -508,6 +512,9 @@ pushDown unused (EE ty (Cast ty' e) env)
     = let e' = pushDown unused e
        in EE ty (Cast ty' e') $ unused <|> env
 
+pushDown unused (EE ty (Truncate ty' e) env)
+    = let e' = pushDown unused e
+       in EE ty (Truncate ty' e') $ unused <|> env
 
 treeSplit :: Maybe (Type t VarName) -> Maybe (Type t VarName) -> Maybe (Type t VarName) -> Maybe TypeSplitKind
 treeSplit Nothing  Nothing  Nothing  = Nothing
