@@ -107,8 +107,8 @@ deepNumType (UInt 8 ) = mkId "U8"
 deepNumType (UInt 16) = mkId "U16"
 deepNumType (UInt 32) = mkId "U32"
 deepNumType (UInt 64) = mkId "U64"
-deepNumType Boolean = __impossible "deepNumType"
-deepNumType (UInt _) = __todo "deepNumType: other-sized UInt"
+deepNumType Boolean   = __impossible "deepNumType: Boolean"
+deepNumType (UInt _ ) = __impossible "deepNumType: other-sized UInt"
 
 deepILit :: Integer -> PrimInt -> Term
 deepILit n (UInt 8 ) = mkApp (mkId "LU8" ) [mkInt n]
