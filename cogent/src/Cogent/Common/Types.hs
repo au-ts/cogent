@@ -64,35 +64,23 @@ unboxed :: Sigil r -> Bool
 unboxed Unboxed = True
 unboxed _ = False
 
-data PrimInt = U8 | U16 | U32 | U64 | Boolean deriving (Show, Data, Eq, Ord, Generic)
+data PrimInt = UInt Size | Boolean deriving (Show, Data, Eq, Ord, Generic)
 
 instance Binary PrimInt
 
 machineWordType :: PrimInt
 machineWordType = case __cogent_arch of
-                    ARM32  -> U32
-                    X86_32 -> U32
-                    X86_64 -> U64
+                    ARM32  -> UInt 32
+                    X86_32 -> UInt 32
+                    X86_64 -> UInt 64
 
 primIntSizeBits :: PrimInt -> Size
-primIntSizeBits U8      = 8
-primIntSizeBits U16     = 16
-primIntSizeBits U32     = 32
-primIntSizeBits U64     = 64
+primIntSizeBits (UInt n)   = n
 primIntSizeBits Boolean = 8
 
 
 isSubtypePrim :: PrimInt -> PrimInt -> Bool
-isSubtypePrim U8  U8  = True
-isSubtypePrim U8  U16 = True
-isSubtypePrim U8  U32 = True
-isSubtypePrim U8  U64 = True
-isSubtypePrim U16 U16 = True
-isSubtypePrim U16 U32 = True
-isSubtypePrim U16 U64 = True
-isSubtypePrim U32 U32 = True
-isSubtypePrim U32 U64 = True
-isSubtypePrim U64 U64 = True
+isSubtypePrim (UInt m) (UInt n)  = m <= n
 isSubtypePrim Boolean Boolean = True
 isSubtypePrim _ _ = False
 
@@ -133,5 +121,23 @@ instance Monoid Kind where
 bangKind :: Kind -> Kind
 bangKind (K e s d) = K (e && s && d) True True
 
+
+wordSizes :: [Size]
+wordSizes = [8, 16, 32, 64]
+
 primTypeCons :: [TypeName]
-primTypeCons = words "U8 U16 U32 U64 Bool String"
+primTypeCons = ['U':show x | x <- [1..64]] ++ words "Bool String"
+
+roundUpToWord :: Size -> Size
+roundUpToWord n | 0  < n && n <= 8  = 8
+                | 8  < n && n <= 16 = 16
+                | 16 < n && n <= 32 = 32
+                | 32 < n && n <= 64 = 64
+                | otherwise = __impossible "roundUpToWord: invalid int size"
+
+roundDownToWord :: Size -> Size
+roundDownToWord n | 8  <= n && n < 16 = 8
+                  | 16 <= n && n < 32 = 16
+                  | 32 <= n && n < 64 = 32
+                  | 64 <- n           = 64
+                  | otherwise = __impossible "roundDownToWord: invalid int size"

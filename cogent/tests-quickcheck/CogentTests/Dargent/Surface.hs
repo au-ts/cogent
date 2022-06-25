@@ -32,25 +32,21 @@ instance Arbitrary DataLayoutSize where
 instance Arbitrary DataLayoutExpr where
   arbitrary = sized genDataLayoutExpr
 
-genDataLayoutExpr :: Int -> Gen DataLayoutExpr
-genDataLayoutExpr size =
-  if size == 0 then
-    return $ DL (Prim (Bits 0))
-  else
-  oneof
+genDataLayoutExpr :: Size -> Gen DataLayoutExpr
+genDataLayoutExpr size = oneof
   [ genPrim size
   , genRecord size
   , genOffset size
   , genVariant size
   ]
+  where
+    genPrim :: Size -> Gen DataLayoutExpr
+    genPrim size = DL . Prim <$> arbitrary
 
-genPrim :: Int -> Gen DataLayoutExpr
-genPrim size = DL . Prim <$> arbitrary
+    genRecord :: Size -> Gen DataLayoutExpr
+    genRecord size = DL . Record <$> genFields size
 
-genRecord :: Int -> Gen DataLayoutExpr
-genRecord size = DL . Record <$> genFields 1 size
-{-
-    genFields :: Int -> Gen [(FieldName, SourcePos, DataLayoutExpr)]
+    genFields :: Size -> Gen [(FieldName, SourcePos, DataLayoutExpr)]
     genFields size = do
       fieldSize <- choose (0, size)
       if fieldSize == 0
@@ -73,15 +69,14 @@ genFields nth size = do
       sourcePos <- arbitrary
       return $ (fieldName, sourcePos, fieldDataLayoutExpr) : otherFields
 
-genVariant :: Int -> Gen DataLayoutExpr
-genVariant size = do
-  tagSize <- choose (0, size)
-  tagExpr <- genDataLayoutExpr tagSize
-  alternatives <- genAlternatives 1 (size - tagSize)
-  return $ DL $ Variant tagExpr alternatives
+    genVariant :: Size -> Gen DataLayoutExpr
+    genVariant size = do
+      tagSize <- choose (0, size)
+      tagExpr <- genPrim tagSize
+      alternatives <- genAlternatives (size - tagSize)
+      return $ DL $ Variant tagExpr alternatives
 
-  {-
-    genAlternatives :: Int -> Gen [(TagName, SourcePos, Size, DataLayoutExpr)]
+    genAlternatives :: Size -> Gen [(TagName, SourcePos, Integer, DataLayoutExpr)]
     genAlternatives size = do
       altSize <- choose (0, size)
       if altSize == 0
@@ -106,6 +101,6 @@ genAlternatives nth size = do
       sourcePos <- arbitrary
       return $ (altName, sourcePos, altValue, altDataLayoutExpr) : otherAlts
 
-genOffset :: Int -> Gen DataLayoutExpr
-genOffset size = DL <$> (Offset <$> genDataLayoutExpr size <*> arbitrary)
+    genOffset :: Size -> Gen DataLayoutExpr
+    genOffset size = DL <$> (Offset <$> genDataLayoutExpr size <*> arbitrary)
 

@@ -42,6 +42,7 @@ gen-anti:
 	mkdir -p $(ABSDIR)
 	cogent $(SRC) -g -o$(OUTPUT) \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
+		--cpp="$(CPP)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
 		--entry-funcs=entrypoints.cfg
 

@@ -1492,6 +1492,13 @@ fun uval_from_array :: "ptr_layout \<Rightarrow> type \<Rightarrow> (('a::len) w
   | "uval_from_array (LayBitRange (_, n) e) (TPrim (Num U16)) a = UPrim (LU16 (endianize swap_u16 (word_from_array n a) e)) "
   | "uval_from_array (LayBitRange (_, n) e) (TPrim (Num U32)) a = UPrim (LU32 (endianize swap_u32 (word_from_array n a) e)) "
   | "uval_from_array (LayBitRange (_, n) e) (TPrim (Num U64)) a = UPrim (LU64 (endianize swap_u64 (word_from_array n a) e)) "
+  | "uval_from_array (LayBitRange (s, n) e) (TCustomNum _) a = 
+                                   UCustomInt s (
+                                   if n > 32 then
+                                      unat (sized_word_from_array n s a :: 64 word)
+                                   else
+                                      unat (sized_word_from_array n s a :: 32 word)
+                                    ) " 
   | "uval_from_array (LayBitRange (_, n) e) (TPrim Bool) a = UPrim (LBool (get_bit a n)) "
   | "uval_from_array _ TUnit a = UUnit "
   | uval_from_array_variant: 
@@ -1507,6 +1514,7 @@ let l = snd name_l in
     let m =  List.map (\<lambda> (n, t, _) .  
        if n = name then Some 
          (uval_from_array l t a)
+\<comment> \<open>(* N'y a t'il pas un pb pour le tag si il ne fait pas une size standard? *)\<close>
 \<comment> \<open>(USum n (uval_from_array l t a) rts)\<close>
   else None
 
@@ -1710,7 +1718,9 @@ valid_tags (layout_from_trecord type) (data_C t) \<Longrightarrow>  val_rel (uva
 *)
 fun solve_corres_getters ctxt0 = 
 let
-  val ctxt = ctxt0 addsimps @{thms reverse_word8_lems}
+  val ctxt = ctxt0 addsimps @{thms reverse_word8_lems
+    (* for custom sized int *)
+      mask_def unat_ucast_mask}
   val gets = Proof_Context.get_thms ctxt
   val tags = gets "tag_t_defs" handle ERROR _ => []
 in
@@ -1737,6 +1747,7 @@ val ass = @{term "\<lambda> type data . valid_tags (layout_from_trecord type) (d
 val concl = @{term "\<lambda> type data . val_rel (uval_from_array_toplevel type (data t)) t"}
   $ cog_type $ data_get
 val name = Ctyp ^ "_getter_correct"
+val _ = tracing ("Proving " ^ name)
 in
 (name, prove_thm ctxt [ass] concl solve_corres_getters)
 

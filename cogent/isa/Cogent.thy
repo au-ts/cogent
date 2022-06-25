@@ -60,12 +60,16 @@ type_synonym BitRange = "nat * nat" (* size and offset *)
 (* size of a pointer, in bits *)
 definition size_ptr :: nat where "size_ptr \<equiv> 32"
 
+fun size_num_type :: "num_type \<Rightarrow> nat" where
+  "size_num_type U8 = 8"
+| "size_num_type U16 = 16"
+| "size_num_type U32 = 32"
+| "size_num_type U64 = 64"
+
+
 fun size_prim_layout :: "prim_type \<Rightarrow> nat" where
   "size_prim_layout Bool = 1"
-| "size_prim_layout (Num U8) = 8"
-| "size_prim_layout (Num U16) = 16"
-| "size_prim_layout (Num U32) = 32"
-| "size_prim_layout (Num U64) = 64"
+| "size_prim_layout (Num t) = size_num_type t"
 | "size_prim_layout String = undefined"
 
 datatype Endianness = LE | BE | ME
@@ -386,6 +390,8 @@ datatype type = TVar index
               | TCon name "type list" sigil
               | TFun type type
               | TPrim prim_type
+                     (* should be smaller than 64 *)
+              | TCustomNum nat 
               | TSum "(name \<times> type \<times> variant_state) list"
               | TProduct type type
               | TRecord "(name \<times> type \<times> record_state) list" sigil
@@ -410,6 +416,24 @@ fun cast_to :: "num_type \<Rightarrow> lit \<Rightarrow> lit option" where
 | "cast_to U64 (LU32 x) = Some (LU64 (ucast x))"
 | "cast_to U64 (LU64 x) = Some (LU64 x)"
 
+fun custom_ucast_to :: "nat \<Rightarrow> nat \<Rightarrow> lit option" where
+  "custom_ucast_to s v = (
+     if s > 32 then Some (LU64 (of_nat v)) 
+else if s > 16 then Some (LU32 (of_nat v))
+else if s > 8 then Some (LU16 (of_nat v))
+else Some (LU8 (of_nat v))
+)"
+fun custom_dcast_to_word :: "nat \<Rightarrow> ('a :: len) word \<Rightarrow> nat option" where
+  "custom_dcast_to_word s v = Some (unat (v AND mask s))"
+
+fun custom_dcast_to :: "nat \<Rightarrow> lit \<Rightarrow> nat option" where
+  "custom_dcast_to s (LU8  v) = custom_dcast_to_word s v"
+| "custom_dcast_to s (LU16 v) = custom_dcast_to_word s v"
+| "custom_dcast_to s (LU32 v) = custom_dcast_to_word s v"
+| "custom_dcast_to s (LU64 v) = custom_dcast_to_word s v"
+
+
+
 section {* Expressions *}
 
 datatype 'f expr = Var index
@@ -423,8 +447,13 @@ datatype 'f expr = Var index
                  | Member "'f expr" field
                  | Unit
                  | Lit lit
+                  (* redundant with CustomDCast (Lit -)*)
+                         (* the size *) (* the value*)                  
+                 | CustomInt nat nat
                  | SLit string
                  | Cast num_type "'f expr"
+                 | CustomUCast num_type "'f expr"
+                 | CustomDCast nat "'f expr"
                  | Tuple "'f expr" "'f expr"
                  | Put "'f expr" field "'f expr"
                  | Let "'f expr" "'f expr"
@@ -449,6 +478,7 @@ fun bang :: "type \<Rightarrow> type" where
 | "bang (TCon n ts s)  = TCon n (map bang ts) (bang_sigil s)"
 | "bang (TFun a b)     = TFun a b"
 | "bang (TPrim p)      = TPrim p"
+| "bang (TCustomNum p) = TCustomNum p"
 | "bang (TSum ps)      = TSum (map (\<lambda> (c, (t, b)). (c, (bang t, b))) ps)"
 | "bang (TProduct t u) = TProduct (bang t) (bang u)"
 | "bang (TRecord ts s) = TRecord (map (\<lambda>(n, t, b). (n, bang t, b)) ts) (bang_sigil s)"
@@ -466,6 +496,7 @@ datatype repr = RPtr repr
               | RCon name "repr list"
               | RFun
               | RPrim prim_type
+              | RCustomNum nat (* should be smaller than 64 *)
               | RSum "(name \<times> repr) list"
               | RProduct "repr" "repr"
               | RRecord "repr list" "ptr_layout option" (* can we remove the layout information? *)
@@ -474,6 +505,7 @@ datatype repr = RPtr repr
 fun type_repr :: "type \<Rightarrow> repr" where
   "type_repr (TFun t t')          = RFun"
 | "type_repr (TPrim t)            = RPrim t"
+| "type_repr (TCustomNum t)       = RCustomNum t"
 | "type_repr (TSum ts)            = RSum (map (\<lambda>(a,b,_).(a, type_repr b)) ts)"
 | "type_repr (TProduct a b)       = RProduct (type_repr a) (type_repr b)"
 | "type_repr (TCon n ts Unboxed)  = RCon n (map type_repr ts)"
@@ -489,6 +521,7 @@ datatype lrepr = LRPtr
               | LRCon name "lrepr list"
               | LRFun
               | LRPrim prim_type
+              | LRCustomNum nat
               | LRSum "(name \<times> lrepr) list"
               | LRProduct "lrepr" "lrepr"
               | LRRecord "(name \<times> lrepr) list"
@@ -498,6 +531,7 @@ datatype lrepr = LRPtr
 fun type_lrepr :: "type \<Rightarrow> lrepr" where
   "type_lrepr (TFun t t')          = LRFun"
 | "type_lrepr (TPrim t)            = LRPrim t"
+| "type_lrepr (TCustomNum t)       = LRCustomNum t"
 | "type_lrepr (TSum ts)            = LRSum (map (\<lambda>(a,b,_).(a, type_lrepr b)) ts)"
 | "type_lrepr (TProduct a b)       = LRProduct (type_lrepr a) (type_lrepr b)"
 | "type_lrepr (TCon n ts Unboxed)  = LRCon n (map type_lrepr ts)"
@@ -511,6 +545,7 @@ fun type_lrepr :: "type \<Rightarrow> lrepr" where
 fun lrepr_wellformed :: "nat \<Rightarrow> lrepr \<Rightarrow> bool" where
   "lrepr_wellformed n LRFun                = True"
 | "lrepr_wellformed n (LRPrim _)           = True"
+| "lrepr_wellformed n (LRCustomNum _)      = True"
 | "lrepr_wellformed n LRUnit               = True"
 | "lrepr_wellformed n LRPtr                = True"
 | "lrepr_wellformed n (LRSum ts)           = list_all (\<lambda>(_,b). lrepr_wellformed n b) ts"
@@ -552,6 +587,7 @@ inductive match_repr_layout :: "lrepr \<Rightarrow> ptr_layout \<Rightarrow> boo
   match_lrtvar :  "match_repr_layout (LRVar i) l"
 | match_lrcon :   "match_repr_layout (LRCon n ts) l"
 | match_lrprim : "(s = size_prim_layout t) \<Longrightarrow> match_repr_layout (LRPrim t) (LayBitRange (s, x) e)"
+| match_lrcustomnum : "s = n \<Longrightarrow> e = ME \<Longrightarrow> match_repr_layout (LRCustomNum n) (LayBitRange (s, x) e)"
 | match_lrsum : "\<lbrakk> 
 \<comment> \<open>the order does not matter\<close>
  set (map fst ts) = set (map fst ls) ;
@@ -579,6 +615,7 @@ lemma match_repr_layout_simps:
   "\<And> l i. match_repr_layout (LRVar i) l"
   "\<And> l n ts. match_repr_layout (LRCon n ts) l"
   "\<And>t p e. match_repr_layout (LRPrim t) (LayBitRange p e) \<longleftrightarrow> fst p = size_prim_layout t"
+  "\<And>n p e. match_repr_layout (LRCustomNum n) (LayBitRange p e) \<longleftrightarrow> (fst p = n \<and> e = ME)"
   "\<And>ts ls x. match_repr_layout (LRSum ts) (LayVariant x ls) \<longleftrightarrow>
       set (map fst ts) = set (map fst ls)  \<and> 
        list_all2 match_repr_layout      
@@ -651,6 +688,7 @@ lemma sigil_lay_cases[case_names BoxedLay BoxedNoLay Unboxed]:
 fun type_wellformed :: "lay_env \<Rightarrow> nat \<Rightarrow> lay_constraints \<Rightarrow> type \<Rightarrow> bool" where
   "type_wellformed nl n C (TVar i) = (i < n)"
 | "type_wellformed nl n C (TVarBang i) = (i < n)"
+| "type_wellformed nl n C (TCustomNum i) = (i \<le> 64)"
 | "type_wellformed nl n C (TCon _ ts _) = list_all (\<lambda>x. type_wellformed nl n C x) ts"
 | "type_wellformed nl n C (TFun t1 t2) = (type_wellformed nl n C t1 \<and> type_wellformed nl n C t2)"
 | "type_wellformed nl n C (TPrim _) = True"
@@ -670,6 +708,7 @@ declare type_wellformed_pretty_def[simp]
 lemma type_wellformed_intros:
   "\<And>nl n C i. i < n \<Longrightarrow> type_wellformed nl n C (TVar i)"
   "\<And>nl n C i. i < n \<Longrightarrow> type_wellformed nl n C (TVarBang i)"
+  "\<And>nl n C i. i \<le> 64 \<Longrightarrow> type_wellformed nl n C (TCustomNum i)"
   "\<And>nl n C name ts s. list_all (\<lambda>x. type_wellformed nl n C x) ts \<Longrightarrow> type_wellformed nl n C (TCon name ts s)"
   "\<And>nl n C t1 t2. \<lbrakk> type_wellformed nl n C t1 ; type_wellformed nl n C t2 \<rbrakk> \<Longrightarrow> type_wellformed nl n C (TFun t1 t2)"
   "\<And>nl n C p. type_wellformed nl n C (TPrim p)"
@@ -683,6 +722,7 @@ lemma type_wellformed_intros:
 lemma type_wellformed_pretty_intros:
   "\<And>nl K C i. i < length K \<Longrightarrow> type_wellformed_pretty nl K C (TVar i)"
   "\<And>nl K C i. i < length K \<Longrightarrow> type_wellformed_pretty nl K C (TVarBang i)"
+  "\<And>nl K C i. i \<le> 64 \<Longrightarrow> type_wellformed_pretty nl K C (TCustomNum i)"
   "\<And>nl K C name ts s. list_all (\<lambda>x. type_wellformed_pretty nl K C x) ts \<Longrightarrow> type_wellformed_pretty nl K C (TCon name ts s)"
   "\<And>nl K C t1 t2. \<lbrakk> type_wellformed_pretty nl K C t1 ; type_wellformed_pretty nl K C t2 \<rbrakk> \<Longrightarrow> type_wellformed_pretty nl K C (TFun t1 t2)"
   "\<And>nl K C p. type_wellformed_pretty nl K C (TPrim p)"
@@ -707,12 +747,13 @@ fun kinding_fn :: "kind env \<Rightarrow> type \<Rightarrow> kind" where
 | "kinding_fn K (TCon n ts s)    = Inter (set (map (kinding_fn K) ts)) \<inter> (sigil_kind s)"
 | "kinding_fn K (TFun ta tb)     = UNIV"
 | "kinding_fn K (TPrim p)        = UNIV"
+| "kinding_fn K (TCustomNum _)   = UNIV"
 | "kinding_fn K (TSum ts)        = Inter (set (map (\<lambda>(_,t,b). case b of Unchecked \<Rightarrow> kinding_fn K t | Checked \<Rightarrow> UNIV) ts))"
 | "kinding_fn K (TProduct ta tb) = kinding_fn K ta \<inter> kinding_fn K tb"
 | "kinding_fn K (TRecord ts s)   = Inter (set (map (\<lambda>(_,t,b). case b of Present \<Rightarrow> kinding_fn K t | Taken \<Rightarrow> UNIV) ts)) \<inter> (sigil_kind s)"
 | "kinding_fn K TUnit            = UNIV"
 
-lemmas kinding_fn_induct = kinding_fn.induct[case_names kind_tvar kind_tvarb kind_tcon kind_tfun kind_tprim kind_tsum kind_tprod kind_trec kind_tunit]
+lemmas kinding_fn_induct = kinding_fn.induct[case_names kind_tvar kind_tvarb kind_tcon kind_tfun kind_tprim kind_tcustomnum kind_tsum kind_tprod kind_trec kind_tunit]
 
 
 definition kinding :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constraints \<Rightarrow> type \<Rightarrow> kind \<Rightarrow> bool" ("_, _, _ \<turnstile> _ :\<kappa> _" [30,0,0,0,30] 60) where
@@ -742,7 +783,8 @@ fun instantiate_lrepr :: "lrepr substitution \<Rightarrow> lrepr \<Rightarrow> l
 | "instantiate_lrepr \<delta> (LRCon n ts) = LRCon n (map (instantiate_lrepr \<delta>) ts)"
 | "instantiate_lrepr _ LRFun = LRFun"
 | "instantiate_lrepr _ LRUnit = LRUnit"
-| "instantiate_lrepr _ (LRPrim t) = LRPrim t "
+| "instantiate_lrepr _ (LRPrim t) = LRPrim t"
+| "instantiate_lrepr _ (LRCustomNum t) = LRCustomNum t"
 | "instantiate_lrepr \<delta> (LRSum ts) = LRSum (map (\<lambda>(n, t). (n, instantiate_lrepr \<delta> t)) ts) "
 | "instantiate_lrepr \<delta> (LRProduct t1 t2) = LRProduct (instantiate_lrepr \<delta> t1)  (instantiate_lrepr \<delta> t2)"
 | "instantiate_lrepr \<delta> (LRRecord ts) = LRRecord (map (\<lambda>(n, t). (n, instantiate_lrepr \<delta> t)) ts) "
@@ -780,6 +822,7 @@ fun instantiate :: "ptr_layout substitution \<Rightarrow> type substitution \<Ri
 | "instantiate \<epsilon> \<delta> (TCon n ts s)  = TCon n (map (instantiate \<epsilon> \<delta>) ts) s"
 | "instantiate \<epsilon> \<delta> (TFun a b)     = TFun (instantiate \<epsilon> \<delta> a) (instantiate \<epsilon> \<delta> b)"
 | "instantiate \<epsilon> \<delta> (TPrim p)      = TPrim p"
+| "instantiate \<epsilon> \<delta> (TCustomNum p) = TCustomNum p"
 | "instantiate \<epsilon> \<delta> (TSum ps)      = TSum (map (\<lambda> (c, t, b). (c, instantiate \<epsilon> \<delta> t, b)) ps)"
 | "instantiate \<epsilon> \<delta> (TProduct t u) = TProduct (instantiate \<epsilon> \<delta> t) (instantiate \<epsilon> \<delta> u)"
 | "instantiate \<epsilon> \<delta> (TRecord ts s) = TRecord (map (\<lambda> (n, t, b). (n, instantiate \<epsilon> \<delta> t, b)) ts) 
@@ -797,8 +840,11 @@ fun specialise :: "ptr_layout substitution \<Rightarrow> type substitution \<Rig
 | "specialise \<epsilon> \<delta> (Member v f)      = Member (specialise \<epsilon> \<delta> v) f"
 | "specialise \<epsilon> \<delta> (Unit)            = Unit"
 | "specialise \<epsilon> \<delta> (Cast t e)        = Cast t (specialise \<epsilon> \<delta> e)"
+| "specialise \<epsilon> \<delta> (CustomUCast t e) = CustomUCast t (specialise \<epsilon> \<delta> e)"
+| "specialise \<epsilon> \<delta> (CustomDCast t e) = CustomDCast t (specialise \<epsilon> \<delta> e)"
 | "specialise \<epsilon> \<delta> (Lit v)           = Lit v"
 | "specialise \<epsilon> \<delta> (SLit s)          = SLit s"
+| "specialise \<epsilon> \<delta> (CustomInt n i)      = CustomInt n i"
 | "specialise \<epsilon> \<delta> (Tuple a b)       = Tuple (specialise \<epsilon> \<delta> a) (specialise \<epsilon> \<delta> b)"
 | "specialise \<epsilon> \<delta> (Put e f e')      = Put (specialise \<epsilon> \<delta> e) f (specialise \<epsilon> \<delta> e')"
 | "specialise \<epsilon> \<delta> (Let e e')        = Let (specialise \<epsilon> \<delta> e) (specialise \<epsilon> \<delta> e')"
@@ -828,6 +874,8 @@ inductive subtyping :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constra
                   \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2"
 | subty_tprim  : "\<lbrakk> p1 = p2
                   \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2"
+| subty_tcustomnum  : "\<lbrakk> p1 = p2
+                  \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> TCustomNum p1 \<sqsubseteq> TCustomNum p2"
 (* Records differing only by the field order are not consider equal, but layouts are.
    However, we don't check that custom layouts are equal up to reordering because
    we implicitly assume that they are always ordered according to the field names.
@@ -969,6 +1017,12 @@ fun upcast_valid :: "num_type \<Rightarrow> num_type \<Rightarrow> bool" where
 | "upcast_valid U64 U64 = True"
 | "upcast_valid _   _   = False"
 
+fun custom_upcast_target :: "nat \<Rightarrow> num_type" where
+"custom_upcast_target n = (if n > 32 then U64 else
+          if n > 16 then U32
+else if n > 8 then U16
+else U8)"
+
 primrec prim_lbool where
   "prim_lbool (LBool b) = b"
 | "prim_lbool (LU8 w) = False"
@@ -1105,6 +1159,17 @@ wellformedness\<close>
                    ; upcast_valid \<tau> \<tau>'
                    \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> Cast \<tau>' e : TPrim (Num \<tau>')"
 
+| typing_custom_ucast   : "\<lbrakk> \<Xi>, L, K, C, \<Gamma> \<turnstile> e : TCustomNum n
+                   ; \<tau> = custom_upcast_target n
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> CustomUCast \<tau> e : TPrim (Num \<tau>)"
+
+| typing_custom_dcast   : "\<lbrakk> \<Xi>, L, K, C, \<Gamma> \<turnstile> e : TPrim (Num \<tau>)
+                   ; \<tau> = custom_upcast_target n
+                   ; n \<le> 64
+                   \<rbrakk> \<Longrightarrow> \<Xi>, L, K, C, \<Gamma> \<turnstile> CustomDCast n e : TCustomNum n"
+
+
+
 | typing_tuple  : "\<lbrakk> L, K, C \<turnstile> \<Gamma> \<leadsto> \<Gamma>1 | \<Gamma>2
                    ; \<Xi>, L, K, C, \<Gamma>1 \<turnstile> t : T
                    ; \<Xi>, L, K, C, \<Gamma>2 \<turnstile> u : U
@@ -1212,6 +1277,7 @@ inductive_cases typing_varE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Va
 inductive_cases typing_appE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> App x y : \<tau>"
 inductive_cases typing_litE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Lit l : \<tau>"
 inductive_cases typing_slitE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> SLit l : \<tau>"
+inductive_cases typing_customintE[elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> CustomInt n v : \<tau>"
 inductive_cases typing_funE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Fun f ts ls : \<tau>"
 inductive_cases typing_afunE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> AFun f ts ls : \<tau>"
 inductive_cases typing_ifE     [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> If c t e : \<tau>"
@@ -1223,6 +1289,8 @@ inductive_cases typing_tupleE  [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Tu
 inductive_cases typing_caseE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Case x t m n : \<tau>"
 inductive_cases typing_esacE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Esac e t : \<tau>"
 inductive_cases typing_castE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Cast t e : \<tau>"
+inductive_cases typing_custom_ucastE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> CustomUCast t e : \<tau>"
+inductive_cases typing_custom_dcastE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> CustomDCast t e : \<tau>"
 inductive_cases typing_letE    [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Let a b : \<tau>"
 inductive_cases typing_structE [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> Struct ts es : \<tau>"
 inductive_cases typing_letbE   [elim]: "\<Xi>, L, K, C, \<Gamma> \<turnstile> LetBang vs a b : \<tau>"
@@ -1280,13 +1348,13 @@ lemma wellformed_record_wellformed_elem:
   assumes "L, K, C \<turnstile> TRecord ts s wellformed"
     and "(name, t, taken) \<in> set ts"
   shows "L, K, C \<turnstile> t wellformed"
-  by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(8) type_wellformed_pretty_def)
+  by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(9) type_wellformed_pretty_def)
 
 lemma wellformed_sum_wellformed_elem:
   assumes "L, K, C \<turnstile> TSum ts wellformed"
     and "(name, t, taken) \<in> set ts"
   shows "L, K, C \<turnstile> t wellformed"
-  by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(6) type_wellformed_pretty_def)
+  by (metis assms fst_conv in_set_conv_nth list_all_length snd_conv type_wellformed.simps(7) type_wellformed_pretty_def)
 
 
 lemma type_lrepr_wellformed : "type_wellformed L n C t \<Longrightarrow> 
@@ -1721,6 +1789,7 @@ lemma subtyping_simps:
   "\<And>n1 ts1 s1 n2 ts2 s2. L, K, C \<turnstile> TCon n1 ts1 s1 \<sqsubseteq> TCon n2 ts2 s2 \<longleftrightarrow> n1 = n2 \<and> s1 = s2 \<and> ts1 = ts2"
   "\<And>t1 u1 t2 u2. L, K, C \<turnstile> TFun t1 u1 \<sqsubseteq> TFun t2 u2 \<longleftrightarrow> L, K, C \<turnstile> t2 \<sqsubseteq> t1 \<and> L, K, C \<turnstile> u1 \<sqsubseteq> u2"
   "\<And>p1 p2. L, K, C \<turnstile> TPrim p1 \<sqsubseteq> TPrim p2 \<longleftrightarrow> p1 = p2"
+  "\<And>p1 p2. L, K, C \<turnstile> TCustomNum p1 \<sqsubseteq> TCustomNum p2 \<longleftrightarrow> p1 = p2"
   "\<And>ts1 s1 ts2 s2. L, K, C \<turnstile> TRecord ts1 s1 \<sqsubseteq> TRecord ts2 s2
                     \<longleftrightarrow> list_all2 (\<lambda>p1 p2. subtyping L K C (fst (snd p1)) (fst (snd p2))) ts1 ts2
                     \<and> list_all2 (record_kind_subty L K C) ts1 ts2
@@ -2140,9 +2209,9 @@ and     "length K' = length \<delta>" *)
   using assms
 proof (induct x arbitrary: \<delta>' rule: instantiate.induct)
 next case 3 then show ?case by (force dest: kinding_typelist_wellformed_elem simp add: list_all_iff kinding_simps)
-next case 8 then show ?case 
+next case 9 then show ?case 
     by(fastforce dest: kinding_record_wellformed_elem simp add: list_all_iff kinding_simps)
- next case 6 then show ?case by (fastforce dest: kinding_variant_wellformed_elem simp add: list_all_iff kinding_simps)
+ next case 7 then show ?case by (fastforce dest: kinding_variant_wellformed_elem simp add: list_all_iff kinding_simps)
 qed (auto simp add: kinding_def kinding_simps dest: list_all2_lengthD)
 
 
@@ -2286,7 +2355,7 @@ next
     by(cases s;simp)
 next
 (* TRecord *)
-  case (8 \<epsilon> \<delta> ts s)
+  case (9 \<epsilon> \<delta> ts s)
 
   then show ?case
     by(induct_tac s rule:sigil_lay_cases; fastforce)
@@ -2847,7 +2916,7 @@ assumes "upcast_valid \<tau> \<tau>'"
     and "lit_type l = Num \<tau>"
 obtains x where "cast_to \<tau>' l = Some x"
             and "lit_type x = Num \<tau>'"
-using assms by (cases l, auto elim: upcast_valid.elims)
+  using assms by (cases l, auto elim: upcast_valid.elims)
 
 lemma wellformed_imp_bang_type_repr:
   assumes "0, [], C \<turnstile> t wellformed"
@@ -3006,6 +3075,8 @@ fun expr_size :: "'f expr \<Rightarrow> nat" where
 | "expr_size (Unit) = 0"
 | "expr_size (Member x f) = Suc (expr_size x)"
 | "expr_size (Cast t x) = Suc (expr_size x)"
+| "expr_size (CustomUCast t x) = Suc (expr_size x)"
+| "expr_size (CustomDCast t x) = Suc (expr_size x)"
 | "expr_size (Con c x ts) = Suc (expr_size ts)"
 | "expr_size (App a b) = Suc ((expr_size a) + (expr_size b))"
 | "expr_size (Prim p as) = Suc (sum_list (map expr_size as))"
@@ -3013,6 +3084,7 @@ fun expr_size :: "'f expr \<Rightarrow> nat" where
 | "expr_size (AFun v va _) = 0"
 | "expr_size (Struct v va) = Suc (sum_list (map expr_size va))"
 | "expr_size (Lit v) = 0"
+| "expr_size (CustomInt n v) = 0"
 | "expr_size (SLit s) = 0"
 | "expr_size (Tuple v va) = Suc ((expr_size v) + (expr_size va))"
 | "expr_size (Put v va vb) = Suc ((expr_size v) + (expr_size vb))"

@@ -20,7 +20,7 @@ import Cogent.C.Monad
 import Cogent.C.Type (genType, typeCId, simplifyType)
 import Cogent.C.Syntax
 import Cogent.Common.Syntax (FieldName, FunName, funNameToCoreFunName, GetOrSet(..), VarName, Size)
-import Cogent.Common.Types (Sigil(..))
+import Cogent.Common.Types (Sigil(..), roundUpToWord, wordSizes)
 import Cogent.Compiler
   ( __fixme
   , __impossible
@@ -46,7 +46,7 @@ import Data.Char
 
 import Control.Monad (forM, when)
 import Control.Monad.Writer.Class (tell)
-import Data.List as L (foldl', lookup, scanl')
+import Data.List as L (elemIndex, foldl', lookup, scanl')
 import Data.Map as M
   ( Map
   , (!)
@@ -458,14 +458,14 @@ mkGsDeclBlock brs@((br0,gs0):brrest) ω root t fn m
       (CInt _ _)   -> map toLower $ show ω ++ "_" ++ "u8" ++ "_swap"
       _            -> __impossible "convEndian: called with invalid embedded type"
 
-    getPart :: FunName -> Integer -> CExpr
+    getPart :: FunName -> Size -> CExpr
     getPart g offset =
       let e = CBinOp Lsh (CTypeCast (intTypeForType t) (CEFnCall (variable g) [boxVar])) (uint offset)
        in case ω of
             ME -> e
             _  -> CEFnCall (variable convEndian) [e]
     
-    setPart :: FunName -> Integer -> Integer -> CStmt
+    setPart :: FunName -> Size -> Size -> CStmt
     setPart s offset sz =
       let -- If @t@ is a boxed type, we cast @valueVar@ to the integer type of the correct size
           -- If it is a boolean type, we extract the boolean value
@@ -607,7 +607,7 @@ genGSFuncDecls t (M.toList -> l) mode defs = do
 
 -- | @sizeToMask n@ is an integer whose binary representation has
 -- exactly @n@ 1s in the @2^0@ to @2^(n-1)@ places
-sizeToMask :: Integer -> Integer
+sizeToMask :: Size -> Integer
 sizeToMask n
   | 0 <= n && n <= wordSizeBits = 2^n - 1
   | otherwise = __impossible $ "Dargent.CodeGen.sizeToMask " ++ show n ++ ": n not in range [0, " ++ show wordSizeBits ++ "] after alignment"
@@ -635,6 +635,8 @@ toIntValue (CInt _ _) cexpr               = cexpr
 toIntValue (CIdent t) cexpr
   | t == boolT                            = CStructDot cexpr boolField
   | t `elem` ["u8", "u16", "u32", "u64"]  = cexpr
+  | t `elem` [uintT x | x <- [1..64], x `notElem` wordSizes]
+                                          = CStructDot cexpr uintField
 toIntValue _          cexpr               = CTypeCast archCTy cexpr
 
 fromIntValue :: CType -> CExpr -> CExpr
@@ -642,6 +644,9 @@ fromIntValue (CInt _ _)     cexpr         = cexpr
 fromIntValue (CIdent t)     cexpr
   | t == boolT                            = CCompLit boolCTy [([CDesignFld boolField], CInitE cexpr)]
   | t `elem` ["u8", "u16", "u32", "u64"]  = cexpr
+  | Just x <- t `elemIndex` [uintT x | x <- [1..64]]
+  , x `notElem` (((-) 1) <$> wordSizes)   = CCompLit (CIdent $ uintT (x + 1)) [([CDesignFld uintField], CInitE cexpr)]
+
 fromIntValue ctype          cexpr         = CTypeCast ctype cexpr
 
 -- | Given the 'CType' of an embedded value (leaf of composite type tree) to extract,
@@ -652,6 +657,8 @@ intTypeForType (CIdent t)
   | t == boolT                            = charCTy  -- embedded boolean
   | t == tagsT                            = uintCTy
   | t `elem` ["u8", "u16", "u32", "u64"]  = CIdent t
+  | Just x <- t `elemIndex` [uintT x | x <- [1..64]]
+  , x `notElem` (((-) 1) <$> wordSizes)   = CIdent $ 'u' : show (roundUpToWord (x + 1))
 intTypeForType _                          = archCTy  -- embedded boxed abstract type/record
 
 type IsStruct = Bool

@@ -30,7 +30,7 @@ import Text.PrettyPrint.ANSI.Leijen (Doc, displayIO, plain, renderPretty)
 __impossible :: String -> a
 __impossible msg = error $ msg ++ unlines [ ": the 'impossible' happened!"
                                           , "If you see this, please report this bug to"
-                                          , "    <https://github.com/NICTA/cogent/issues>"
+                                          , "    <https://github.com/au-ts/cogent/issues>"
                                           ]
 
 -- This bug has been closed and will be in new GHC / zilinc (16/02/2016)

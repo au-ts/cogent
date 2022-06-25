@@ -48,6 +48,7 @@ and upd_val_rel_record :: "('f \<Rightarrow> poly_type)
                          \<Rightarrow> bool" ("_, _ \<turnstile>* _ \<sim> _ :r _ \<langle>_, _\<rangle>" [30,0,0,0,0,20] 80) where
 
   u_v_prim     : "\<Xi>, \<sigma> \<turnstile> UPrim l \<sim> VPrim l : TPrim (lit_type l) \<langle>{}, {}\<rangle>"
+| u_v_custom_int     : "n \<le> 64 \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UCustomInt n v \<sim> VCustomInt n v : TCustomNum n  \<langle>{}, {}\<rangle>"
 
 | u_v_product  : "\<lbrakk> \<Xi>, \<sigma> \<turnstile> a \<sim> a' : t \<langle>r , w \<rangle>
                   ; \<Xi>, \<sigma> \<turnstile> b \<sim> b' : u \<langle>r', w'\<rangle>
@@ -170,6 +171,7 @@ lemma u_v_prim' : "\<tau> = lit_type l \<Longrightarrow> l = l' \<Longrightarrow
    by (simp add: u_v_prim)
 
 inductive_cases u_v_primE     [elim] : "\<Xi>, \<sigma> \<turnstile> UPrim l \<sim> VPrim l' : TPrim \<tau> \<langle>r, w\<rangle>"
+inductive_cases u_v_customintE     [elim] : "\<Xi>, \<sigma> \<turnstile> UCustomInt n v \<sim> VCustomInt n' v' : TCustomNum n'' \<langle>r, w\<rangle>"
 inductive_cases u_v_functionE [elim] : "\<Xi>, \<sigma> \<turnstile> UFunction f ts ls \<sim> VFunction f' ts' ls' : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
 inductive_cases u_v_afunE     [elim] : "\<Xi>, \<sigma> \<turnstile> UAFunction f ts ls \<sim> VAFunction f' ts' ls' : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
 inductive_cases u_v_sumE      [elim] : "\<Xi>, \<sigma> \<turnstile> u \<sim> v : TSum \<tau>s \<langle>r, w\<rangle>"
@@ -389,7 +391,8 @@ lemma upd_val_rel_bang:
 shows" \<Xi>, \<sigma> \<turnstile>  u  \<sim> v  :  \<tau>  \<langle>r, w\<rangle> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>  u  \<sim> v  :  bang \<tau> \<langle>r \<union> w, {}\<rangle>"
 and   "\<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r \<tau>s \<langle>r, w\<rangle> \<Longrightarrow> \<Xi>, \<sigma> \<turnstile>* us \<sim> vs :r (map (apsnd (apfst bang)) \<tau>s) \<langle>r \<union> w, {}\<rangle>"
 proof (induct rule: upd_val_rel_upd_val_rel_record.inducts)
-     case u_v_prim     then show ?case by (auto  intro: upd_val_rel_upd_val_rel_record.intros)
+  case u_v_prim     then show ?case by (auto  intro: upd_val_rel_upd_val_rel_record.intros)
+next case u_v_custom_int     then show ?case by (auto  intro: upd_val_rel_upd_val_rel_record.intros)
 next case u_v_product  then show ?case by (auto  dest:  upd_val_rel_upd_val_rel_record.u_v_product
                                                  intro: u_v_pointerset_helper)
 next case (u_v_sum \<Xi> \<sigma> a a' t r w g ts rs)
@@ -1017,7 +1020,8 @@ and     "r \<inter> w1 = {}"
 shows   "\<Xi> , \<sigma> \<turnstile>  u  \<sim> v  :  t  \<langle> r , w \<rangle> \<Longrightarrow> \<Xi> , \<sigma>' \<turnstile>  u  \<sim> v  : t   \<langle> r , w \<rangle>"
 and     "\<Xi> , \<sigma> \<turnstile>* us \<sim> vs :r ts \<langle> r , w \<rangle> \<Longrightarrow> \<Xi> , \<sigma>' \<turnstile>* us \<sim> vs :r ts \<langle> r , w \<rangle>"
 using assms proof (induct rule:upd_val_rel_upd_val_rel_record.inducts)
-     case u_v_prim     then show ?case by (auto simp add: upd_val_rel_upd_val_rel_record.u_v_prim)
+  case u_v_prim     then show ?case by (auto simp add: upd_val_rel_upd_val_rel_record.u_v_prim)
+next case u_v_custom_int then show ?case by (auto simp add: upd_val_rel_upd_val_rel_record.u_v_custom_int)
 next case u_v_product  then show ?case by (fastforce intro!: upd_val_rel_upd_val_rel_record.u_v_product)
 next case u_v_sum      then show ?case by (fastforce intro!: upd_val_rel_upd_val_rel_record.u_v_sum)
 next case u_v_struct   then show ?case by (fastforce intro!: upd_val_rel_upd_val_rel_record.u_v_struct)
@@ -1440,9 +1444,12 @@ qed (auto elim: subtyping.cases intro: upd_val_rel_upd_val_rel_record.intros)
 
 inductive_cases v_sem_primE   [elim!] : " \<xi> , \<gamma> \<turnstile> (Prim p as) \<Down> v"
 inductive_cases v_sem_litE    [elim!] : " \<xi> , \<gamma> \<turnstile> Lit l \<Down> v"
+inductive_cases v_sem_customintE[elim!] : " \<xi> , \<gamma> \<turnstile> CustomInt n l \<Down> v"
 inductive_cases v_sem_funE    [elim!] : " \<xi> , \<gamma> \<turnstile> Fun e ts ls \<Down> v"
 inductive_cases v_sem_unitE   [elim!] : " \<xi> , \<gamma> \<turnstile> Unit \<Down> v"
 inductive_cases v_sem_castE   [elim!] : " \<xi> , \<gamma> \<turnstile> Cast a b \<Down> v"
+inductive_cases v_sem_custom_ucastE   [elim!] : " \<xi> , \<gamma> \<turnstile> CustomUCast a b \<Down> v"
+inductive_cases v_sem_custom_dcastE   [elim!] : " \<xi> , \<gamma> \<turnstile> CustomDCast a b \<Down> v"
 inductive_cases v_sem_esacE   [elim!] : " \<xi> , \<gamma> \<turnstile> Esac e n \<Down> v"
 inductive_cases v_sem_splitE  [elim!] : " \<xi> , \<gamma> \<turnstile> Split e e' \<Down> v"
 inductive_cases v_sem_letE    [elim!] : " \<xi> , \<gamma> \<turnstile> Let e1 e2 \<Down> v"
@@ -1507,6 +1514,11 @@ next case u_sem_lit       then show ?case by ( cases e, simp_all
                                              , fastforce dest:   u_v_matches_proj_consumed
                                                          intro!: upd_val_rel_upd_val_rel_record.intros
                                                                  upd.frame_id)
+next case u_sem_customint       then show ?case by ( cases e, simp_all
+                                             , fastforce dest:   u_v_matches_proj_consumed
+                                                         intro!: upd_val_rel_upd_val_rel_record.intros
+                                                                 upd.frame_id)
+
 next case u_sem_fun       then show ?case by ( cases e, simp_all
                                              , force elim!:  typing_funE
                                                      dest:   typing_to_wellformed u_v_matches_proj_consumed
@@ -1625,7 +1637,7 @@ next
     next
       show "0, [], {} \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ts) wellformed"
         using u_sem_con.prems typing_elims
-        by (metis instantiate.simps(6) kinding_iff_wellformed(1) substitutivity_single)
+        by (metis instantiate.simps(7) kinding_iff_wellformed(1) substitutivity_single)
     qed simp+
     then show ?thesis
       using r'_sub_r frame_w_w' v'_is typing_elims tag'_is ts_inst_is
@@ -1687,6 +1699,18 @@ next case u_sem_cast      then show ?case apply ( cases e, simp_all)
                                                            elim!:  typing_castE
                                                                    upd_val_rel.cases
                                                                    upcast_valid_cast_to).
+next case u_sem_custom_ucast      then show ?case apply ( cases e, simp_all)
+                                          apply ( slowsimp intro!: u_v_prim'
+                                                           elim!:  typing_custom_ucastE
+                                                                   upd_val_rel.cases
+                                                                   ).
+next case u_sem_custom_dcast      then show ?case apply ( cases e, simp_all)
+                                          apply ( slowsimp intro!: u_v_custom_int
+                                                           elim!:  typing_custom_dcastE
+                                                                   upd_val_rel.cases
+                                                                   ).
+
+
 
 next case u_sem_tuple
   note IH1  = this(2)
@@ -2321,7 +2345,30 @@ and     "\<lbrakk> \<xi> , \<gamma>  \<turnstile>* (\<sigma>, es) \<Down>! (\<si
     apply (frule(3) IH, clarsimp)    
     apply (frule(2) mono_correspondence)
     apply (auto elim: upd_val_rel.cases intro!: v_sem_v_sem_all.intros)
-  done
+    done
+next      case u_sem_custom_ucast
+  note IH   = this(2)
+  and  rest = this(1,3-)
+  from rest show ?case
+    thm IH
+    apply (clarsimp elim!: typing_custom_ucastE)
+    apply (frule(3) IH, clarsimp)  
+    apply(intro impI conjI exI;frule(2) mono_correspondence)     
+    apply (auto elim: upd_val_rel.cases intro!: v_sem_custom_ucast)
+    done
+
+next      case u_sem_custom_dcast
+  note IH   = this(2)
+  and  rest = this(1,3-)
+  from rest show ?case
+    thm IH
+    apply (clarsimp elim!: typing_custom_dcastE)
+     apply (frule(3) IH, clarsimp)    
+
+    apply (frule(2) mono_correspondence)
+    apply (auto elim: upd_val_rel.cases intro!: v_sem_v_sem_all.intros)
+    done
+    
 next case u_sem_app
   note IH1 = this(2)
    and IH2 = this(4)

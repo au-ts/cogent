@@ -46,6 +46,7 @@ gen-anti:
 		--abs-type-dir="$(ABSDIR)" \
 		--infer-c-types="$(AHFILES)" \
 		--infer-c-funcs="$(ACFILES)" \
+		--cpp="$(CPP)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
 		--entry-funcs=entrypoints.cfg
 

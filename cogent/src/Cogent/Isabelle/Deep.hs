@@ -104,7 +104,9 @@ deepTypeInner mod ta (TVar v) = mkApp (mkId "TVar") [deepIndex v]
 deepTypeInner mod ta (TVarBang v) = mkApp (mkId "TVarBang") [deepIndex v]
 deepTypeInner mod ta (TCon tn ts s) = mkApp (mkId "TCon") [mkString tn, mkList (map (deepType mod ta) ts), deepSigil $ fmap (const CLayout) s]
 deepTypeInner mod ta (TFun ti to) = mkApp (mkId "TFun") [deepType mod ta ti, deepType mod ta to]
-deepTypeInner mod ta (TPrim pt) = mkApp (mkId "TPrim") [deepPrimType pt]
+deepTypeInner mod ta (TPrim pt)
+  | UInt s <- pt, s `notElem` wordSizes = deepCustomUInt pt
+  | otherwise = mkApp (mkId "TPrim") [deepPrimType pt]
 deepTypeInner mod ta (TString) = mkApp (mkId "TPrim") [mkId "String"]
 deepTypeInner mod ta (TSum alts)
   = mkApp (mkId "TSum")
@@ -130,25 +132,33 @@ deepType mod ta t = case Map.lookup term (fst ta) of
     term = deepTypeInner mod ta t
 
 deepPrimType :: PrimInt -> Term
-deepPrimType U8  = mkApp (mkId "Num") [mkId "U8" ]
-deepPrimType U16 = mkApp (mkId "Num") [mkId "U16"]
-deepPrimType U32 = mkApp (mkId "Num") [mkId "U32"]
-deepPrimType U64 = mkApp (mkId "Num") [mkId "U64"]
+deepPrimType (UInt 8 ) = mkApp (mkId "Num") [mkId "U8" ]
+deepPrimType (UInt 16) = mkApp (mkId "Num") [mkId "U16"]
+deepPrimType (UInt 32) = mkApp (mkId "Num") [mkId "U32"]
+deepPrimType (UInt 64) = mkApp (mkId "Num") [mkId "U64"]
 deepPrimType Boolean = mkId "Bool"
+deepPrimType _ = __impossible "deepPrimType: other-sized UInt"
+
+deepCustomUInt :: PrimInt -> Term
+deepCustomUInt (UInt x) | x `notElem` wordSizes = mkApp (mkId "TCustomNum") [mkInt x]
+                        | otherwise = __impossible "deepCustomUInt: word-sized PrimInt"
 
 deepNumType :: PrimInt -> Term
-deepNumType U8  = mkId "U8"
-deepNumType U16 = mkId "U16"
-deepNumType U32 = mkId "U32"
-deepNumType U64 = mkId "U64"
-deepNumType Boolean = __impossible "deepNumType"
+deepNumType (UInt 8 ) = mkId "U8"
+deepNumType (UInt 16) = mkId "U16"
+deepNumType (UInt 32) = mkId "U32"
+deepNumType (UInt 64) = mkId "U64"
+deepNumType Boolean   = __impossible "deepNumType: Boolean"
+deepNumType (UInt _ ) = __impossible "deepNumType: other-sized UInt"
 
 deepILit :: Integer -> PrimInt -> Term
-deepILit n U8  = mkApp (mkId "LU8" ) [mkInt n]
-deepILit n U16 = mkApp (mkId "LU16") [mkInt n]
-deepILit n U32 = mkApp (mkId "LU32") [mkInt n]
-deepILit n U64 = mkApp (mkId "LU64") [mkInt n]
+deepILit n (UInt 8 ) = mkApp (mkId "LU8" ) [mkInt n]
+deepILit n (UInt 16) = mkApp (mkId "LU16") [mkInt n]
+deepILit n (UInt 32) = mkApp (mkId "LU32") [mkInt n]
+deepILit n (UInt 64) = mkApp (mkId "LU64") [mkInt n]
 deepILit n Boolean = mkApp (mkId "LBool") [if n == 0 then mkFls else mkTru]
+deepILit _ (UInt _) = __impossible "deepILit: other-sized UInt"
+
 
 deepPrimOp :: Op -> PrimInt -> Term
 deepPrimOp CS.Plus   t = mkApp (mkId "Plus")   [deepNumType t]
@@ -207,7 +217,9 @@ deepExpr mod ta defs (TE _ (Struct fs))
 deepExpr mod ta defs (TE _ (Member e fld))
   = mkApp (mkId "Member") [deepExpr mod ta defs e, mkInt (fromIntegral fld)]
 deepExpr mod ta defs (TE _ (Unit)) = mkId "Unit"
-deepExpr mod ta defs (TE _ (ILit n pt)) = mkApp (mkId "Lit") [deepILit n pt]
+deepExpr mod ta defs (TE _ (ILit n pt))
+  | UInt s <- pt, s `notElem` wordSizes = mkApp (mkId "CustomInt") [mkInt s, mkInt n]
+  | otherwise = mkApp (mkId "Lit") [deepILit n pt]
 deepExpr mod ta defs (TE _ (SLit s)) = __fixme $ mkApp (mkId "SLit") [mkString s]  -- FIXME: there's no @SLit@ in the Isabelle definition at the moment / zilinc
 deepExpr mod ta defs (TE _ (Tuple e1 e2))
   = mkApp (mkId "Tuple") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
@@ -232,8 +244,13 @@ deepExpr mod ta defs (TE _ (Take _ rec fld e))
 deepExpr mod ta defs (TE _ (Split _ e1 e2))
   = mkApp (mkId "Split") [deepExpr mod ta defs e1, deepExpr mod ta defs e2]
 deepExpr mod ta defs (TE _ (Cast t e))
-  | TE (TPrim pt) _ <- e, TPrim pt' <- t, pt /= Boolean
-  = mkApp (mkId "Cast") [deepNumType pt', deepExpr mod ta defs e]
+  | TE (TPrim (UInt small)) _ <- e, TPrim pt' <- t
+  = if small `elem` wordSizes
+       then mkApp (mkId "Cast") [deepNumType pt', deepExpr mod ta defs e]
+       else mkApp (mkId "CustomUCast") [deepNumType pt', deepExpr mod ta defs e]
+deepExpr mod ta defs (TE _ (Truncate t e))
+  | TE (TPrim (UInt big)) _ <- e, TPrim (UInt small) <- t
+  = mkApp (mkId "CustomDCast") [mkInt small, deepExpr mod ta defs e]
 deepExpr mod ta defs (TE _ e) = __todo $ "deepExpr: " ++ show (pretty e)
 
 deepKind :: Kind -> Term

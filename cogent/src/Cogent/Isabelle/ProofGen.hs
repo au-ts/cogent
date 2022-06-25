@@ -393,11 +393,36 @@ typing xi nl k cs (EE tc@(TSum ts) (Con tag e t) env) = tacSequence [
   return [simp_solve]                    -- ts = ts'
   ]
 
+{-
 typing xi nl k cs (EE u (Cast t e) env) | EE (TPrim pt) _ _ <- e, TPrim pt' <- t, pt /= Boolean = tacSequence [
   return [rule "typing_cast"],   -- Ξ, L, K, C, Γ ⊢ Cast τ' e : TPrim (Num τ')
   typing xi nl k cs e,                 -- Ξ, L, K, C, Γ ⊢ e : TPrim (Num τ)
   return [simp_solve]            -- upcast_valid τ τ'
   ]
+-}
+typing xi nl k cs (EE u (Cast t e) env)
+  | EE (TPrim pt) _ _ <- e, TPrim pt' <- t, UInt s <- pt, s `elem` wordSizes
+  = tacSequence [
+      return [rule "typing_cast"],   -- Ξ, K, Γ ⊢ Cast τ' e : TPrim (Num τ')
+      typing xi nl k cs e,                 -- Ξ, K, Γ ⊢ e : TPrim (Num τ)
+      return [simp_solve]            -- upcast_valid τ τ'
+      ]
+  | otherwise
+  = tacSequence [
+      return [rule "typing_custom_ucast"],
+      typing xi nl k cs e,  --  Ξ, L, K, C, Γ ⊢ e : TCustomNum n
+      return [simp_solve] --  τ = custom_upcast_target n
+      ]
+
+typing xi nl k cs (EE u (Truncate t e) env)
+  | EE (TPrim pt) _ _ <- e, TPrim pt' <- t, pt /= Boolean
+  = tacSequence [
+      return [rule "typing_custom_dcast"],
+      typing xi nl k cs e, --  Ξ, L, K, C, Γ ⊢ e : TPrim (Num τ)
+      return [simp_solve], -- τ = custom_upcast_target n
+      return [simp_solve] -- n ≤ 64
+      ]
+-- >>>>>>> nicta/n-size-ints
 
 typing xi nl k cs (EE _ (Tuple t u) env) = tacSequence [
   return [rule "typing_tuple"],      -- Ξ, L, K, C, Γ ⊢ Tuple t u : TProduct T U if

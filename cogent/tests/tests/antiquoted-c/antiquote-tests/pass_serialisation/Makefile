@@ -43,7 +43,12 @@ $(OBJ): $(PPINFER)
 
 gen-anti:
 	mkdir -p $(ABSDIR)
-	cogent -g $(SRC) --infer-c-types="$(AHFILES)" --infer-c-funcs="$(ACFILES)" --cpp-args="\$$CPPIN -E -P $(CFLAGS) -o \$$CPPOUT" --ext-types=types.cfg --entry-funcs=entrypoints.cfg -O1 --fno-fncall-as-macro -ogenerated
+	cogent -g $(SRC) --infer-c-types="$(AHFILES)" \
+		--infer-c-funcs="$(ACFILES)" \
+		--cpp="$(CPP)" \
+		--cpp-args="\$$CPPIN -E -P $(CFLAGS) -o \$$CPPOUT" \
+	 	--ext-types=types.cfg --entry-funcs=entrypoints.cfg \
+		-O1 --fno-fncall-as-macro -ogenerated
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)

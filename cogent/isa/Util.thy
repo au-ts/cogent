@@ -16,6 +16,12 @@ theory Util
 "HOL-Library.Char_ord"
 begin
 
+lemma uint_ucast : "uint (ucast v :: ('w :: len0) word) = uint (v AND mask LENGTH('w))"  
+  apply (simp add:ucast_def)
+  by (simp add: and_mask_bintr bintr_uint min_def word_ubin.eq_norm)
+
+
+
 section \<open> Ordered strings using lexical order \<close>
 (* If List_Lexorder were imported, strings (as list of chars) would 
 automatically inherit from the lexical order we want.

@@ -44,6 +44,7 @@ gen-anti:
 	mkdir -p $(ABSDIR)
 	cogent $(SRC) -g -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
+		--cpp="$(CPP)" \
 		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
 		--ext-types=types.cfg \
 		--entry-funcs=entrypoints.cfg \

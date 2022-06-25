@@ -293,6 +293,7 @@ substituteLE vs = \case
   LPut rec f e       -> LPut (go rec) f (go e)
   LPromote t e       -> LPromote (substitute vs t) (go e)
   LCast t e          -> LCast (substitute vs t) (go e)
+  LTruncate t e      -> LTruncate (substitute vs t) (go e)
  where go = substituteLE vs
 
 remove :: (Eq a) => a -> [(a,b)] -> [(a,b)]
@@ -456,6 +457,7 @@ unfoldSynsDeepInTE d (TE t e) =
                Con tag e1 tt -> Con tag e1 (unfoldSynsDeep d tt)
                Promote tt e1 -> Promote (unfoldSynsDeep d tt) e1
                Cast tt e1 -> Cast (unfoldSynsDeep d tt) e1
+               Truncate tt e1 -> Truncate (unfoldSynsDeep d tt) e1
                _ -> e
     in TE (unfoldSynsDeep d t) $ fmapE (unfoldSynsDeepInTE d) e'
 
@@ -741,7 +743,7 @@ infer (E (ALit [])) = __impossible "We don't allow 0-size array literals"
 infer (E (ALit es))
    = do es' <- mapM infer es
         ts <- mapM (unfoldSynsDeepM . exprType) es'
-        let n = LILit (fromIntegral $ length es) U32
+        let n = LILit (fromIntegral $ length es) (UInt 32)
         t <- lubAll ts
         isSub <- allM (`isSubtype` t) ts
         return (TE (TArray t n Unboxed Nothing) (ALit es'))
@@ -773,7 +775,7 @@ infer (E (Pop a e1 e2))
    = do e1'@(TE t1 _) <- infer e1
         TArray te l s tkns <- unfoldSynsShallowM t1
         let thd = te
-            ttl = TArray te (LOp Minus [l, LILit 1 U32]) s tkns
+            ttl = TArray te (LOp Minus [l, LILit 1 (UInt 32)]) s tkns
         -- guardShow "arr-pop on a singleton array" $ l > 1
         e2'@(TE t2 _) <- withBindings (Cons thd (Cons ttl Nil)) $ infer e2
         return (TE t2 (Pop a e1' e2'))
@@ -953,6 +955,12 @@ infer (E (Cast ty e))
         ty' <- unfoldSynsDeepM ty
         guardShow ("cast: " ++ show t' ++ " <<< " ++ show ty') =<< t' `isUpcastable` ty'
         return $ TE ty (Cast ty $ TE t e')
+infer (E (Truncate ty e))
+   = do (TE t e') <- infer e
+        t' <- unfoldSynsDeepM t
+        ty' <- unfoldSynsDeepM ty
+        guardShow ("truncate: " ++ show t' ++ " >>> " ++ show ty') =<< ty' `isUpcastable` t'
+        return $ TE ty (Truncate ty $ TE t e')
 infer (E (Promote ty e))
    = do (TE t e') <- infer e
         t' <- unfoldSynsDeepM t
