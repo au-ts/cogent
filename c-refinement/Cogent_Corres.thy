@@ -226,6 +226,100 @@ lemma corres_cast_8_16:
   apply (fastforce intro!: u_sem_cast u_sem_var elim: subst simp: val_rel_word)
   done
 
+lemma corres_cast_8_8:
+  assumes typing_cast: "\<Xi>, 0, [], {}, \<Gamma>' \<turnstile> Cast U8 (Var x) : TPrim (Num U8)"
+  assumes val_rel_var: "val_rel (\<gamma>!x) (x'::word8)"
+  shows "corres srel (Cast U8 (Var x)) (gets (\<lambda>_. (x' :: word8))) \<xi> \<gamma> \<Xi> \<Gamma>' \<sigma> s"
+  apply (insert val_rel_var)
+  apply (clarsimp simp: corres_def fst_return snd_return)
+  apply (rename_tac r w)
+  apply (insert typing_cast)
+  apply (erule typing_castE)
+  apply (erule typing_varE)
+  apply (frule_tac matches_ptrs_proj', simp+)
+  apply clarsimp
+  apply (rename_tac rr')
+  apply (erule uval_typing.cases, simp_all)
+  apply (clarsimp split: lit.splits)
+  apply (rename_tac \<tau> l)
+  apply (case_tac l)
+  apply (simp_all add: val_rel_word)+
+  apply (rename_tac word)
+  apply (rule_tac x=\<sigma> in exI)
+  apply (fastforce intro!: u_sem_cast u_sem_var elim: subst simp: val_rel_word)
+  done
+
+lemma corres_cast_16_16:
+  assumes typing_cast: "\<Xi>, 0, [], {}, \<Gamma>' \<turnstile> Cast U16 (Var x) : TPrim (Num U16)"
+  assumes val_rel_var: "val_rel (\<gamma>!x) (x'::word16)"
+  shows "corres srel (Cast U16 (Var x)) (gets (\<lambda>_. (x' :: word16))) \<xi> \<gamma> \<Xi> \<Gamma>' \<sigma> s"
+  apply (insert val_rel_var)
+  apply (clarsimp simp: corres_def fst_return snd_return)
+  apply (rename_tac r w)
+  apply (insert typing_cast)
+  apply (erule typing_castE)
+  apply (erule typing_varE)
+  apply (frule_tac matches_ptrs_proj', simp+)
+  apply clarsimp
+  apply (rename_tac rr')
+  apply (erule uval_typing.cases, simp_all)
+  apply (clarsimp split: lit.splits)
+  apply (rename_tac \<tau> l)
+  apply (case_tac l)
+  apply (simp_all add: val_rel_word)+
+  apply (rename_tac word)
+  apply (rule_tac x=\<sigma> in exI)
+  apply (fastforce intro!: u_sem_cast u_sem_var elim: subst simp: val_rel_word)
+  done
+
+lemma corres_cast_32_32:
+  assumes typing_cast: "\<Xi>, 0, [], {}, \<Gamma>' \<turnstile> Cast U32 (Var x) : TPrim (Num U32)"
+  assumes val_rel_var: "val_rel (\<gamma>!x) (x'::word32)"
+  shows "corres srel (Cast U32 (Var x)) (gets (\<lambda>_. (x' :: word32))) \<xi> \<gamma> \<Xi> \<Gamma>' \<sigma> s"
+  apply (insert val_rel_var)
+  apply (clarsimp simp: corres_def fst_return snd_return)
+  apply (rename_tac r w)
+  apply (insert typing_cast)
+  apply (erule typing_castE)
+  apply (erule typing_varE)
+  apply (frule_tac matches_ptrs_proj', simp+)
+  apply clarsimp
+  apply (rename_tac rr')
+  apply (erule uval_typing.cases, simp_all)
+  apply (clarsimp split: lit.splits)
+  apply (rename_tac \<tau> l)
+  apply (case_tac l)
+  apply (simp_all add: val_rel_word)+
+  apply (rename_tac word)
+  apply (rule_tac x=\<sigma> in exI)
+  apply (fastforce intro!: u_sem_cast u_sem_var elim: subst simp: val_rel_word)
+  done
+
+lemma corres_cast_64_64:
+  assumes typing_cast: "\<Xi>, 0, [], {}, \<Gamma>' \<turnstile> Cast U64 (Var x) : TPrim (Num U64)"
+  assumes val_rel_var: "val_rel (\<gamma>!x) (x'::word64)"
+  shows "corres srel (Cast U64 (Var x)) (gets (\<lambda>_. (x' :: word64))) \<xi> \<gamma> \<Xi> \<Gamma>' \<sigma> s"
+  apply (insert val_rel_var)
+  apply (clarsimp simp: corres_def fst_return snd_return)
+  apply (rename_tac r w)
+  apply (insert typing_cast)
+  apply (erule typing_castE)
+  apply (erule typing_varE)
+  apply (frule_tac matches_ptrs_proj', simp+)
+  apply clarsimp
+  apply (rename_tac rr')
+  apply (erule uval_typing.cases, simp_all)
+  apply (clarsimp split: lit.splits)
+  apply (rename_tac \<tau> l)
+  apply (case_tac l)
+  apply (simp_all add: val_rel_word)+
+  apply (rename_tac word)
+  apply (rule_tac x=\<sigma> in exI)
+  apply (fastforce intro!: u_sem_cast u_sem_var elim: subst simp: val_rel_word)
+  done
+
+
+
 lemma corres_cast_8_32:
   assumes typing_cast: "\<Xi>, 0, [], {}, \<Gamma>' \<turnstile> Cast U32 (Var x) : TPrim (Num U32)"
   assumes val_rel_var: "val_rel (\<gamma>!x) (x':: word8)"
@@ -343,6 +437,7 @@ lemma corres_cast_32_64:
 
 lemmas corres_cast =
   corres_cast_8_16 corres_cast_8_32 corres_cast_16_32 corres_cast_8_64 corres_cast_16_64 corres_cast_32_64
+corres_cast_8_8 corres_cast_16_16 corres_cast_32_32 corres_cast_64_64
 
 (*
 lemma list_all2_corres_varI:
