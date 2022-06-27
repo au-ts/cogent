@@ -137,7 +137,7 @@ typeSize (TPrim p) = case p of
                        U32 -> 32
                        U64 -> 64
 typeSize (TUnit) = 0
-typeSize _ = fromIntegral $ primIntSizeBits machineWordType
+typeSize _ = primIntSizeBits machineWordType
 
 
 -- Name

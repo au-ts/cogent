@@ -161,11 +161,8 @@ graphHelper (FunDef _ fn _ _ ti to e) = do
 graphHelper _ = undefined
 
 graphType :: Show b => Type t b -> GM GExprGroup
-graphType (TPrim Boolean) = return $ GEGSingle GBoolT
-graphType (TPrim U8)      = return $ GEGSingle (GWordT 8)
-graphType (TPrim U16)     = return $ GEGSingle (GWordT 16)
-graphType (TPrim U32)     = return $ GEGSingle (GWordT 32)
-graphType (TPrim U64)     = return $ GEGSingle (GWordT 64)
+graphType (TPrim Boolean)  = return $ GEGSingle GBoolT
+graphType (TPrim (UInt n)) = return $ GEGSingle (GWordT n)
 graphType (TProduct t u)  = do
     gt <- graphType t
     gu <- graphType u

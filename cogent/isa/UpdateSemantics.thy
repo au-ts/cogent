@@ -15,6 +15,8 @@ theory UpdateSemantics
 begin
 
 datatype ('f, 'a, 'l) uval = UPrim lit
+                             (* size *) (* value *)
+                           | UCustomInt nat nat
                            | UProduct "('f,'a,'l) uval" "('f,'a,'l) uval"
                            | USum name "('f,'a,'l) uval" "(name \<times> repr) list"
                            | URecord "(('f,'a,'l) uval \<times> repr) list" "ptr_layout option"
@@ -58,6 +60,7 @@ where
   u_sem_var     : "\<xi> , \<gamma> \<turnstile> (\<sigma>, Var i) \<Down>! (\<sigma>, \<gamma> ! i)"
 
 | u_sem_lit     : "\<xi> , \<gamma> \<turnstile> (\<sigma>, Lit l) \<Down>! (\<sigma>, UPrim l)"
+| u_sem_customint     : "\<xi> , \<gamma> \<turnstile> (\<sigma>, CustomInt n v) \<Down>! (\<sigma>, UCustomInt n v)"
 
 | u_sem_prim    : "\<lbrakk> \<xi> , \<gamma> \<turnstile>* (\<sigma>, as) \<Down>! (\<sigma>', as')
                    \<rbrakk> \<Longrightarrow>  \<xi> , \<gamma> \<turnstile> (\<sigma>, Prim p as) \<Down>! (\<sigma>', eval_prim_u p as')"
@@ -65,6 +68,12 @@ where
 | u_sem_cast    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, e) \<Down>! (\<sigma>', UPrim l)
                    ; cast_to \<tau> l = Some l'
                    \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, Cast \<tau> e) \<Down>! (\<sigma>', UPrim l')"
+| u_sem_custom_ucast    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, e) \<Down>! (\<sigma>', UCustomInt n v)
+                   ;  custom_ucast_to n v = Some l'
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, CustomUCast \<tau> e) \<Down>! (\<sigma>', UPrim l')"
+| u_sem_custom_dcast    : "\<lbrakk> \<xi> , \<gamma> \<turnstile> (\<sigma>, e) \<Down>! (\<sigma>', UPrim l)
+                   ;  custom_dcast_to n l = Some v 
+                   \<rbrakk> \<Longrightarrow> \<xi> , \<gamma> \<turnstile> (\<sigma>, CustomDCast n e) \<Down>! (\<sigma>', UCustomInt n v)"
 
 | u_sem_fun     : "\<xi> , \<gamma> \<turnstile> (\<sigma>, Fun f ts ls) \<Down>! (\<sigma>, UFunction f ts ls)"
 
@@ -183,6 +192,7 @@ context update_sem begin
 
 fun uval_repr :: "('f, 'a, 'l) uval \<Rightarrow> repr" where
   "uval_repr (UPrim lit) = RPrim (lit_type lit)"
+| "uval_repr (UCustomInt n v) = RCustomNum n"
 | "uval_repr (UProduct a b) = RProduct (uval_repr a) (uval_repr b)"
 | "uval_repr (USum a b reprs) = RSum reprs"
 | "uval_repr (URecord fs ptrl) = RRecord (map snd fs) ptrl"
@@ -194,6 +204,7 @@ fun uval_repr :: "('f, 'a, 'l) uval \<Rightarrow> repr" where
 
 fun uval_repr_deep :: "('f, 'a, 'l) uval \<Rightarrow> repr" where
   "uval_repr_deep (UPrim lit) = RPrim (lit_type lit)"
+| "uval_repr_deep (UCustomInt n v) = RCustomNum n"
 | "uval_repr_deep (UProduct a b) = RProduct (uval_repr_deep a) (uval_repr_deep b)"
 | "uval_repr_deep (USum a b reprs) = RSum reprs"
 | "uval_repr_deep (URecord fs ptrl) = RRecord (map uval_repr_deep (map fst fs)) ptrl"
@@ -220,7 +231,7 @@ and uval_typing_record :: "('f \<Rightarrow> poly_type)
 
 
   u_t_prim     : "\<Xi>, \<sigma> \<turnstile> UPrim l :u TPrim (lit_type l) \<langle>{}, {}\<rangle>"
-
+| u_t_custom_int : "n \<le> 64 \<Longrightarrow> \<Xi>, \<sigma> \<turnstile> UCustomInt n v :u TCustomNum n \<langle>{}, {}\<rangle>"
 | u_t_product  : "\<lbrakk> \<Xi>, \<sigma> \<turnstile> a :u t \<langle>r , w \<rangle>
                   ; \<Xi>, \<sigma> \<turnstile> b :u u \<langle>r', w'\<rangle>
                   ; w  \<inter> w' = {}
@@ -305,6 +316,7 @@ lemma u_t_prim' : "\<tau> = lit_type l \<Longrightarrow> \<Xi>, \<sigma> \<turns
    by (simp add: u_t_prim)
 
 inductive_cases u_t_primE     [elim] : "\<Xi>, \<sigma> \<turnstile> UPrim l :u TPrim \<tau> \<langle>r, w\<rangle>"
+inductive_cases u_t_customintE[elim] : "\<Xi>, \<sigma> \<turnstile> UCustomInt n v :u TCustomNum n' \<langle>r, w\<rangle>"
 inductive_cases u_t_functionE [elim] : "\<Xi>, \<sigma> \<turnstile> UFunction f ts ls :u TFun \<tau> \<rho> \<langle>r, w\<rangle>"
 inductive_cases u_t_afunE     [elim] : "\<Xi>, \<sigma> \<turnstile> UAFunction f ts ls :u TFun \<tau> \<rho> \<langle>r, w\<rangle>"
 inductive_cases u_t_sumE      [elim] : "\<Xi>, \<sigma> \<turnstile> v :u TSum \<tau>s \<langle>r, w\<rangle>"
@@ -1615,7 +1627,7 @@ next
 
   obtain r' where "\<Xi>, \<sigma> \<turnstile>* fs :ur ts' \<langle>r', w\<rangle>"
       "r' \<subseteq> r"
-    using elims subty_trecord subtyping_simps(6) u_t_struct by meson
+    using elims subty_trecord subtyping_simps(7) u_t_struct by meson
 
   then show ?case
     using elims
@@ -1654,9 +1666,9 @@ next
     using u_t_p_rec_ro elims
   proof -
     have "\<forall> s. 0, [], {} \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts' s"
-      using elims subtyping_simps(6) by blast
+      using elims subtyping_simps(7) by blast
     then show ?thesis
-      by (metis subtyping_lrepr type_lrepr.simps(7) u_t_p_rec_ro.hyps(5))
+      by (metis subtyping_lrepr type_lrepr.simps(8) u_t_p_rec_ro.hyps(5))
   qed
   obtain r' where fields: "\<Xi>, \<sigma> \<turnstile>* fs :ur ts' \<langle>r', {}\<rangle>"
       "r' \<subseteq> r"
@@ -1683,7 +1695,7 @@ next
   using u_t_p_rec_w elims
   proof -
     have "\<forall> s. 0, [], {} \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts' s"
-      using elims subtyping_simps(6) by blast
+      using elims subtyping_simps(7) by blast
     then show ?thesis    
       by (metis subtyping_lrepr type_lrepr.simps u_t_p_rec_w.hyps(6))
   qed
@@ -1708,7 +1720,7 @@ next
   have field_is':
     "(0, [], {} \<turnstile> t1 \<sqsubseteq> t2)"
     "(if 0, [], {} \<turnstile> t1 :\<kappa> {D} then Present \<le> b2 else Present = b2)"
-    using field_is subtyping_simps(6) u_t_r_cons1.prems by auto
+    using field_is subtyping_simps(7) u_t_r_cons1.prems by auto
 
   have trec_subty: "0, [], {} \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts2' s"
     using u_t_r_cons1(9) field_is
@@ -1769,7 +1781,7 @@ next
   have field_is':
     "(0, [], {} \<turnstile> t1 \<sqsubseteq> t2)"
     "(if 0, [], {} \<turnstile> t1 :\<kappa> {D} then Taken \<le> b2 else Taken = b2)"
-    using field_is subtyping_simps(6) u_t_r_cons2.prems by auto
+    using field_is subtyping_simps(7) u_t_r_cons2.prems by auto
 
   have trec_subty: "0, [], {} \<turnstile> TRecord ts s \<sqsubseteq> TRecord ts2' s"
     using u_t_r_cons2(7) field_is
@@ -1878,6 +1890,11 @@ next case u_sem_lit       then show ?case by ( cases e, simp_all
                                              , fastforce dest:   matches_ptrs_proj_consumed
                                                          intro!: uval_typing_uval_typing_record.intros
                                                                  frame_id)
+next case u_sem_customint       then show ?case by ( cases e, simp_all
+                                             , fastforce dest:   matches_ptrs_proj_consumed
+                                                         intro!: uval_typing_uval_typing_record.intros
+                                                                 frame_id)
+
 next case u_sem_afun      then show ?case by ( cases e, simp_all
                                              , fastforce intro: u_t_afun_instantiate
                                                                 frame_id
@@ -2115,7 +2132,7 @@ next case (u_sem_con \<xi> \<gamma> \<sigma> x_spec \<sigma>' x' ts_inst tag)
       show "0, [], {} \<turnstile> TSum (map (\<lambda>(c, t, b). (c, instantiate \<epsilon> \<tau>s t, b)) ts) wellformed"
         using typing_elims u_sem_con.prems Con
         using instantiate_wellformed list_all2_kinding_wellformedD
-        by (metis expr.inject(6) instantiate.simps(6) spec_simps(1) specialise.simps(6) type_wellformed_pretty_def u_sem_con.hyps(3))
+        by (metis expr.inject(6) instantiate.simps(7) spec_simps(1) specialise.simps(6) type_wellformed_pretty_def u_sem_con.hyps(3))
     qed simp+
     then show ?thesis
       using r'_sub_r frame_w_w' spec_simps typing_elims
@@ -2172,6 +2189,12 @@ next case u_sem_unit      then show ?case by ( cases e, simp_all
 next case u_sem_cast      then show ?case by ( cases e, simp_all
                                              , fastforce elim:   upcast_valid_cast_to
                                                          intro!: u_t_prim')
+next case u_sem_custom_ucast      then show ?case by ( cases e, simp_all
+                                             , fastforce intro!: u_t_prim')
+next case u_sem_custom_dcast      then show ?case by ( cases e, simp_all
+                                             , fastforce intro!: u_t_custom_int)
+   
+
 next case u_sem_tuple
   note IH1  = this(2)
   and  IH2  = this(4)

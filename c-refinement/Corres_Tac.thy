@@ -189,94 +189,7 @@ Local_Theory.note
   ctxt |> snd
 \<close>
 
-lemma ucast_up_lesseq[OF refl]:
-  "upcast = ucast
-    \<Longrightarrow> is_up (upcast :: ('a :: len) word \<Rightarrow> ('b :: len) word)
-    \<Longrightarrow> (upcast x \<le> upcast y) = (x \<le> y)"
-  by (simp add: word_le_nat_alt unat_ucast_upcast)
 
-lemma ucast_up_less[OF refl]:
-  "upcast = ucast
-    \<Longrightarrow> is_up (upcast :: ('a :: len) word \<Rightarrow> ('b :: len) word)
-    \<Longrightarrow> (upcast x < upcast y) = (x < y)"
-  by (simp add: word_less_nat_alt unat_ucast_upcast)
-
-lemma ucast_up_mod[OF refl]:
-  "upcast = ucast
-    \<Longrightarrow> is_up (upcast :: ('c :: len) word \<Rightarrow> ('d :: len) word)
-    \<Longrightarrow> (upcast x mod upcast y) = upcast (x mod y)"
-  apply (rule word_unat.Rep_eqD)
-  apply (simp only: unat_mod unat_ucast_upcast)
-  done
-
-lemma ucast_up_div[OF refl]:
-  "upcast = ucast
-    \<Longrightarrow> is_up (upcast :: ('c :: len) word \<Rightarrow> ('d :: len) word)
-    \<Longrightarrow> (upcast x div upcast y) = upcast (x div y)"
-  apply (rule word_unat.Rep_eqD)
-  apply (simp only: unat_div unat_ucast_upcast)
-  done
-
-lemma ucast_up_eq_0[OF refl]:
-  "upcast = ucast
-    \<Longrightarrow> is_up (upcast :: ('c :: len) word \<Rightarrow> ('d :: len) word)
-    \<Longrightarrow> (upcast x = 0) = (x = 0)"
-  by (metis word_unat.Rep_inject unat_ucast_upcast ucast_0)
-
-lemma ucast_down_bitwise[OF refl]:
-  "dcast = ucast
-    \<Longrightarrow> (bitOR (dcast x) (dcast y)) = dcast (bitOR x y)"
-  "dcast = ucast
-    \<Longrightarrow> (bitAND (dcast x) (dcast y)) = dcast (bitAND x y)"
-  "dcast = ucast
-    \<Longrightarrow> (bitXOR (dcast x) (dcast y)) = dcast (bitXOR x y)"
-  "dcast = ucast
-    \<Longrightarrow> is_down (dcast :: ('a :: len) word \<Rightarrow> ('b :: len) word)
-    \<Longrightarrow> (bitNOT (dcast x)) = dcast (bitNOT x)"
-  by (auto intro!: word_eqI simp add: word_size nth_ucast word_ops_nth_size
-      is_down_def target_size_def source_size_def)
-
-lemma ucast_down_shiftl[OF refl]:
-  "dcast = ucast
-    \<Longrightarrow> is_down (dcast :: ('a :: len) word \<Rightarrow> ('b :: len) word)
-    \<Longrightarrow> dcast (x << n) = dcast x << n"
-  apply clarsimp
-  apply (rule word_eqI)
-  apply (simp add: word_size nth_shiftl nth_ucast)
-  apply (simp add: is_down_def source_size_def target_size_def word_size)
-  apply auto
-  done
-
-lemma ucast_up_down_shiftr[OF refl]:
-  "dcast = ucast
-    \<Longrightarrow> is_down (dcast :: ('a :: len) word \<Rightarrow> ('b :: len) word)
-    \<Longrightarrow> dcast (ucast x >> n) = x >> n"
-  apply clarsimp
-  apply (rule word_eqI)
-  apply (simp add: word_size nth_shiftr nth_ucast)
-  apply (simp add: is_down_def source_size_def target_size_def word_size)
-  apply (auto dest: test_bit_size simp: word_size)
-  done
-
-lemma ucast_up_sless_disgusting[OF refl]:
-  "(upcast :: ('c :: len) word \<Rightarrow> ('d :: len) word) = ucast
-    \<Longrightarrow> len_of TYPE('c) < len_of TYPE('d)
-    \<Longrightarrow> (upcast x <s upcast y) = (x < y)"
-  apply (clarsimp simp: word_sless_msb_less msb_nth nth_ucast
-                        word_less_nat_alt unat_ucast_upcast
-                        is_up_def source_size_def target_size_def word_size)
-  apply (auto dest: test_bit_size simp: word_size)
-  done
-
-lemma ucast_up_sle_disgusting[OF refl]:
-  "(upcast :: ('c :: len) word \<Rightarrow> ('d :: len) word) = ucast
-    \<Longrightarrow> len_of TYPE('c) < len_of TYPE('d)
-    \<Longrightarrow> (upcast x <=s upcast y) = (x \<le> y)"
-  apply (clarsimp simp: word_sle_msb_le msb_nth nth_ucast
-                        word_le_nat_alt unat_ucast_upcast
-                        is_up_def source_size_def target_size_def word_size)
-  apply (auto dest: test_bit_size simp: word_size)
-  done
 
 (* Corres tactic *)
 
@@ -311,7 +224,10 @@ fun atom_stmts @{const_name Var}     = SOME 1
   | atom_stmts @{const_name Struct}  = SOME 1
   | atom_stmts @{const_name Unit}    = SOME 1
   | atom_stmts @{const_name Lit}     = SOME 1
+  | atom_stmts @{const_name CustomInt}     = SOME 1
   | atom_stmts @{const_name Cast}    = SOME 1
+  | atom_stmts @{const_name CustomDCast} = SOME 1
+  | atom_stmts @{const_name CustomUCast} = SOME 1
   | atom_stmts @{const_name Tuple}   = SOME 1
   | atom_stmts @{const_name Esac}    = SOME 1
   | atom_stmts @{const_name Fun}     = SOME 1
@@ -438,6 +354,40 @@ let
 
   fun get_thm nm = Proof_Context.get_thm ctxt nm;
   fun get_thms nm = Proof_Context.get_thms ctxt nm;
+  
+  (* helpers to enumerate all the corres_custom_d/ucast thms *)
+
+  fun mk_corres_custom_dcast n =
+    let       
+      val ty = get_custom_num_ty_nm_C n
+      val  field = ty ^ "." ^ custom_num_field_nm_C
+      val thm_upd_same = ty ^ "_accupd_same" |> get_thms
+     (* cf Cogent_corres *)
+      val thm = get_thm (if n > 16 then "corres_custom_dcast_gen_base" else "corres_custom_dcast_gen_base_lt32")
+    in
+      Rule_Insts.where_rule ctxt [( (("custom_get", 0), Position.start  ), field)] [] thm
+      OF thm_upd_same
+   end
+
+   fun mk_corres_custom_ucast n =
+    let       
+      val ty = get_custom_num_ty_nm_C n
+      val field = ty ^ "." ^ custom_num_field_nm_C
+      val thm = get_thm "corres_custom_ucast_to_gen_base"
+      in
+
+    Rule_Insts.where_rule ctxt [( (("custom_get", 0), Position.start  ), field)] [] thm
+end
+    
+  fun mk_all_corres_custom_cast mk n acc =
+    if n = 0 then
+      acc
+    else
+      mk_all_corres_custom_cast mk (n - 1) 
+     (if n = 64 orelse n = 32 orelse n = 16 orelse n = 8 then
+         acc
+      else
+         mk n :: acc)
 
   (* Basic rules. *)
   val corres_let = get_thm "corres_let";
@@ -468,6 +418,11 @@ let
   val corres_afun = get_thm "corres_afun";
   val corres_promote = get_thm "corres_promote";
   val corres_cast = get_thms "corres_cast";
+
+  val corres_custom_ucast = mk_all_corres_custom_cast mk_corres_custom_ucast 64 []
+  val corres_custom_dcast = mk_all_corres_custom_cast mk_corres_custom_dcast 64 []
+  
+
   val corres_struct = get_thm "corres_struct";
   val corres_let_put_unboxed = get_thm "corres_let_put_unboxed'";
   val corres_no_let_put_unboxed = get_thm "corres_no_let_put_unboxed'";
@@ -700,6 +655,26 @@ let
          THEN print "corres_cast"
          THEN rule_tree 0 1
          THEN subgoal_simp 1)
+        ORELSE
+        (rules corres_custom_ucast 1
+         THEN print "corres_custom_ucast"
+         (* is_signed TYPE(8) = False *)
+         THEN subgoal_simp_add @{thms is_signed_simps} 1
+         THEN subgoal_val_rel_simp_add [] 1
+         (* LENGTH(8) = (if 32 < ?n then 64 else if 16 < ?n then 32 else if 8 < ?n then 16 else 8) *)
+         THEN subgoal_simp 1
+         THEN rule_tree 0 1)
+        ORELSE
+        (rules corres_custom_dcast 1
+         THEN print "corres_custom_dcast"
+         (* LENGTH(8) < 32 \<and> is_signed TYPE(8) = False *)
+         THEN subgoal_simp_add @{thms is_signed_simps} 1
+         (* ?m = mask ?n *)
+         THEN subgoal_simp_add @{thms mask_def} 1
+         THEN rule_tree 0 1
+         THEN subgoal_simp 1
+         THEN subgoal_val_rel_simp_add [] 1
+        )
 
         ORELSE check_Cogent_head @{const_name App}
         (((fn n => rule corres_app_concrete n

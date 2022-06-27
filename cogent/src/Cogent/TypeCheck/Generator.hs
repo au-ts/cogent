@@ -306,7 +306,7 @@ cg' (PrimOp o [e1, e2]) t
   | o `elem` words "+ - * / % .&. .|. .^. >> <<"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
-       return (integral t <> c1 <> c2, PrimOp o [e1', e2'] )
+       return (WordSize t <> c1 <> c2, PrimOp o [e1', e2'] )
   | o `elem` words "&& ||"
   = do (c1, e1') <- cg e1 t
        (c2, e2') <- cg e2 t
@@ -322,7 +322,7 @@ cg' (PrimOp o [e1, e2]) t
 cg' (PrimOp o [e]) t
   | o == "complement"  = do
       (c, e') <- cg e t
-      return (integral t :& c, PrimOp o [e'])
+      return (WordSize t :& c, PrimOp o [e'])
   | o == "not"         = do
       (c, e') <- cg e t
       return (T bool :=: t :& c, PrimOp o [e'])
@@ -355,9 +355,15 @@ cg' (Var n) t = do
 
 cg' (Upcast e) t = do
   alpha <- freshTVar (TypeOfExpr (stripLocE e) [] ?loc)
-  (c1, e1') <- cg e alpha
-  let c = integral alpha <> Upcastable alpha t <> c1
-  return (c, Upcast e1')
+  (c, e') <- cg e alpha
+  let c' = integral alpha <> Upcastable alpha t <> c
+  return (c', Upcast e')
+
+cg' (Truncate e) t = do
+  alpha <- freshTVar (TypeOfExpr (stripLocE e) [] ?loc)
+  (c, e') <- cg e alpha
+  let c' = integral alpha <> Upcastable t alpha <> c
+  return (c', Truncate e')
 
 cg' (BoolLit b) t = do
   let c = T bool :=: t
@@ -380,10 +386,10 @@ cg' Unitel t = do
   return (c,e)
 
 cg' (IntLit i) t = do
-  let minimumBitwidth | i < u8MAX      = "U8"
-                      | i < u16MAX     = "U16"
-                      | i < u32MAX     = "U32"
-                      | otherwise      = "U64"
+  let minimumBitwidth | i < u8MAX  = "U8"
+                      | i < u16MAX = "U16"
+                      | i < u32MAX = "U32"
+                      | otherwise  = "U64"
       c = Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
       e = IntLit i
   return (c,e)
@@ -743,10 +749,10 @@ matchA' (PCon k [i]) t = do
 matchA' (PCon k []) t = matchA' (PCon k [LocIrrefPatn ?loc PUnitel]) t
 matchA' (PCon k is) t = matchA' (PCon k [LocIrrefPatn ?loc (PTuple is)]) t
 matchA' (PIntLit i) t = do
-  let minimumBitwidth | i < u8MAX      = "U8"
-                      | i < u16MAX     = "U16"
-                      | i < u32MAX     = "U32"
-                      | otherwise      = "U64"
+  let minimumBitwidth | i < u8MAX  = "U8"
+                      | i < u16MAX = "U16"
+                      | i < u32MAX = "U32"
+                      | otherwise  = "U64"
       c = Upcastable (T (TCon minimumBitwidth [] Unboxed)) t
       -- ^^^ FIXME: I think if we restrict this constraint, then we can possibly get rid of `Upcast' / zilinc
   return (M.empty, c, PIntLit i, t)
@@ -903,7 +909,7 @@ freshRPVar :: VarOrigin -> CG RP
 freshRPVar ctx = UP <$> freshVar ctx
       
 integral :: TCType -> Constraint
-integral = Upcastable (T (TCon "U8" [] Unboxed))
+integral = Upcastable (T (TCon "U1" [] Unboxed))
 
 dropConstraintFor :: M.Map VarName (C.Assumption TCType) -> Constraint
 dropConstraintFor = foldMap (\(i, (t,x,us)) -> if null us then Drop t (Unused i x) else Sat) . M.toList

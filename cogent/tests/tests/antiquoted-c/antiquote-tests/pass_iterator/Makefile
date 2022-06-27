@@ -44,7 +44,11 @@ test: gen-anti $(OBJ)
 
 gen-anti:
 	mkdir -p $(ABSDIR)
-	cogent -g $(SRC) --infer-c-types="$(AHFILES)" --infer-c-funcs="$(ACFILES)" --cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" --ext-types=types.cfg -O1 -ogenerated
+	cogent -g $(SRC) --infer-c-types="$(AHFILES)" \
+		--infer-c-funcs="$(ACFILES)" \
+		--cpp="$(CPP)" \
+	  --cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+		--ext-types=types.cfg -O1 -ogenerated
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)

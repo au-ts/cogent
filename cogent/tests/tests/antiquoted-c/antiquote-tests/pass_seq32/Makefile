@@ -45,6 +45,7 @@ test: gen-anti $(OBJ)
 gen-anti-prune:
 	mkdir -p $(ABSDIR)
 	cogent -g $(SRC) --infer-c-types="$(AHFILES)" --infer-c-funcs="$(ACFILES)" \
+		    --cpp="$(CPP)" \
 				--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
 				--entry-funcs=entrypoints.cfg --prune-call-graph=entrypoints.cfg \
 				-ogenerated
@@ -52,6 +53,7 @@ gen-anti-prune:
 gen-anti:
 	mkdir -p $(ABSDIR)
 	cogent -g $(SRC) --infer-c-types="$(AHFILES)" --infer-c-funcs="$(ACFILES)" \
+		    --cpp="$(CPP)" \
 				--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
 				--entry-funcs=entrypoints.cfg --prune-call-graph=entrypoints.cfg \
 				-ogenerated

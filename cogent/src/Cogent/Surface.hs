@@ -40,6 +40,7 @@ import Data.IntMap as IM (IntMap)
 import qualified Data.Map as M
 import Lens.Micro
 import Text.Parsec.Pos
+import Text.Read (readMaybe)
 
 
 type DocString = String
@@ -109,6 +110,7 @@ data Expr t p ip l e = PrimOp OpName [e]
                      | Let [Binding t p ip e] e
                      | Put e [Maybe (FieldName, e)]  -- Note: `Nothing' will be desugared to `Just' in TypeCheck / zilinc
                      | Upcast e
+                     | Truncate e
                      | Annot e t
                      deriving (Data, Eq, Ord, Show, Functor, Foldable, Traversable)
 
@@ -154,6 +156,13 @@ data Type e l t =
 u8   = TCon "U8"   [] Unboxed
 u32  = TCon "U32"  [] Unboxed
 bool = TCon "Bool" [] Unboxed
+
+isUInt :: TypeName -> Maybe Size
+isUInt c | 'U' <- head c
+         , Just n <- (readMaybe (tail c) :: Maybe Int)
+         , 0 < n && n <= 64 = Just n
+isUInt _ = Nothing
+
 
 data Polytype t = PT [(TyVarName, Kind)] [(DLVarName, t)] t
   deriving (Data, Eq, Show, Functor, Foldable, Traversable, Ord)
@@ -443,6 +452,7 @@ instance Pentatraversable Expr where
   pentatraverse fa fb fc fd fe (Let bs e)          = Let <$> traverse (quadritraverse fa fb fc fe) bs <*> fe e
   pentatraverse fa fb fc fd fe (Put e fs)          = Put <$> fe e <*> traverse (traverse (traverse fe)) fs
   pentatraverse fa fb fc fd fe (Upcast e)          = Upcast <$> fe e
+  pentatraverse fa fb fc fd fe (Truncate e)        = Truncate <$> fe e
   pentatraverse fa fb fc fd fe (Annot e t)         = Annot <$> fe e <*> fa t
 
 -- -----------------------------------------------------------------------------
@@ -594,6 +604,7 @@ tvE (RE (UnboxedRecord es)) = foldMap (foldMap tvE) es
 tvE (RE (Let bs e))         = foldMap tvB bs ++ tvE e
 tvE (RE (Put e es))         = tvE e ++ foldMap (foldMap $ foldMap tvE) es
 tvE (RE (Upcast e))         = tvE e
+tvE (RE (Truncate e))       = tvE e
 tvE (RE (Annot e t))        = tvE e ++ tvT t
 
 tvB :: Binding RawType p ip RawExpr -> [TyVarName]

@@ -95,9 +95,11 @@ import           Prelude             as P     hiding (mapM)
 import           System.IO (Handle, hPutChar)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 
-
 -- import Debug.Trace
 import Unsafe.Coerce (unsafeCoerce)
+
+#define U32 (UInt 32)
+
 
 recycleVars :: VarPool -> Gen v ()
 recycleVars pool =
@@ -129,7 +131,7 @@ genEnum = do
 
 -- NOTE: It's not used becuase it's defined in cogent-defns.h / zilinc
 genBool :: Gen v [CExtDecl]
-genBool = pure [ CDecl $ CStructDecl boolT [(CogentPrim U8, Just boolField)]
+genBool = pure [ CDecl $ CStructDecl boolT [(CogentPrim (UInt 8), Just boolField)]
                , CDecl $ CTypeDecl (CStruct boolT) [boolT]]
 
 -- NOTE: It's not used becuase it's defined in cogent-defns.h / zilinc
@@ -436,8 +438,12 @@ genExpr mv (TE t (Pop _ e1 e2)) = do  -- FIXME: varpool - as above
   -- start a for-loop to copy element-by-element the rest elements in @e1@
   (i,idecl,istm) <- declareInit u32 (mkConst U32 0) M.empty  -- i = 0;
   (adecl,astm) <- assign telt' (CArrayDeref (strDot' v2 arrField) (variable i))
-                               (CArrayDeref (strDot e1' arrField) ((CBinOp C.Add (variable i) (mkConst U32 1))))
+                               (CArrayDeref (strDot e1' arrField)
+                                 ((CBinOp C.Add (variable i) (mkConst U32 1))))
                    -- \ ^^^ v2[i] = e1'[i+1]
+                   -- There's a strange bug: ghc doesn't deal with macros after a '
+                   -- Running cpphs by hand is fine though.
+                   -- https://gitlab.haskell.org/ghc/ghc/-/issues/860 (opened 15 yrs ago) / zilinc (24/06/22)
   l' <- genLExpr l
   let cond = CBinOp C.Lt (CBinOp C.Add (variable i) (mkConst U32 1)) l'  -- i + 1 < l
       inc  = CAssign (variable i) (CBinOp C.Add (variable i) (mkConst U32 1))  -- i++
@@ -797,12 +803,42 @@ genExpr mv (TE t (Split _ e1 e2)) = do
 genExpr mv (TE t (Promote _ e)) = genExpr mv e
 
 genExpr mv (TE t (Cast _ e)) = do   -- int promotion
+  let TPrim (UInt small) = exprType e
+      TPrim (UInt big  ) = t
   (e',edecl,estm,ep) <- genExpr_ e
   t' <- genType t
-  (v,adecl,astm,vp) <- flip (maybeAssign t' mv) ep $ CTypeCast t' e'
+  let toType = TPrim (UInt $ roundUpToWord big)
+  toType' <- genType toType
+  let from = if small `elem` wordSizes
+                then e'
+                else strDot e' uintField
+      cast = CTypeCast toType' from
+      to   = if big `elem` wordSizes
+                then cast
+                else mkUIntLit big cast
+  (v,adecl,astm,vp) <- flip (maybeAssign t' mv) ep to
+  return (v, edecl++adecl, estm++astm, vp)
+
+genExpr mv (TE t (Truncate _ e)) = do
+  let TPrim (UInt big  ) = exprType e
+      TPrim (UInt small) = t
+  (e',edecl,estm,ep) <- genExpr_ e
+  t' <- genType t
+  let toType = TPrim (UInt $ roundUpToWord small)
+  toType' <- genType toType
+  let from = if big `elem` wordSizes
+                then e'
+                else strDot e' uintField
+      cast = CTypeCast toType' (CBinOp C.And from $ CConst $ CNumConst (mkMask small) t' HEX)
+      to   = if small `elem` wordSizes
+                then cast
+                else mkUIntLit small cast
+  (v,adecl,astm,vp) <- flip (maybeAssign t' mv) ep to
   return (v, edecl++adecl, estm++astm, vp)
 
 
+mkMask :: Size -> Integer
+mkMask s = 2^s - 1
 
 insertSetMap :: Ord a => a -> Maybe (S.Set a) -> Maybe (S.Set a)
 insertSetMap x Nothing  = Just $ S.singleton x

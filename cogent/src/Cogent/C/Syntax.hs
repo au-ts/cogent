@@ -254,7 +254,7 @@ instance Ord StrlCogentType where
 -- * Helper functions to build C syntax
 
 u32 :: CType
-u32 = CogentPrim U32
+u32 = CogentPrim (UInt 32)
 
 ulongCTy, uintCTy, sintCTy, charCTy :: CType
 ulongCTy = CInt False CLongT
@@ -280,10 +280,8 @@ archCTy = case __cogent_arch of X86_64 -> ulongCTy; X86_32 -> uintCTy; ARM32 -> 
 
 primCId :: PrimInt -> String
 primCId Boolean = "Bool"
-primCId U8  = "u8"
-primCId U16 = "u16"
-primCId U32 = "u32"
-primCId U64 = "u64"
+primCId (UInt n) | n `elem` wordSizes = 'u' : show n
+                 | otherwise = 'u' : show n ++ "_t"
 
 likelihood :: Likelihood -> (CExpr -> CExpr)
 likelihood l = case l of Likely   -> likely
@@ -302,12 +300,15 @@ variable = flip CVar Nothing
 mkBoolLit :: CExpr -> CExpr
 mkBoolLit e = CCompLit (CIdent boolT) [([CDesignFld boolField], CInitE e)]
 
+mkUIntLit :: Size -> CExpr -> CExpr
+mkUIntLit s e = CCompLit (CIdent (uintT s)) [([CDesignFld uintField], CInitE e)]
+
 true :: CExpr
 true = mkConst Boolean 1
 
 -- | Produces a C expression for an unsigned integer literal with the given integer value.
-uint :: Integer -> CExpr
-uint n = CConst $ CNumConst n uintCTy DEC
+uint :: (Integral a) => a -> CExpr
+uint (fromIntegral -> n) = CConst $ CNumConst n uintCTy DEC
 
 -- | Produces a C expression for a signed integer literal with the given integer value.
 sint :: Integer -> CExpr
@@ -315,8 +316,10 @@ sint n = CConst $ CNumConst n sintCTy DEC
 
 mkConst :: (Integral n) => PrimInt -> n -> CExpr
 mkConst pt (fromIntegral -> n)
-  | pt == Boolean = mkBoolLit (mkConst U8 n)
-  | otherwise = CConst $ CNumConst n (CogentPrim pt) DEC
+  | pt == Boolean = mkBoolLit (mkConst (UInt 8) n)
+  | UInt s <- pt = if s `elem` wordSizes
+                     then CConst $ CNumConst n (CogentPrim pt) DEC
+                     else mkUIntLit s (mkConst (UInt $ roundUpToWord s) n)
 
 -- str.fld
 strDot' :: CId -> CId -> CExpr
@@ -333,7 +336,7 @@ strArrow :: CExpr -> CId -> CExpr
 strArrow rec fld = CStructDot (CDeref rec) fld
 
 mkArrIdx :: Integral t => CExpr -> t -> CExpr
-mkArrIdx arr idx = CArrayDeref arr (mkConst U32 idx)
+mkArrIdx arr idx = CArrayDeref arr (mkConst (UInt 32) idx)
 
 isTrivialCExpr :: CExpr -> Bool
 isTrivialCExpr (CBinOp {}) = False
@@ -398,11 +401,14 @@ genOp opr (CC.TPrim pt) es =
                Syn.Not        -> (\[e1] -> mkBoolLit (CUnOp C.Lnot (strDot e1 boolField)))
                Syn.Complement -> (\[e1] -> downcast pt $ CUnOp C.Not (upcast pt e1))
    in oprf es
-  where width = \case U8 -> 8; U16 -> 16; U32 -> 32; U64 -> 64; Boolean -> 8
+  where width (UInt n) = n
+        width Boolean  = 8
         -- vvv FIXME: I don't remember why we did it this way. Is it for verification or performance? / zilinc
         upcast, downcast :: PrimInt -> CExpr -> CExpr
-        upcast   pt e = if pt `elem` [U8, U16] then CTypeCast u32 e else e
-        downcast pt e = if pt `elem` [U8, U16] then CTypeCast (CogentPrim pt) e else e
+        upcast   pt e = case pt of
+                          UInt n | n <= 16 -> CTypeCast u32 e ; _ -> e
+        downcast pt e = case pt of
+                          UInt n | n <= 16 -> CTypeCast (CogentPrim pt) e ; _ -> e
 genOp _ _ _ = __impossible "genOp"
 
 
@@ -437,6 +443,12 @@ dummyField    = "dummy"
 boolT, boolField :: CId
 boolT     = "bool_t"
 boolField = "boolean"
+
+uintField :: CId
+uintField = "uint"
+
+uintT :: Size -> CId
+uintT s = 'u':show s ++ "_t"
 
 arrField :: CId
 arrField = "data"

@@ -19,6 +19,97 @@ theory Cogent_Corres
     "Value_Relation"
 begin
 
+(* ucast lemmas *)
+
+lemma ucast_up_lesseq[OF refl]:
+  "upcast = ucast
+    \<Longrightarrow> is_up (upcast :: ('a :: len) word \<Rightarrow> ('b :: len) word)
+    \<Longrightarrow> (upcast x \<le> upcast y) = (x \<le> y)"
+  by (simp add: word_le_nat_alt unat_ucast_upcast)
+
+lemma ucast_up_less[OF refl]:
+  "upcast = ucast
+    \<Longrightarrow> is_up (upcast :: ('a :: len) word \<Rightarrow> ('b :: len) word)
+    \<Longrightarrow> (upcast x < upcast y) = (x < y)"
+  by (simp add: word_less_nat_alt unat_ucast_upcast)
+
+lemma ucast_up_mod[OF refl]:
+  "upcast = ucast
+    \<Longrightarrow> is_up (upcast :: ('c :: len) word \<Rightarrow> ('d :: len) word)
+    \<Longrightarrow> (upcast x mod upcast y) = upcast (x mod y)"
+  apply (rule word_unat.Rep_eqD)
+  apply (simp only: unat_mod unat_ucast_upcast)
+  done
+
+lemma ucast_up_div[OF refl]:
+  "upcast = ucast
+    \<Longrightarrow> is_up (upcast :: ('c :: len) word \<Rightarrow> ('d :: len) word)
+    \<Longrightarrow> (upcast x div upcast y) = upcast (x div y)"
+  apply (rule word_unat.Rep_eqD)
+  apply (simp only: unat_div unat_ucast_upcast)
+  done
+
+lemma ucast_up_eq_0[OF refl]:
+  "upcast = ucast
+    \<Longrightarrow> is_up (upcast :: ('c :: len) word \<Rightarrow> ('d :: len) word)
+    \<Longrightarrow> (upcast x = 0) = (x = 0)"
+  by (metis word_unat.Rep_inject unat_ucast_upcast ucast_0)
+
+lemma ucast_down_bitwise[OF refl]:
+  "dcast = ucast
+    \<Longrightarrow> (bitOR (dcast x) (dcast y)) = dcast (bitOR x y)"
+  "dcast = ucast
+    \<Longrightarrow> (bitAND (dcast x) (dcast y)) = dcast (bitAND x y)"
+  "dcast = ucast
+    \<Longrightarrow> (bitXOR (dcast x) (dcast y)) = dcast (bitXOR x y)"
+  "dcast = ucast
+    \<Longrightarrow> is_down (dcast :: ('a :: len) word \<Rightarrow> ('b :: len) word)
+    \<Longrightarrow> (bitNOT (dcast x)) = dcast (bitNOT x)"
+  by (auto intro!: word_eqI simp add: word_size nth_ucast word_ops_nth_size
+      is_down_def target_size_def source_size_def)
+
+lemma ucast_down_shiftl[OF refl]:
+  "dcast = ucast
+    \<Longrightarrow> is_down (dcast :: ('a :: len) word \<Rightarrow> ('b :: len) word)
+    \<Longrightarrow> dcast (x << n) = dcast x << n"
+  apply clarsimp
+  apply (rule word_eqI)
+  apply (simp add: word_size nth_shiftl nth_ucast)
+  apply (simp add: is_down_def source_size_def target_size_def word_size)
+  apply auto
+  done
+
+lemma ucast_up_down_shiftr[OF refl]:
+  "dcast = ucast
+    \<Longrightarrow> is_down (dcast :: ('a :: len) word \<Rightarrow> ('b :: len) word)
+    \<Longrightarrow> dcast (ucast x >> n) = x >> n"
+  apply clarsimp
+  apply (rule word_eqI)
+  apply (simp add: word_size nth_shiftr nth_ucast)
+  apply (simp add: is_down_def source_size_def target_size_def word_size)
+  apply (auto dest: test_bit_size simp: word_size)
+  done
+
+lemma ucast_up_sless_disgusting[OF refl]:
+  "(upcast :: ('c :: len) word \<Rightarrow> ('d :: len) word) = ucast
+    \<Longrightarrow> len_of TYPE('c) < len_of TYPE('d)
+    \<Longrightarrow> (upcast x <s upcast y) = (x < y)"
+  apply (clarsimp simp: word_sless_msb_less msb_nth nth_ucast
+                        word_less_nat_alt unat_ucast_upcast
+                        is_up_def source_size_def target_size_def word_size)
+  apply (auto dest: test_bit_size simp: word_size)
+  done
+
+lemma ucast_up_sle_disgusting[OF refl]:
+  "(upcast :: ('c :: len) word \<Rightarrow> ('d :: len) word) = ucast
+    \<Longrightarrow> len_of TYPE('c) < len_of TYPE('d)
+    \<Longrightarrow> (upcast x <=s upcast y) = (x \<le> y)"
+  apply (clarsimp simp: word_sle_msb_le msb_nth nth_ucast
+                        word_le_nat_alt unat_ucast_upcast
+                        is_up_def source_size_def target_size_def word_size)
+  apply (auto dest: test_bit_size simp: word_size)
+  done
+
 locale update_sem_init = update_sem +
 constrains abs_typing :: "(funtyp \<Rightarrow> poly_type) \<Rightarrow> abstyp \<Rightarrow> name \<Rightarrow> type list \<Rightarrow> sigil \<Rightarrow> ptrtyp set \<Rightarrow> ptrtyp set \<Rightarrow> (funtyp, abstyp, ptrtyp) store \<Rightarrow> bool"
        and abs_repr :: "abstyp \<Rightarrow> name \<times> repr list"
@@ -106,6 +197,10 @@ lemma corres_var:
 lemma corres_lit:
   "val_rel (UPrim lit) mv \<Longrightarrow> corres srel (Lit lit) (gets (\<lambda>_. mv)) \<xi> \<gamma> \<Xi> \<Gamma>  \<sigma> s"
   by (fastforce simp: corres_def snd_return fst_return intro: u_sem_lit)
+
+lemma corres_customint:
+  "val_rel (UCustomInt n v) mv \<Longrightarrow> corres srel (CustomInt n v) (gets (\<lambda>_. mv)) \<xi> \<gamma> \<Xi> \<Gamma>  \<sigma> s"
+  by (fastforce simp: corres_def snd_return fst_return intro: u_sem_customint)
 
 
 lemma corres_cast_8_16:
@@ -934,7 +1029,7 @@ proof (clarsimp simp: corres_def in_monad snd_bind snd_modify snd_state_assert, 
   then have typ'_is: "typ' = typ"
     using same_type_as_split_weakened_left split_preservation_some_left
       split\<Gamma> typing_put_elim_lems' typing_var_elim_lems' x_sigil
-    by (metis option.inject type.inject(8))
+    by (metis option.inject type.inject(9))
 
   note typing_put_elim_lems =
     typing_put_elim_lems'(2-)[simplified ftag'_fty'_is typ'_is]
@@ -1767,6 +1862,140 @@ lemma afun_corres:
    apply (rule u_sem_var)
   apply simp
   done
+
+abbreviation "val_rel_custom_int n custom_field uv x \<equiv>
+((\<exists>size v. (uv = UCustomInt size v) \<and>  size = n \<and>  v = unat (custom_field x) \<and>  custom_field x \<le> mask size)) "
+
+lemma corres_custom_ucast_to_gen_base:
+  assumes unsigned : "is_signed TYPE('n) = False"
+  assumes val_rel_var: "val_rel_custom_int n (custom_get :: 'u \<Rightarrow> ('n :: {knows_sign,len8}) word) (\<gamma>!x) x'"
+  assumes length_n : "LENGTH('n) = (if n > 32 then 64 else if n > 16 then 32 else if n > 8 then 16 else 8)"
+  assumes typing_cast: "\<Xi>, 0, [], {}, \<Gamma>' \<turnstile> CustomUCast UL (Var x) : TPrim (Num UL)"
+  shows "corres srel (CustomUCast UL (Var x)) (gets (\<lambda>_. custom_get x')) \<xi> \<gamma> \<Xi> \<Gamma>' \<sigma> s"
+ apply (insert val_rel_var)
+  apply (clarsimp simp: corres_def fst_return snd_return)
+  apply (rename_tac r w)
+  apply (insert typing_cast)
+  apply (erule typing_custom_ucastE)
+  apply (erule typing_varE)
+  apply (frule_tac matches_ptrs_proj', simp+)
+  apply clarsimp
+  apply (rename_tac rr')
+  apply (erule uval_typing.cases, simp_all)
+  apply (clarsimp )
+  apply(simp_all add:val_rel_word_def unsigned word_size length_n )
+
+  apply(intro impI conjI; rule_tac x=\<sigma> in exI)
+     apply(intro exI impI conjI)
+                      apply simp_all
+                      
+     apply (fastforce intro!: u_sem_custom_ucast u_sem_var elim: subst simp: val_rel_word ucast_nat_def)
+    apply (fastforce intro!: u_sem_custom_ucast u_sem_var elim: subst simp: val_rel_word ucast_nat_def)
+   apply (fastforce intro!: u_sem_custom_ucast u_sem_var elim: subst simp: val_rel_word ucast_nat_def)
+apply (fastforce intro!: u_sem_custom_ucast u_sem_var elim: subst simp: val_rel_word ucast_nat_def)
+  done
+
+
+lemma corres_custom_dcast_gen_base_lt32: 
+  assumes custom_get_update : "\<And> a b. custom_get (custom_update (\<lambda> _. a) b) = a"
+(* same as the lemma after but we assume the length to be smaller than 32
+so that cast appears *)
+  assumes unsigned : "LENGTH('n) < 32 \<and> is_signed TYPE('n :: {knows_sign,len8}) = False"
+
+
+
+  assumes meq : "m = mask n"
+  assumes typing_cast: "\<Xi>, 0, [], {}, \<Gamma>' \<turnstile> CustomDCast n (Var x) : TCustomNum n"
+  assumes val_rel_var: "val_rel (\<gamma>!x) (x'::'n word)"
+  assumes val_rel_cond : "\<And> a b. val_rel a (b :: 'u :: cogent_C_val) = val_rel_custom_int n custom_get a b"
+  
+  shows "corres srel (CustomDCast n (Var x)) 
+         (gets (\<lambda>_. custom_update (\<lambda>_. SCAST(32 signed \<rightarrow> 'n) (UCAST('n \<rightarrow> 32 signed) x' && m)) (custom_make 0)
+            :: 'u :: cogent_C_val
+          ))
+          \<xi> \<gamma> \<Xi> \<Gamma>' \<sigma> s"
+  apply (simp add:meq)
+  apply (insert val_rel_var)
+  
+  apply (clarsimp simp: corres_def fst_return snd_return)
+  apply (rename_tac r w)
+  apply (insert typing_cast)
+  apply (erule typing_custom_dcastE)
+  apply (erule typing_varE)
+  apply (frule_tac matches_ptrs_proj', simp+)
+  apply clarsimp
+  apply (rename_tac rr')
+  apply (erule uval_typing.cases, simp_all)
+  apply (clarsimp split: lit.splits)
+  apply (rename_tac \<tau> l)
+
+
+  apply (simp add:val_rel_word_def unsigned)
+  apply (rule_tac x=\<sigma> in exI)
+  apply simp
+  apply(subgoal_tac "(size x' = 8 ) \<or> size x' = 16 \<or> size x' = 32 \<or> size x' = 64") 
+   prefer 2
+   apply meson
+  apply (intro exI conjI)
+  using u_sem_custom_dcast
+  apply(rule_tac u_sem_custom_dcast)
+    apply (fastforce intro!: u_sem_var elim: subst ) 
+   apply(elim disjE; simp; simp  add: word_size)
+  apply(simp add:val_rel_cond custom_get_update)
+  apply(subgoal_tac "(SCAST(32 signed \<rightarrow> 'n) (UCAST('n \<rightarrow> 32 signed) x' && mask n))
+ = x' && mask n")
+    apply(elim disjE; simp; simp  add: word_size word_and_le1)
+  apply(insert unsigned)
+  apply(simp flip:ucast_and_mask add:ucast_id )
+done
+
+lemma corres_custom_dcast_gen_base: 
+  assumes custom_get_update : "\<And> a b. custom_get (custom_update (\<lambda> _. a) b) = a"
+  assumes unsigned : "is_signed TYPE('n :: {knows_sign,len8}) = False"
+
+ assumes meq : "m = mask n"
+  assumes typing_cast: "\<Xi>, 0, [], {}, \<Gamma>' \<turnstile> CustomDCast n (Var x) : TCustomNum n"
+  assumes val_rel_var: "val_rel (\<gamma>!x) (x'::'n word)"
+  assumes val_rel_cond : "\<And> a b. val_rel a (b :: 'u :: cogent_C_val) = val_rel_custom_int n custom_get a b"
+  
+  shows "corres srel (CustomDCast n (Var x)) 
+         (gets (\<lambda>_. custom_update (\<lambda>_.  (x' && m)) (custom_make 0)
+            :: 'u :: cogent_C_val
+          ))
+          \<xi> \<gamma> \<Xi> \<Gamma>' \<sigma> s"
+  apply(simp add:meq)
+apply (insert val_rel_var)
+  apply (clarsimp simp: corres_def fst_return snd_return)
+  apply (rename_tac r w)
+  apply (insert typing_cast)
+  apply (erule typing_custom_dcastE)
+  apply (erule typing_varE)
+  apply (frule_tac matches_ptrs_proj', simp+)
+  apply clarsimp
+  apply (rename_tac rr')
+  apply (erule uval_typing.cases, simp_all)
+  apply (clarsimp split: lit.splits)
+  apply (rename_tac \<tau> l)
+
+
+  apply (simp add:val_rel_word_def unsigned)
+  apply (rule_tac x=\<sigma> in exI)
+  apply simp
+   apply(subgoal_tac "(size x' = 8 ) \<or> size x' = 16 \<or> size x' = 32 \<or> size x' = 64")
+  prefer 2
+    apply meson
+ 
+  apply (intro exI conjI)
+  using u_sem_custom_dcast
+  apply(rule_tac u_sem_custom_dcast)
+    apply (fastforce intro!: u_sem_var elim: subst ) 
+   apply(elim disjE; simp; simp  add: word_size)
+  apply(simp add:val_rel_cond custom_get_update)
+  apply(elim disjE; simp; simp  add: word_size word_and_le1)
+  done
+
+
+
 
 end
 

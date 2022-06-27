@@ -202,16 +202,12 @@ of ``cpp`` installed in your ``PATH``. The default ``cpp`` installed on
 A solution:
 
   1. Install Homebrew
-  2. Run ``brew install gcc``. This will create symlinks ``gcc-8`` and ``cpp-8``
+  2. Run ``brew install gcc``. This will create symlinks ``gcc-11`` and ``cpp-11``
      (or whatever the latest gcc version number is) in ``/usr/local/bin`` to the newly installed version
      of ``gcc``.
-  3. Provided ``ls /usr/local/bin/cpp`` outputs
-     ``No such file or directory``, it should be safe to run
-     ``ln -s /usr/local/bin/cpp-8 /usr/local/bin/cpp`` (remember to adapt the command to the ``cpp`` version you installed).
-  4. If ``which cpp`` doesn't print ``/usr/local/bin/cpp``, then running
-     ``export PATH=/usr/local/bin:$PATH`` in any shell where you want run the
-     examples will ensure that the correct version of ``cpp`` is used.
-
+  3. Set environment variables ``CC`` and ``CPP`` to your newly install
+       GNU CC ``gcc-11`` and GNU CPP ``cpp-11`` (adapt to your version
+       number) in the shell in which you want to run the tests.
 Running ``make examples`` should now be successful.
 
 

@@ -398,4 +398,7 @@ fun get_fun_info Cfile Cfun ctxt : FunctionInfo.function_info =
 
 \<close>
 
+ML\<open> fun get_custom_num_ty_nm_C n = "u" ^ Int.toString n ^ "_t_C" \<close>
+ML\<open> val custom_num_field_nm_C = "uint_C" \<close>
+
 end

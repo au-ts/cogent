@@ -200,6 +200,7 @@ data Expr t v a b e
   | Put (e t v a b) FieldIndex (e t v a b)
   | Promote (Type t b) (e t v a b)  -- only for guiding the tc. rep. unchanged.
   | Cast (Type t b) (e t v a b)  -- only for integer casts. rep. changed
+  | Truncate (Type t b) (e t v a b)
 -- \ vvv constraint no smaller than header, thus UndecidableInstances
 deriving instance (Show a, Show b, Show (e t v a b), Show (e t ('Suc v) a b), Show (e t ('Suc ('Suc v)) a b))
   => Show (Expr t v a b e)
@@ -233,7 +234,8 @@ data LExpr t b
      -- \ ^^^ The first is the record, and the second is the taken field
   | LPut (LExpr t b) FieldIndex (LExpr t b)
   | LPromote (Type t b) (LExpr t b)  -- only for guiding the tc. rep. unchanged.
-  | LCast (Type t b) (LExpr t b)  
+  | LCast (Type t b) (LExpr t b)
+  | LTruncate (Type t b) (LExpr t b)
   deriving (Show, Eq, Ord, Functor, Generic)
 
 instance (Binary b, Generic b) => Binary (LExpr 'Zero b)
@@ -273,6 +275,7 @@ exprToLExpr fab f f1 f2 = \case
   Put rec fld v      -> LPut (f' rec) fld (f' v)
   Promote ty e       -> LPromote ty (f' e)
   Cast ty e          -> LCast ty (f' e)
+  Truncate ty e      -> LTruncate ty (f' e)
  where
   f'  = f  fab
   f1' = f1 fab
@@ -412,6 +415,7 @@ insertIdxAtE cut f (Take a rec fld e) = Take a (f cut rec) fld (f (FSuc (FSuc cu
 insertIdxAtE cut f (Put rec fld e) = Put (f cut rec) fld (f cut e)
 insertIdxAtE cut f (Promote ty e) = Promote ty (f cut e)
 insertIdxAtE cut f (Cast ty e) = Cast ty (f cut e)
+insertIdxAtE cut f (Truncate ty e) = Truncate ty (f cut e)
 
 
 
@@ -452,6 +456,7 @@ foldEPre unwrap f e = case unwrap e of
   (Put e1 _ e2)       -> mconcat [f e, foldEPre unwrap f e1, foldEPre unwrap f e2]
   (Promote _ e1)      -> f e `mappend` foldEPre unwrap f e1
   (Cast _ e1)         -> f e `mappend` foldEPre unwrap f e1
+  (Truncate _ e1)     -> f e `mappend` foldEPre unwrap f e1
 
 
 fmapE :: (forall t v. e1 t v a b -> e2 t v a b) -> Expr t v a b e1 -> Expr t v a b e2
@@ -485,7 +490,7 @@ fmapE f (Take a rec fld e)   = Take a (f rec) fld (f e)
 fmapE f (Put rec fld v)      = Put (f rec) fld (f v)
 fmapE f (Promote ty e)       = Promote ty (f e)
 fmapE f (Cast ty e)          = Cast ty (f e)
-
+fmapE f (Truncate ty e)      = Truncate ty (f e)
 
 untypeE :: TypedExpr t v a b -> UntypedExpr t v a b
 untypeE (TE _ e) = E $ fmapE untypeE e
@@ -529,6 +534,7 @@ instance (Functor (e t v a),
   fmap f (Flip (Put rec fld v)      )      = Flip $ Put (fmap f rec) fld (fmap f v)
   fmap f (Flip (Promote ty e)       )      = Flip $ Promote (fmap f ty) (fmap f e)
   fmap f (Flip (Cast ty e)          )      = Flip $ Cast (fmap f ty) (fmap f e)
+  fmap f (Flip (Truncate ty e)      )      = Flip $ Truncate (fmap f ty) (fmap f e)
 
 instance (Functor (Flip (e t v) b),
           Functor (Flip (e t ('Suc v)) b),
@@ -564,6 +570,7 @@ instance (Functor (Flip (e t v) b),
   fmap f (Flip2 (Put rec fld v)      )      = Flip2 $ Put (ffmap f rec) fld (ffmap f v)
   fmap f (Flip2 (Promote ty e)       )      = Flip2 $ Promote ty (ffmap f e)
   fmap f (Flip2 (Cast ty e)          )      = Flip2 $ Cast ty (ffmap f e)
+  fmap f (Flip2 (Truncate ty e)      )      = Flip2 $ Truncate ty (ffmap f e)
 
 instance Functor (Flip (TypedExpr t v) b) where  -- over @a@
   fmap f (Flip (TE t e)) = Flip $ TE t (fffmap f e)
@@ -604,6 +611,7 @@ instance Prec (Expr t v a b e) where
   prec (Put {}) = 1
   prec (Promote {}) = 0
   prec (Cast {}) = 0
+  prec (Truncate {}) = 0
   prec _ = 100
 
 instance Prec (TypedExpr t v a b) where
@@ -628,6 +636,7 @@ instance Prec (LExpr t b) where
   prec (LPut {}) = 1
   prec (LPromote {}) = 0
   prec (LCast {}) = 0
+  prec (LTruncate {}) = 0
   prec _ = 100
 #endif
 
@@ -689,8 +698,9 @@ instance (Pretty a, Pretty b, Prec (e t v a b), Pretty (e t v a b), Pretty (e t 
                                                       <+> prettyPrec 1 rec <+> record (fieldIndex f:[]) L.<$>
                                        keyword "in" <+> pretty e)
   pretty (Put rec f v) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
-  pretty (Promote t e) = prettyPrec 1 e <+> symbol ":^:" <+> pretty t
-  pretty (Cast t e) = prettyPrec 1 e <+> symbol ":::" <+> pretty t
+  pretty (Promote t e) = prettyPrec 1 e <+> symbol ":⇑" <+> pretty t
+  pretty (Cast t e) = prettyPrec 1 e <+> symbol ":↑" <+> pretty t
+  pretty (Truncate t e) = prettyPrec 1 e <+> symbol ":↓" <+> pretty t
 
 instance Pretty FunNote where
   pretty NoInline = empty
@@ -764,8 +774,9 @@ instance (Pretty b) => Pretty (LExpr t b) where
                                                       <+> prettyPrec 1 rec <+> record (fieldIndex f:[]) L.<$>
                                        keyword "in" <+> pretty e)
   pretty (LPut rec f v) = prettyPrec 1 rec <+> record [fieldIndex f <+> symbol "=" <+> pretty v]
-  pretty (LPromote t e) = prettyPrec 1 e <+> symbol ":^:" <+> pretty t
-  pretty (LCast t e) = prettyPrec 1 e <+> symbol ":::" <+> pretty t
+  pretty (LPromote t e) = prettyPrec 1 e <+> symbol ":⇑" <+> pretty t
+  pretty (LCast t e) = prettyPrec 1 e <+> symbol ":↑" <+> pretty t
+  pretty (LTruncate t e) = prettyPrec 1 e L.<$> symbol ":↓" <+> pretty t
 #endif
 
 

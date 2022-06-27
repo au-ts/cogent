@@ -141,6 +141,8 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
     , Just m' <- elemIndex m primTypeCons
     , n' <= m' , not (m `elem` ["String","Bool"]) -> hoistMaybe $ Just []
 
+  WordSize (T (TCon n [] Unboxed)) | n `elem` words "U8 U16 U32 U64" -> hoistMaybe $ Just []
+
   Drop  (T (TRPar _ True _)) m -> hoistMaybe $ Just []
   Share (T (TRPar _ True _)) m -> hoistMaybe $ Just []
 
@@ -183,7 +185,8 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
     -> hoistMaybe $ Just $ (\(l,(t,_)) -> l :~ t) <$> M.elems cs
 
 #ifdef BUILTIN_ARRAYS
-  TLArray e l _  :~ A t len (Left Unboxed) _ -> hoistMaybe $ Just [e :~ t, SE (T u32) (IntLit l) :==: len]
+  TLArray e l _  :~ A t len (Left Unboxed) _ ->
+    hoistMaybe $ Just [e :~ t, SE (T u32) (IntLit $ fromIntegral l) :==: len]
   TLArray e l _  :~ A _ _ (Right _) _ -> __todo "TLArray e p :~ A t l (Right n) h => is this possible?"
 #endif
 
@@ -193,6 +196,7 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
 
   TLPrim n       :~ T TUnit | evalSize n >= 0 -> hoistMaybe $ Just []
   TLPrim n       :~ T (TCon c ts Unboxed) | c `notElem` primTypeCons -> hoistMaybe $ Just []
+                    -- ^^^ Abstract types
   TLPrim n       :~ tau
     | isPrimType tau
     , primTypeSize tau == evalSize n
@@ -244,7 +248,9 @@ simplify ks lts = Rewrite.pickOne' $ onGoal $ \case
     -> hoistMaybe $ Just $ ((\((_,l1,_),(_,l2,_)) -> l1 :~< l2) <$> LRow.common r1 r2) <> [e1 :~< e2]
 
 #ifdef BUILTIN_ARRAYS
-  TLArray e1 l1 _ :~< TLArray e2 l2 _ -> hoistMaybe $ Just [e1 :~< e2, SE (T u32) (IntLit l1) :==: SE (T u32) (IntLit l2)]
+  TLArray e1 l1 _ :~< TLArray e2 l2 _ ->
+    hoistMaybe $ Just [e1 :~< e2, SE (T u32) (IntLit $ fromIntegral l1) :==:
+                                  SE (T u32) (IntLit $ fromIntegral l2)]
 #endif
 
   t1 :~~ t2 | isBoxedType t1, isBoxedType t2 -> hoistMaybe $ Just []  -- If both are pointers, then their layouts will be compatible
@@ -429,10 +435,7 @@ isBoxedType (A _ _ (Left (Boxed {})) _) = True
 isBoxedType _ = False
 
 primTypeSize :: TCType -> Size
-primTypeSize (T (TCon "U8"   [] Unboxed)) = 8
-primTypeSize (T (TCon "U16"  [] Unboxed)) = 16
-primTypeSize (T (TCon "U32"  [] Unboxed)) = 32
-primTypeSize (T (TCon "U64"  [] Unboxed)) = 64
+primTypeSize (T (TCon c [] Unboxed)) | Just x <- c `L.elemIndex` primTypeCons, x < 64 = x + 1
 primTypeSize (T (TCon "Bool" [] Unboxed)) = 1
 primTypeSize (T (TBang t))                = primTypeSize t
 primTypeSize (T (TUnbox t))               = primTypeSize t

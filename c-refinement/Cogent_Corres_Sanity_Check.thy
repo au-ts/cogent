@@ -60,6 +60,8 @@ fun Cogent_function_order (Const (@{const_name TFun}, _) $ argT $ _) =
       0
   | Cogent_function_order (Const (@{const_name TPrim}, _) $ _) =
       0
+  | Cogent_function_order (Const (@{const_name TCustomNum}, _) $ _) =
+      0
   | Cogent_function_order (Const (@{const_name TSum}, _) $ variants) =
       HOLogic.dest_list variants |> map (HOLogic.dest_prod #> snd #> HOLogic.dest_prod #> fst #> Cogent_function_order) |> maximum
   | Cogent_function_order (Const (@{const_name TProduct}, _) $ T1 $ T2) =

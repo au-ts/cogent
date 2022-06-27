@@ -149,6 +149,7 @@ stExpr (TE t e) = stExpr' e >> stType t
     stExpr' (Put rec fld v)  = stExpr rec >> stExpr v
     stExpr' (Promote ty e)   = stExpr e
     stExpr' (Cast    ty e)   = stExpr e
+    stExpr' (Truncate ty e)  = stExpr e
 
 -- | Add types to the table if not existing.
 stType :: Type t b -> ST ()
