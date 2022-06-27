@@ -43,9 +43,9 @@ gen-anti:
 	cogent $(SRC) -g -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
                 --infer-c-types="$(AHFILES)" \
                 --Wno-warn --infer-c-funcs="$(ACFILES)" \
-                --cpp-args="-E -x c \$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
 								--cpp=$(CPP) \
-                --entry-funcs=entrypoints.cfg \
+                --cpp-args="-x c \$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+                --entry-funcs=entrypoints.cfg
 
 clean:
 	rm -f $(COUTPUT) $(HOUTPUT) $(PP) $(PPINFER) $(OBJ)

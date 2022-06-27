@@ -34,7 +34,7 @@ all:
 		--abs-type-dir="$(BUILDDIR)" \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
 		--cpp="$(CPP)" \
-		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+		--cpp-args="-x c \$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
 		--proof-input-c=$(PPINFER) \
 	  --dist-dir=$(BUILDDIR) \
 		--entry-funcs=entrypoints.cfg $(SRC) 
