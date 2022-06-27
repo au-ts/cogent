@@ -45,7 +45,7 @@ gen-anti:
 	cogent $(SRC) -g -Od -o$(OUTPUT) --fno-fncall-as-macro --ffunc-purity-attr \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
 		--cpp="$(CPP)" \
-		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+		--cpp-args="-x c \$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
 		--entry-funcs=entrypoints.cfg
 
 clean:

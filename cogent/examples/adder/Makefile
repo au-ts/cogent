@@ -47,7 +47,7 @@ gen-anti:
 	cogent $(SRC) -g -ogenerated \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
 		--cpp="$(CPP)" \
-		--cpp-args="\$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
+		--cpp-args="-x c \$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
 		--ext-types=types.cfg \
 		--entry-funcs=entrypoints.cfg
 
