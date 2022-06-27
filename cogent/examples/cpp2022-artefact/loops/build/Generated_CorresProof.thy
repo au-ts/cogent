@@ -33,9 +33,9 @@ maps (fn t => case Thm.prop_of t of
     in if member (op=) Cogent_functions fun_name
  (* XXX: dodgy hack: x_fresh_cogent and uv_fresh_cogent should both be fresh names and must be bound in the definition below.
     This will fail if there is a function called x_fresh_cogent. *) 
-       then [@{mk_term "x_fresh_cogent = sint (?tag :: 32 signed word) \<and> uv_fresh_cogent = UFunction (?fun :: string expr) []"
+       then [@{mk_term "x_fresh_cogent = sint (?tag :: 32 signed word) \<and> uv_fresh_cogent = UFunction (?fun :: string expr) [] []"
                (tag, fun)} (tag_term, Syntax.read_term @{context} ("Generated_TypeProof." ^ fun_name))]
-       else [@{mk_term "x_fresh_cogent = sint (?tag :: 32 signed word) \<and> uv_fresh_cogent = UAFunction (?fun :: string) []"
+       else [@{mk_term "x_fresh_cogent = sint (?tag :: 32 signed word) \<and> uv_fresh_cogent = UAFunction (?fun :: string) [] []"
                (tag, fun)} (tag_term, HOLogic.mk_string fun_name)]
     end
   | _ => raise TERM ("cogent_function_val_rel gen: couldn't parse FUN_ENUM def", [Thm.prop_of t])

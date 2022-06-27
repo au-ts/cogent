@@ -13,7 +13,6 @@ typedef struct unit_t {
 typedef struct bool_t {
             u8 boolean;
         } bool_t;
-const int ENDIANNESS_TEST = 1;
 static inline u16 swap_u16(u16 v)
 {
     return v << 8 | v >> 8;
@@ -35,15 +34,15 @@ static inline u8 be_u8_swap(u8 v)
 }
 static inline u16 be_u16_swap(u16 v)
 {
-    return *(char *) &ENDIANNESS_TEST == 0 ? v : swap_u16(v);
+    return 0 ? v : swap_u16(v);
 }
 static inline u32 be_u32_swap(u32 v)
 {
-    return *(char *) &ENDIANNESS_TEST == 0 ? v : swap_u32(v);
+    return 0 ? v : swap_u32(v);
 }
 static inline u64 be_u64_swap(u64 v)
 {
-    return *(char *) &ENDIANNESS_TEST == 0 ? v : swap_u64(v);
+    return 0 ? v : swap_u64(v);
 }
 static inline u8 le_u8_swap(u8 v)
 {
@@ -51,15 +50,15 @@ static inline u8 le_u8_swap(u8 v)
 }
 static inline u16 le_u16_swap(u16 v)
 {
-    return *(char *) &ENDIANNESS_TEST == 0 ? swap_u16(v) : v;
+    return 0 ? swap_u16(v) : v;
 }
 static inline u32 le_u32_swap(u32 v)
 {
-    return *(char *) &ENDIANNESS_TEST == 0 ? swap_u32(v) : v;
+    return 0 ? swap_u32(v) : v;
 }
 static inline u64 le_u64_swap(u64 v)
 {
-    return *(char *) &ENDIANNESS_TEST == 0 ? swap_u64(v) : v;
+    return 0 ? swap_u64(v) : v;
 }
 enum {
     LET_TRUE = 1,

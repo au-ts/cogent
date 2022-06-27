@@ -23,7 +23,7 @@ definition upd_wa_get_0
            (y1, y2) = y
       in x1 = y1 \<and> (\<exists>p idx t len arr. x2 = URecord [
           (UPtr p (RCon ''WordArray'' [RPrim (Num t)]), RPtr (RCon ''WordArray'' [RPrim (Num t)])),
-          (UPrim (LU32 idx), RPrim (Num U32))] \<and> x1 p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr)) \<and>
+          (UPrim (LU32 idx), RPrim (Num U32))] None \<and> x1 p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr)) \<and>
           (idx < len \<longrightarrow> x1 (arr + size_of_num_type t * idx) = option.Some y2) \<and>
             (\<not> idx < len \<longrightarrow> y2 = UPrim (zero_num_lit t))))"
 
@@ -34,7 +34,7 @@ definition upd_wa_put2_0
            (y1, y2) = y
       in (\<exists>p idx val t len arr. x2 = URecord [
           (UPtr p (RCon ''WordArray'' [RPrim (Num t)]), RPtr (RCon ''WordArray'' [RPrim (Num t)])),
-          (UPrim (LU32 idx), RPrim (Num U32)), (val, RPrim (Num t))] \<and>
+          (UPrim (LU32 idx), RPrim (Num U32)), (val, RPrim (Num t))] None \<and>
           x1 p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr)) \<and>
           y2 = UPtr p (RCon ''WordArray'' [RPrim (Num t)]) \<and>
           (if idx < len 
@@ -47,7 +47,7 @@ function upd_wa_foldnb_bod :: "(funtyp, abstyp, ptrtyp) ufoldmapdef"
     \<sigma> p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr)) \<and>
     (if frm < min to len then (\<exists>v acc' \<sigma>'. \<sigma> (arr + size_of_num_type t * frm) = option.Some v \<and> 
           (\<xi>\<^sub>u, [(URecord [(v, RPrim (Num t)), (acc, type_repr \<tau>a), 
-            (obsv, type_repr \<tau>o)])] \<turnstile> (\<sigma>, App f (Var 0)) \<Down>! (\<sigma>', acc')) \<and>
+            (obsv, type_repr \<tau>o)] None)] \<turnstile> (\<sigma>, App f (Var 0)) \<Down>! (\<sigma>', acc')) \<and>
           upd_wa_foldnb_bod \<xi>\<^sub>u \<sigma>' p (frm + 1) to f \<tau>a acc' \<tau>o obsv res) 
     else (\<sigma>, acc) = res))"
   by pat_completeness auto
@@ -66,13 +66,13 @@ function upd_wa_mapAccumnb_bod :: "(char list, atyp, ptrtyp) ufoldmapdef"
     \<sigma> p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr)) \<and> 
     (if frm < min to len then 
       (\<exists>v v' acc' \<sigma>'. \<sigma> (arr + size_of_num_type t * frm) = option.Some v \<and>
-      (\<xi>\<^sub>u, [(URecord [(v, RPrim (Num t)), (acc, type_repr \<tau>a), (obsv, type_repr \<tau>o)])]
-        \<turnstile> (\<sigma>, App f (Var 0)) \<Down>! (\<sigma>', URecord [ (v', RPrim (Num t)), (acc', type_repr \<tau>a)])) \<and>
+      (\<xi>\<^sub>u, [(URecord [(v, RPrim (Num t)), (acc, type_repr \<tau>a), (obsv, type_repr \<tau>o)] None)]
+        \<turnstile> (\<sigma>, App f (Var 0)) \<Down>! (\<sigma>', URecord [ (v', RPrim (Num t)), (acc', type_repr \<tau>a)] None)) \<and>
       upd_wa_mapAccumnb_bod \<xi>\<^sub>u (\<sigma>'((arr + size_of_num_type t * frm) \<mapsto> v')) p (frm + 1) to f 
         \<tau>a acc' \<tau>o obsv res) 
     else res = (\<sigma>, URecord [
       (UPtr p (RCon ''WordArray'' [RPrim (Num t)]), RPtr (RCon ''WordArray'' [RPrim (Num t)])), 
-      (acc, type_repr \<tau>a)])))"
+      (acc, type_repr \<tau>a)] None)))"
   by pat_completeness auto
 termination
   apply (relation "measure (\<lambda>(_, _, _, frm, to, _, _, _,_,_,_). unat to - unat frm)"; clarsimp)
@@ -90,11 +90,11 @@ definition upd_wa_foldnb
       in (\<exists>p frm to func acc obsv t u v a0 a1 a2.
         y2 = URecord [(UPtr p (RCon ''WordArray'' [RPrim (Num t)]), RPtr (RCon ''WordArray'' [RPrim (Num t)])),
                       (UPrim (LU32 frm), RPrim (Num U32)), (UPrim (LU32 to), RPrim (Num U32)),
-                      (func, RFun), (acc, type_repr u), (obsv, type_repr v)] \<and>
+                      (func, RFun), (acc, type_repr u), (obsv, type_repr v)] None \<and>
         (\<exists>len arr. y1 p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr))) \<and>
         is_uval_fun func \<and> 
         \<tau> = TRecord [(a0, TPrim (Num t), Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
-        distinct [a0, a1, a2] \<and> (\<Xi>', [], [option.Some \<tau>] \<turnstile> (App (uvalfun_to_exprfun func) (Var 0)) : u) \<and>
+        distinct [a0, a1, a2] \<and> (\<Xi>', 0,[], {}, [option.Some \<tau>] \<turnstile> (App (uvalfun_to_exprfun func) (Var 0)) : u) \<and>
         upd_wa_foldnb_bod \<xi>\<^sub>u y1 p frm to (uvalfun_to_exprfun func) u acc v obsv z))"
 
 definition upd_wa_mapAccumnb
@@ -104,20 +104,20 @@ definition upd_wa_mapAccumnb
       in (\<exists>p frm to func acc obsv t u v a0 a1 a2 b0 b1.
         y2 = URecord [(UPtr p (RCon ''WordArray'' [RPrim (Num t)]), RPtr (RCon ''WordArray'' [RPrim (Num t)])),
                       (UPrim (LU32 frm), RPrim (Num U32)), (UPrim (LU32 to), RPrim (Num U32)),
-                      (func, RFun), (acc, type_repr u), (obsv,type_repr v)] \<and> 
+                      (func, RFun), (acc, type_repr u), (obsv,type_repr v)] None \<and> 
         (\<exists>len arr. y1 p = option.Some (UAbstract (UWA (TPrim (Num t)) len arr))) \<and> 
         is_uval_fun func \<and>
         \<tau>i = TRecord [(a0, TPrim (Num t), Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
         \<tau>o = TRecord [(b0, TPrim (Num t), Present), (b1, u, Present)] Unboxed \<and>
         distinct [a0, a1, a2] \<and> distinct [b0, b1] \<and>
-        (\<Xi>', [], [option.Some \<tau>i] \<turnstile> (App (uvalfun_to_exprfun func) (Var 0)) : \<tau>o) \<and> 
+        (\<Xi>', 0, [], {}, [option.Some \<tau>i] \<turnstile> (App (uvalfun_to_exprfun func) (Var 0)) : \<tau>o) \<and> 
         upd_wa_mapAccumnb_bod \<xi>\<^sub>u y1 p frm to (uvalfun_to_exprfun func) u acc v obsv z))"
 
 context update_sem begin
 lemma discardable_or_shareable_not_writable:
 assumes "D \<in> k \<or> S \<in> k"
-shows "\<lbrakk> \<Xi>', \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle>; K' \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
-and   "\<lbrakk> \<Xi>', \<sigma> \<turnstile>* fs :ur \<tau>s \<langle> r , w \<rangle>; K' \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
+shows "\<lbrakk> \<Xi>', \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle>; 0, K', {} \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
+and   "\<lbrakk> \<Xi>', \<sigma> \<turnstile>* fs :ur \<tau>s \<langle> r , w \<rangle>; 0, K', {} \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
   using assms
   by (induct rule: uval_typing_uval_typing_record.inducts)
     (force simp add: kinding_simps kinding_record_simps kinding_variant_set
@@ -251,7 +251,7 @@ lemma upd_wa_foldnb_bod_to_geq_len:
      rb \<inter> wa = {}; 
      rc \<inter> wa = {}; rc \<inter> wb = {};
      wa \<inter> wb = {};
-     \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present), 
+     \<Xi>', 0, [],{}, [option.Some (TRecord [(a0, t, Present), (a1, u, Present), 
       (a2, v, Present)] Unboxed)] \<turnstile> (App f (Var 0)) : u;
      distinct [a0, a1, a2];
      upd_wa_foldnb_bod \<xi>\<^sub>u \<sigma> p frm len f u acc v obsv (\<sigma>', res);
@@ -287,7 +287,7 @@ lemma upd_wa_foldnb_bod_to_geq_len:
      apply (subst Int_commute; assumption)
     apply (drule wa_abs_typing_u_elims(5))
     apply (erule_tac x = frm in allE; clarsimp)
-    apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+    apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon>="[]", simplified])
    apply clarsimp
    apply (rename_tac r' w')
    apply (drule_tac x = r' in meta_spec)
@@ -325,7 +325,7 @@ lemma upd_wa_foldnb_bod_to_geq_lenD:
      rb \<inter> wa = {}; 
      rc \<inter> wa = {}; rc \<inter> wb = {};
      wa \<inter> wb = {};
-     \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present),
+     \<Xi>', 0, [],{}, [option.Some (TRecord [(a0, t, Present), (a1, u, Present),
       (a2, v, Present)] Unboxed)] \<turnstile> (App f (Var 0)) : u;
       distinct [a0, a1, a2];
      upd_wa_foldnb_bod \<xi>\<^sub>u \<sigma> p frm to f u acc v obsv (\<sigma>', res);
@@ -360,7 +360,7 @@ lemma upd_wa_foldnb_bod_to_geq_lenD:
     apply (subst Int_commute; assumption)
    apply (drule wa_abs_typing_u_elims(5))
    apply (erule_tac x = frm in allE; clarsimp)
-   apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+   apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon>="[]", simplified])
   apply clarsimp
   apply (rename_tac r' w')
   apply (drule_tac x = r' in meta_spec)
@@ -398,7 +398,7 @@ lemma upd_wa_foldnb_bod_back_step':
      rb \<inter> wa = {}; 
      rc \<inter> wa = {}; rc \<inter> wb = {};
      wa \<inter> wb = {};
-     \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present),
+     \<Xi>', 0, [], {}, [option.Some (TRecord [(a0, t, Present), (a1, u, Present),
       (a2, v, Present)] Unboxed)] \<turnstile> (App f (Var 0)) : u;
      distinct [a0, a1, a2];
      upd_wa_foldnb_bod \<xi>\<^sub>u \<sigma> p frm (1 + to) f u acc v obsv (\<sigma>', res);
@@ -433,7 +433,7 @@ lemma upd_wa_foldnb_bod_back_step':
      apply (subst Int_commute; assumption)
     apply (drule wa_abs_typing_u_elims(5))
     apply (erule_tac x = frm in allE; clarsimp)
-    apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+    apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon>= "[]", simplified])
    apply clarsimp
    apply (rename_tac r' w')
    apply (drule_tac x = r' in meta_spec)
@@ -474,7 +474,7 @@ lemma upd_wa_foldnb_bod_back_step:
      rb \<inter> wa = {}; 
      rc \<inter> wa = {}; rc \<inter> wb = {};
      wa \<inter> wb = {};
-     \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present),
+     \<Xi>', 0, [], {}, [option.Some (TRecord [(a0, t, Present), (a1, u, Present),
       (a2, v, Present)] Unboxed)] \<turnstile> (App f (Var 0)) : u;
      distinct [a0, a1, a2];
      upd_wa_foldnb_bod \<xi>\<^sub>u \<sigma> p frm (1 + to) f u acc v obsv (\<sigma>'', res');
@@ -482,7 +482,7 @@ lemma upd_wa_foldnb_bod_back_step:
     \<rbrakk> \<Longrightarrow> \<exists>\<sigma>' res va. upd_wa_foldnb_bod \<xi>\<^sub>u \<sigma> p frm to f u acc v obsv (\<sigma>', res)
                     \<and> \<sigma>' (arr + size_of_num_type ta * to) = option.Some va
                     \<and> (\<xi>\<^sub>u, [URecord [(va, RPrim (Num ta)), (res, type_repr u),
-                        (obsv, type_repr v)]] \<turnstile> (\<sigma>', App f (Var 0))\<Down>! (\<sigma>'', res'))"
+                        (obsv, type_repr v)] None] \<turnstile> (\<sigma>', App f (Var 0))\<Down>! (\<sigma>'', res'))"
   apply (induct arbitrary: rb wb
                 rule: upd_wa_foldnb_bod.induct[of _ \<xi>\<^sub>u \<sigma> p frm to f u acc v obsv "(\<sigma>'', res')"])
   apply clarsimp
@@ -515,7 +515,7 @@ lemma upd_wa_foldnb_bod_back_step:
     apply (erule_tac x = frm in allE; clarsimp)
     apply (erule impE, simp)
     apply clarsimp
-    apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+    apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon>= "[]", simplified])
    apply clarsimp
    apply (rename_tac r' w')
    apply (drule_tac x = r' in meta_spec)
@@ -567,13 +567,13 @@ lemma upd_wa_foldnb_bod_step:
      rb \<inter> wa = {}; 
      rc \<inter> wa = {}; rc \<inter> wb = {};
      wa \<inter> wb = {};
-     \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present),
+     \<Xi>', 0, [], {}, [option.Some (TRecord [(a0, t, Present), (a1, u, Present),
       (a2, v, Present)] Unboxed)] \<turnstile> (App f (Var 0)) : u;
      distinct [a0, a1, a2];
      upd_wa_foldnb_bod \<xi>\<^sub>u \<sigma> p frm to f u acc v obsv (\<sigma>', res);
      \<sigma>' (arr + size_of_num_type ta * to) = option.Some va;
      (\<xi>\<^sub>u, [URecord [(va, RPrim (Num ta)), (res, type_repr u),
-      (obsv, type_repr v)]] \<turnstile> (\<sigma>', App f (Var 0))\<Down>! (\<sigma>'', res'));
+      (obsv, type_repr v)] None] \<turnstile> (\<sigma>', App f (Var 0))\<Down>! (\<sigma>'', res'));
      frm \<le> to; to < len
     \<rbrakk> \<Longrightarrow> upd_wa_foldnb_bod \<xi>\<^sub>u \<sigma> p frm (to + 1) f u acc v obsv (\<sigma>'', res')"
   apply (induct arbitrary: \<sigma>' res rb wb
@@ -593,7 +593,7 @@ lemma upd_wa_foldnb_bod_step:
    apply (drule_tac r = "rb \<union> rc" and
                     w = wb and
                     \<gamma> = "[URecord [(vb, RPrim (Num ta)), (acc, type_repr \<tau>a),
-                          (obsv, type_repr \<tau>o)]]"
+                          (obsv, type_repr \<tau>o)] None]"
                     in preservation_mono(1); simp?)
     apply (rule matches_ptrs_some[where r' = "{}" and w' = "{}", simplified])
      apply (rule u_t_struct; simp?)
@@ -607,7 +607,7 @@ lemma upd_wa_foldnb_bod_step:
      apply (subst Int_commute; assumption)
     apply (drule wa_abs_typing_u_elims(5))
     apply (erule_tac x = frm in allE; clarsimp)
-    apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+    apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon>= "[]", simplified])
    apply clarsimp
    apply (rename_tac r' w')
    apply (drule_tac x = r' in meta_spec)
@@ -654,7 +654,7 @@ lemma upd_wa_foldnb_bod_step:
       apply (subst Int_commute; assumption)
      apply (drule wa_abs_typing_u_elims(5))
      apply (erule_tac x = to in allE; clarsimp)
-     apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+     apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon>= "[]", simplified])
     apply clarsimp
     apply (drule_tac p = p in valid_ptr_not_in_frame_same; simp?)
     apply (intro exI, assumption)
@@ -675,7 +675,7 @@ lemma upd_wa_foldnb_bod_preservation:
      rb \<inter> wa = {}; 
      rc \<inter> wa = {}; rc \<inter> wb = {};
      wa \<inter> wb = {};
-     \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present),
+     \<Xi>', 0, [], {}, [option.Some (TRecord [(a0, t, Present), (a1, u, Present),
       (a2, v, Present)] Unboxed)] \<turnstile> (App f (Var 0)) : u;
      distinct [a0, a1, a2];
      upd_wa_foldnb_bod \<xi>\<^sub>u \<sigma> p frm to f u acc v obsv (\<sigma>', res)
@@ -730,7 +730,7 @@ lemma upd_wa_foldnb_bod_preservation:
      apply (rule u_t_r_empty)
     apply (drule_tac v = obsv in frame_noalias_uval_typing(2)[rotated 1]; simp?)
     apply blast
-   apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+   apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon>= "[]", simplified])
   apply clarsimp
   apply (intro exI conjI, assumption, blast)
   apply (rule frame_trans; simp)
@@ -750,7 +750,7 @@ lemma upd_wa_mapAccumnb_bod_to_geq_len:
      rb \<inter> wa = {}; 
      rc \<inter> wa = {}; rc \<inter> wb = {};
      wa \<inter> wb = {};
-     \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]
+     \<Xi>', 0, [], {}, [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]
       \<turnstile> (App f (Var 0)) : TRecord [(b0, t, Present), (b1, u, Present)] Unboxed;
      distinct [a0, a1, a2]; distinct [b0, b1];
      upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm len f u acc v obsv (\<sigma>', res);
@@ -788,7 +788,7 @@ lemma upd_wa_mapAccumnb_bod_to_geq_len:
      apply (subst Int_commute; assumption)
     apply (drule wa_abs_typing_u_elims(5))
     apply (erule_tac x = frm in allE; clarsimp)
-    apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+    apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon>= "[]", simplified])
    apply clarsimp
    apply (rename_tac r' w')
    apply (drule_tac x = r' in meta_spec)
@@ -854,7 +854,7 @@ lemma upd_wa_mapAccumnb_bod_to_geq_lenD:
      rb \<inter> wa = {}; 
      rc \<inter> wa = {}; rc \<inter> wb = {};
      wa \<inter> wb = {};
-     \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]
+     \<Xi>', 0, [], {}, [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]
       \<turnstile> (App f (Var 0)) : TRecord [(b0, t, Present), (b1, u, Present)] Unboxed;
      distinct [a0, a1, a2]; distinct [b0, b1];
      upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm to f u acc v obsv (\<sigma>', res);
@@ -891,7 +891,7 @@ lemma upd_wa_mapAccumnb_bod_to_geq_lenD:
      apply (subst Int_commute; assumption)
     apply (drule wa_abs_typing_u_elims(5))
     apply (erule_tac x = frm in allE; clarsimp)
-    apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+    apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon>= "[]", simplified])
    apply clarsimp
    apply (rename_tac r' w')
    apply (drule_tac x = r' in meta_spec)
@@ -958,7 +958,7 @@ lemma upd_wa_mapAccumnb_bod_back_step':
      rb \<inter> wa = {}; 
      rc \<inter> wa = {}; rc \<inter> wb = {};
      wa \<inter> wb = {};
-     \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]
+     \<Xi>', 0, [], {}, [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]
       \<turnstile> (App f (Var 0)) : TRecord [(b0, t, Present), (b1, u, Present)] Unboxed;
      distinct [a0, a1, a2]; distinct [b0, b1];
      upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm (1 + to) f u acc v obsv (\<sigma>', res);
@@ -996,7 +996,7 @@ lemma upd_wa_mapAccumnb_bod_back_step':
       apply (subst Int_commute; assumption)
      apply (drule wa_abs_typing_u_elims(5))
      apply (erule_tac x = frm in allE; clarsimp)
-     apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+     apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon>= "[]", simplified])
     apply clarsimp
     apply (rename_tac r' w')
     apply (drule_tac x = r' in meta_spec)
@@ -1065,18 +1065,18 @@ lemma upd_wa_mapAccumnb_bod_back_step:
      rb \<inter> wa = {}; 
      rc \<inter> wa = {}; rc \<inter> wb = {};
      wa \<inter> wb = {};
-     \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]
+     \<Xi>', 0, [], {}, [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]
       \<turnstile> (App f (Var 0)) : TRecord [(b0, t, Present), (b1, u, Present)] Unboxed;
      distinct [a0, a1, a2]; distinct [b0, b1];
      upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm (1 + to) f u acc v obsv (\<sigma>''', res');
      1 + to \<le> len; frm < 1 + to
     \<rbrakk> \<Longrightarrow> \<exists>\<sigma>' \<sigma>'' res racc racc' x x' rp. upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm to f u acc v obsv (\<sigma>', res)
-      \<and> res = URecord [(rp, uval_repr rp), (racc, type_repr u)]
+      \<and> res = URecord [(rp, uval_repr rp), (racc, type_repr u)] None
       \<and> \<sigma>' (arr + size_of_num_type ta * to) = option.Some x
       \<and> (\<xi>\<^sub>u, [URecord [(x, RPrim (Num ta)), (racc, type_repr u),
-          (obsv, type_repr v)]]  \<turnstile> (\<sigma>', App f (Var 0)) \<Down>! 
-          (\<sigma>'', URecord [(x', RPrim (Num ta)), (racc', type_repr u)]))
-      \<and> res' = URecord [(rp, uval_repr rp), (racc', type_repr u)]
+          (obsv, type_repr v)] None]  \<turnstile> (\<sigma>', App f (Var 0)) \<Down>! 
+          (\<sigma>'', URecord [(x', RPrim (Num ta)), (racc', type_repr u)] None))
+      \<and> res' = URecord [(rp, uval_repr rp), (racc', type_repr u)] None
       \<and> \<sigma>''' = \<sigma>''(arr + size_of_num_type ta * to \<mapsto> x')
       \<and> rp = UPtr p (RCon ''WordArray'' [type_repr t])"
   apply (induct arbitrary: \<sigma>''' res' rb wb
@@ -1109,7 +1109,7 @@ lemma upd_wa_mapAccumnb_bod_back_step:
      apply (subst Int_commute; assumption)
     apply (drule wa_abs_typing_u_elims(5))
     apply (erule_tac x = frm in allE; clarsimp)
-    apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+    apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon>= "[]", simplified])
    apply clarsimp
    apply (rename_tac r' w')
    apply (drule_tac x = r' in meta_spec)
@@ -1233,12 +1233,12 @@ lemma upd_wa_mapAccumnb_bod_preservation:
      rb \<inter> wa = {}; 
      rc \<inter> wa = {}; rc \<inter> wb = {};
      wa \<inter> wb = {};
-     \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]
+     \<Xi>', 0, [], {}, [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]
       \<turnstile> (App f (Var 0)) : TRecord [(b0, t, Present), (b1, u, Present)] Unboxed;
      distinct [a0, a1, a2]; distinct [b0, b1];
      upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm to f u acc v obsv (\<sigma>', res)
   \<rbrakk> \<Longrightarrow> \<exists>rp ta racc r' w'. 
-      res = URecord [(rp, uval_repr rp), (racc, type_repr u)]
+      res = URecord [(rp, uval_repr rp), (racc, type_repr u)] None
     \<and> rp = UPtr p (RCon ''WordArray'' [type_repr t])
     \<and> t = TPrim (Num ta)
     \<and> wa_abs_typing_u \<Xi>' (UWA t len arr) ''WordArray'' \<tau>s (Boxed Writable ptrl) ra wa \<sigma>'
@@ -1310,7 +1310,7 @@ lemma upd_wa_mapAccumnb_bod_preservation:
      apply (drule wa_abs_typing_u_elims(3); clarsimp)
      apply blast
     apply (subst Int_commute; blast)
-   apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+   apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon>= "[]", simplified])
   apply clarsimp
   apply (rename_tac r'' w'')
   apply (erule u_t_recE; clarsimp)
@@ -1421,22 +1421,22 @@ lemma upd_wa_mapAccumnb_bod_step:
      rb \<inter> wa = {}; 
      rc \<inter> wa = {}; rc \<inter> wb = {};
      wa \<inter> wb = {};
-     \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]
+     \<Xi>', 0, [], {}, [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]
       \<turnstile> (App f (Var 0)) : TRecord [(b0, t, Present), (b1, u, Present)] Unboxed;
      distinct [a0, a1, a2]; distinct [b0, b1];
      upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm to f u acc v obsv
-      (\<sigma>', URecord [(rp, uval_repr rp), (racc, type_repr u)]); 
+      (\<sigma>', URecord [(rp, uval_repr rp), (racc, type_repr u)] None); 
      rp = UPtr p (RCon ''WordArray'' [type_repr t]) ;
      \<sigma>' (arr + size_of_num_type ta * to) = option.Some va;
      (\<xi>\<^sub>u, [URecord [(va, RPrim (Num ta)), (racc, type_repr u),
-      (obsv, type_repr v)]] \<turnstile> (\<sigma>', App f (Var 0)) \<Down>!
-      (\<sigma>'', URecord [(va', RPrim (Num ta)), (racc', type_repr u)]));
+      (obsv, type_repr v)] None] \<turnstile> (\<sigma>', App f (Var 0)) \<Down>!
+      (\<sigma>'', URecord [(va', RPrim (Num ta)), (racc', type_repr u)] None));
      frm \<le> to; to < len
     \<rbrakk> \<Longrightarrow> upd_wa_mapAccumnb_bod \<xi>\<^sub>u \<sigma> p frm (to + 1) f u acc v obsv
         (\<sigma>''(arr + size_of_num_type ta * to \<mapsto> va'),
-        URecord [(rp, uval_repr rp), (racc', type_repr u)])"
+        URecord [(rp, uval_repr rp), (racc', type_repr u)] None)"
     apply (induct arbitrary: \<sigma>' racc rb wb
-                rule: upd_wa_mapAccumnb_bod.induct[of _ \<xi>\<^sub>u \<sigma> p frm to f u acc v obsv "(\<sigma>',  URecord [(rp, uval_repr rp), (racc, type_repr u)])"])
+                rule: upd_wa_mapAccumnb_bod.induct[of _ \<xi>\<^sub>u \<sigma> p frm to f u acc v obsv "(\<sigma>',  URecord [(rp, uval_repr rp), (racc, type_repr u)] None)"])
   apply clarsimp
   apply (drule_tac x = ta in meta_spec)
   apply (drule_tac x = len in meta_spec)
@@ -1459,7 +1459,7 @@ lemma upd_wa_mapAccumnb_bod_step:
    apply (drule_tac r = "rb \<union> rc" and
                     w = wb and
                     \<gamma> = "[URecord [(vb, RPrim (Num ta)), (acc, type_repr \<tau>a),
-                          (obsv, type_repr \<tau>o)]]"
+                          (obsv, type_repr \<tau>o)] None]"
                     in preservation_mono(1); simp?)
     apply (rule matches_ptrs_some[where r' = "{}" and w' = "{}", simplified])
      apply (rule u_t_struct; simp?)
@@ -1473,7 +1473,7 @@ lemma upd_wa_mapAccumnb_bod_step:
      apply (subst Int_commute; assumption)
     apply (drule wa_abs_typing_u_elims(5))
     apply (erule_tac x = frm in allE; clarsimp)
-    apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+    apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon>= "[]", simplified])
    apply clarsimp
    apply (rename_tac r' w')
    apply (drule_tac x = r' in meta_spec)
@@ -1555,7 +1555,7 @@ lemma upd_wa_mapAccumnb_bod_step:
    apply (drule_tac r = "rb \<union> rc" and
                     w = wb and
                     \<gamma> = "[URecord [(va, RPrim (Num ta)), (acc, type_repr \<tau>a),
-                          (obsv, type_repr \<tau>o)]]"
+                          (obsv, type_repr \<tau>o)] None]"
                     in preservation_mono(1); simp?)
     apply (rule matches_ptrs_some[where r' = "{}" and w' = "{}", simplified])
      apply (rule u_t_struct; simp?)
@@ -1569,7 +1569,7 @@ lemma upd_wa_mapAccumnb_bod_step:
      apply (subst Int_commute; assumption)
     apply (drule wa_abs_typing_u_elims(5))
     apply (erule_tac x = to in allE; clarsimp)+
-    apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+    apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon>= "[]", simplified])
    apply clarsimp
    apply (drule_tac p = p in valid_ptr_not_in_frame_same; simp?)
    apply (intro exI, assumption)

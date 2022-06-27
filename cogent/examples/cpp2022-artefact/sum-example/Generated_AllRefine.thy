@@ -24,10 +24,14 @@ fold (fn f => fn ctxt => let
     val tt_thm = Proof_Context.get_thm ctxt (typeproof_thy ^ "." ^ f ^ "_typecorrect")
     val f_type = Syntax.read_term ctxt (typeproof_thy ^ "." ^ f ^ "_type")
     val f_type_def = Proof_Context.get_thm ctxt (typeproof_thy ^ "." ^ f ^ "_type_def")
-    val k_empty = Goal.prove ctxt [] [] (@{mk_term "prod.fst ?t \<equiv> []" t} f_type)
+    val nl_empty = Goal.prove ctxt [] [] (@{mk_term "prod.fst ?t \<equiv> 0" t} f_type)
+                    (K (simp_tac (ctxt addsimps [f_type_def]) 1))
+    val k_empty = Goal.prove ctxt [] [] (@{mk_term "prod.fst (prod.snd ?t) \<equiv> []" t} f_type)
+                    (K (simp_tac (ctxt addsimps [f_type_def]) 1))
+    val c_empty = Goal.prove ctxt [] [] (@{mk_term "prod.fst (prod.snd (prod.snd ?t)) \<equiv> {}" t} f_type)
                     (K (simp_tac (ctxt addsimps [f_type_def]) 1))
     val t_thm = (tt_thm RS @{thm ttyping_imp_typing})
-                |> rewrite_rule ctxt [@{thm snd_conv[THEN eq_reflection]}, k_empty]
+                |> rewrite_rule ctxt [@{thm snd_conv[THEN eq_reflection]}, nl_empty, k_empty, c_empty]
     in Local_Theory.note ((Binding.name (f ^ "_typecorrect'"), []), [t_thm]) ctxt |> snd
     end)
     (filter (member op= Cogent_functions) entry_func_names)

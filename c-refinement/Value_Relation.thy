@@ -28,7 +28,7 @@ type_synonym ptrtyp = addr
 
 (* Placeholder. We will need to add proper abstract value representations later on. *)
             (*  UUN n m represents the integer m on n bits *)
-datatype atyp = UUN nat (* size *) nat (* value *) | TOther
+datatype atyp = UWA type "32 word" ptrtyp | UUN nat (* size *) nat (* value *) | TOther
 
 type_synonym abstyp = atyp
 

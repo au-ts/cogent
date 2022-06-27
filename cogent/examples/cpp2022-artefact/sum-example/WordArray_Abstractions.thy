@@ -94,41 +94,41 @@ fun rec_type_list :: "type \<Rightarrow> (name \<times> type \<times> record_sta
 
 fun is_uval_fun :: "('f, 'a, 'l) uval \<Rightarrow> bool"
   where
-"is_uval_fun (UFunction _ _) = True" |
-"is_uval_fun (UAFunction _ _) = True" |
+"is_uval_fun (UFunction _ _ _) = True" |
+"is_uval_fun (UAFunction _ _ _) = True" |
 "is_uval_fun _ = False"
 
 fun uvalfun_to_exprfun :: "('f, 'a, 'l) uval \<Rightarrow> 'f expr"
   where
-"uvalfun_to_exprfun (UFunction f ts) = Fun f ts" |
-"uvalfun_to_exprfun (UAFunction f ts) = AFun f ts" |
+"uvalfun_to_exprfun (UFunction f ts ls) = Fun f ts ls" |
+"uvalfun_to_exprfun (UAFunction f ts ls) = AFun f ts ls" |
 "uvalfun_to_exprfun _ = undefined"
 
 fun is_vval_fun :: "('f, 'a) vval \<Rightarrow> bool"
   where
-"is_vval_fun (VFunction _ _) = True" |
-"is_vval_fun (VAFunction _ _) = True" |
+"is_vval_fun (VFunction _ _ _) = True" |
+"is_vval_fun (VAFunction _ _ _) = True" |
 "is_vval_fun _ = False"
 
 fun vvalfun_to_exprfun :: "('f, 'a) vval \<Rightarrow> 'f expr"
   where
-"vvalfun_to_exprfun (VFunction f ts) = Fun f ts" |
-"vvalfun_to_exprfun (VAFunction f ts) = AFun f ts" |
+"vvalfun_to_exprfun (VFunction f ts ls) = Fun f ts ls" |
+"vvalfun_to_exprfun (VAFunction f ts ls) = AFun f ts ls" |
 "vvalfun_to_exprfun _ = undefined"
 
 section "Abbreviations"
 
 abbreviation "foldmap_funarg_type x 
-  \<equiv> (funarg_type \<circ> present_type \<circ> (\<lambda>xs. xs ! 3) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> \<Xi>) x"
+  \<equiv> (funarg_type \<circ> present_type \<circ> (\<lambda>xs. xs ! 3) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> prod.snd \<circ> prod.snd \<circ> \<Xi>) x"
 
 abbreviation "foldmap_funret_type x 
-  \<equiv> (funret_type \<circ> present_type \<circ> (\<lambda>xs. xs ! 3) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> \<Xi>) x"
+  \<equiv> (funret_type \<circ> present_type \<circ> (\<lambda>xs. xs ! 3) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> prod.snd \<circ> prod.snd \<circ> \<Xi>) x"
 
 abbreviation "foldmap_acc_type x 
-  \<equiv> (present_type \<circ> (\<lambda>xs. xs ! 4) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> \<Xi>) x"
+  \<equiv> (present_type \<circ> (\<lambda>xs. xs ! 4) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> prod.snd \<circ> prod.snd \<circ> \<Xi>) x"
 
 abbreviation "foldmap_obsv_type x 
-  \<equiv> (present_type \<circ> (\<lambda>xs. xs ! 5) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> \<Xi>) x"
+  \<equiv> (present_type \<circ> (\<lambda>xs. xs ! 5) \<circ> rec_type_list \<circ> prod.fst \<circ> prod.snd \<circ> prod.snd \<circ> prod.snd \<circ> \<Xi>) x"
 
 section "Helper Frame Lemmas"
 
@@ -287,7 +287,7 @@ sublocale WordArray \<subseteq> update_sem wa_abs_typing_u wa_abs_repr
      apply (elim allE impE, assumption, blast)
     apply (elim allE impE, assumption, blast)
    apply (rename_tac s r w \<sigma> s' r' w' len arr t)
-   apply (case_tac s; clarsimp; case_tac s'; clarsimp)
+   (*apply (case_tac s; clarsimp; case_tac s'; clarsimp)*)
   apply (rename_tac \<sigma> u \<sigma>' u' s r w len arr t i)
   apply (case_tac s; clarsimp; rename_tac perm; case_tac perm; clarsimp)
   apply (elim allE impE, assumption; clarsimp)
@@ -344,8 +344,8 @@ inductive_cases u_t_r_contE: "uval_typing_record \<Xi>' \<sigma> us ts r w"
 inductive_cases v_t_abstractE : "vval_typing \<Xi>' (VAbstract v) \<tau>"
 inductive_cases v_t_primtE : "vval_typing \<Xi>' v (TPrim l)"
 inductive_cases u_v_t_primtE : "upd_val_rel \<Xi>' \<sigma> u v (TPrim l) r w"
-inductive_cases u_v_t_funE: "upd_val_rel \<Xi>' \<sigma> (UFunction f ts) v t r w"
-inductive_cases u_v_t_afunE: "upd_val_rel \<Xi>' \<sigma> (UAFunction f ts) v t r w"
+inductive_cases u_v_t_funE: "upd_val_rel \<Xi>' \<sigma> (UFunction f ts ls) v t r w"
+inductive_cases u_v_t_afunE: "upd_val_rel \<Xi>' \<sigma> (UAFunction f ts ls) v t r w"
 
 end (* of context *)
 

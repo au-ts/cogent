@@ -9,6 +9,7 @@ imports "CogentCRefinement.Deep_Embedding_Auto"
 "CogentCRefinement.Tidy"
 "CogentCRefinement.Heap_Relation_Generation"
 "CogentCRefinement.Type_Relation_Generation"
+"CogentCRefinement.Dargent_Custom_Get_Set"
 "Generated_ACInstall"
 "Generated_TypeProof"
 begin
@@ -34,10 +35,7 @@ context update_sem_init begin
 lemmas corres_if = corres_if_base[where bool_val' = boolean_C,
                      OF _ _ val_rel_bool_t_C_def[THEN meta_eq_to_obj_eq, THEN iffD1]]
 end
-(* C heap type class *)
-class cogent_C_heap = cogent_C_val +
-  fixes is_valid    :: "lifted_globals \<Rightarrow> 'a ptr \<Rightarrow> bool"
-  fixes heap        :: "lifted_globals \<Rightarrow> 'a ptr \<Rightarrow> 'a"
+
 (* Put manual type and value relations below here *)
 instantiation WordArray_u32_C :: cogent_C_val
 begin
@@ -49,10 +47,47 @@ instance ..
 end
 (* Put manual type and value relations above here *)
 
+lemmas val_rel_simps[ValRelSimp] =
+  val_rel_word
+  val_rel_ptr_def
+  val_rel_unit_def
+  val_rel_unit_t_C_def
+  val_rel_bool_t_C_def
+  val_rel_fun_tag
+(* Put manual value relation definitions below here *)
+  val_rel_WordArray_u32_C_def
+(* Put manual value relation definitions above here *)
+
+lemmas type_rel_simps[TypeRelSimp] =
+  type_rel_word
+  type_rel_ptr_def
+  type_rel_unit_def
+  type_rel_unit_t_C_def
+  type_rel_bool_t_C_def
+(* Put manual type relation definitions below here *)
+  type_rel_WordArray_u32_C_def
+(* Put manual type relation definitions above here *)
+
+(* C heap type class *)
+class cogent_C_heap = cogent_C_val +
+  fixes is_valid    :: "lifted_globals \<Rightarrow> 'a ptr \<Rightarrow> bool"
+  fixes heap        :: "lifted_globals \<Rightarrow> 'a ptr \<Rightarrow> 'a"
+(* generate direct definitions of custom getter/setters (for custom layouts) by
+   inspecting their monadic definitions *)
+setup \<open> generate_isa_getset_records_for_file "main_pp_inferred.c" @{locale main_pp_inferred} \<close>
 local_setup \<open> local_setup_val_rel_type_rel_put_them_in_buckets "main_pp_inferred.c" [UAbstract "WordArray_u32"] \<close>
 local_setup \<open> local_setup_instantiate_cogent_C_heaps_store_them_in_buckets "main_pp_inferred.c" \<close>
 locale Generated = "main_pp_inferred" + update_sem_init
 begin
+
+
+(* The get/set lemmas that must be proven *)
+ML \<open>val lems = mk_getset_lems "main_pp_inferred.c" @{context} \<close>
+ML \<open>lems  |> map (string_of_getset_lem @{context})|> map tracing\<close>
+
+(* This proves the get/set lemmas *)
+local_setup \<open>local_setup_getset_lemmas "main_pp_inferred.c" \<close>
+
 
 (* Relation between program heaps *)
 definition
@@ -77,27 +112,8 @@ definition state_rel :: "((funtyp, abstyp, ptrtyp) store \<times> lifted_globals
 where
   "state_rel  = {(\<sigma>, h). heap_rel \<sigma> h}"
 
-lemmas val_rel_simps[ValRelSimp] =
-  val_rel_word
-  val_rel_ptr_def
-  val_rel_unit_def
-  val_rel_unit_t_C_def
-  val_rel_bool_t_C_def
-  val_rel_fun_tag
-(* Put manual value relation definitions below here *)
-  val_rel_WordArray_u32_C_def
-(* Put manual value relation definitions above here *)
-
-lemmas type_rel_simps[TypeRelSimp] =
-  type_rel_word
-  type_rel_ptr_def
-  type_rel_unit_def
-  type_rel_unit_t_C_def
-  type_rel_bool_t_C_def
-(* Put manual type relation definitions below here *)
-  type_rel_WordArray_u32_C_def
-(* Put manual type relation definitions above here *)
-
+(* Proving correctness of getters *)
+local_setup \<open> local_setup_getter_correctness "main_pp_inferred.c" \<close>
 (* Generating the specialised take and put lemmas *)
 
 local_setup \<open> local_setup_take_put_member_case_esac_specialised_lemmas "main_pp_inferred.c" \<close>

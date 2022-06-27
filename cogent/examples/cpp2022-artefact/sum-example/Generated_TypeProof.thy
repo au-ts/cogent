@@ -16,7 +16,7 @@ where
 definition
   abbreviatedType2 :: " Cogent.type"
 where
-  "abbreviatedType2 \<equiv> TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''p2'', (TUnit, Present))] Unboxed"
+  "abbreviatedType2 \<equiv> TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None), Present)), (''p2'', (TUnit, Present))] Unboxed"
 
 definition
   abbreviatedType3 :: " Cogent.type"
@@ -31,12 +31,12 @@ where
 definition
   abbreviatedType5 :: " Cogent.type"
 where
-  "abbreviatedType5 \<equiv> TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''idx'', (TPrim (Num U32), Present)), (''val'', (TPrim (Num U32), Present))] Unboxed"
+  "abbreviatedType5 \<equiv> TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None), Present)), (''idx'', (TPrim (Num U32), Present)), (''val'', (TPrim (Num U32), Present))] Unboxed"
 
 definition
   abbreviatedType6 :: " Cogent.type"
 where
-  "abbreviatedType6 \<equiv> TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''p2'', (TPrim (Num U32), Present))] Unboxed"
+  "abbreviatedType6 \<equiv> TRecord [(''p1'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None), Present)), (''p2'', (TPrim (Num U32), Present))] Unboxed"
 
 lemmas abbreviated_type_defs =
   abbreviatedType5_def
@@ -47,64 +47,64 @@ lemmas abbreviated_type_defs =
   abbreviatedType2_def
 
 definition
-  wordarray_get_0_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  wordarray_get_0_type :: " poly_type"
 where
-  "wordarray_get_0_type \<equiv> ([], (abbreviatedType6, TPrim (Num U32)))"
+  "wordarray_get_0_type \<equiv> (0, [], {}, abbreviatedType6, TPrim (Num U32))"
 
 definition
-  wordarray_length_0_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  wordarray_length_0_type :: " poly_type"
 where
-  "wordarray_length_0_type \<equiv> ([], (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32)))"
+  "wordarray_length_0_type \<equiv> (0, [], {}, TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None), TPrim (Num U32))"
 
 definition
-  wordarray_put2_0_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  wordarray_put2_0_type :: " poly_type"
 where
-  "wordarray_put2_0_type \<equiv> ([], (abbreviatedType5, TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined)))"
+  "wordarray_put2_0_type \<equiv> (0, [], {}, abbreviatedType5, TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None))"
 
 definition
-  wordarray_fold_no_break_0_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  wordarray_fold_no_break_0_type :: " poly_type"
 where
-  "wordarray_fold_no_break_0_type \<equiv> ([], (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed, TPrim (Num U32)))"
+  "wordarray_fold_no_break_0_type \<equiv> (0, [], {}, TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed, TPrim (Num U32))"
 
 definition
-  wordarray_map_no_break_0_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  wordarray_map_no_break_0_type :: " poly_type"
 where
-  "wordarray_map_no_break_0_type \<equiv> ([], (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed, abbreviatedType2))"
+  "wordarray_map_no_break_0_type \<equiv> (0, [], {}, TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed, abbreviatedType2)"
 
 definition
-  wordarray_get_u32_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  wordarray_get_u32_type :: " poly_type"
 where
-  "wordarray_get_u32_type \<equiv> ([], (abbreviatedType6, TPrim (Num U32)))"
+  "wordarray_get_u32_type \<equiv> (0, [], {}, abbreviatedType6, TPrim (Num U32))"
 
 definition
   wordarray_get_u32 :: "string Cogent.expr"
 where
-  "wordarray_get_u32 \<equiv> Let (Var 0) (App (AFun ''wordarray_get_0'' []) (Var 0))"
+  "wordarray_get_u32 \<equiv> Let (Var 0) (App (AFun ''wordarray_get_0'' [] []) (Var 0))"
 
 definition
-  wordarray_length_u32_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  wordarray_length_u32_type :: " poly_type"
 where
-  "wordarray_length_u32_type \<equiv> ([], (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32)))"
+  "wordarray_length_u32_type \<equiv> (0, [], {}, TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None), TPrim (Num U32))"
 
 definition
   wordarray_length_u32 :: "string Cogent.expr"
 where
-  "wordarray_length_u32 \<equiv> Let (Var 0) (App (AFun ''wordarray_length_0'' []) (Var 0))"
+  "wordarray_length_u32 \<equiv> Let (Var 0) (App (AFun ''wordarray_length_0'' [] []) (Var 0))"
 
 definition
-  wordarray_put2_u32_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  wordarray_put2_u32_type :: " poly_type"
 where
-  "wordarray_put2_u32_type \<equiv> ([], (abbreviatedType5, TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined)))"
+  "wordarray_put2_u32_type \<equiv> (0, [], {}, abbreviatedType5, TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None))"
 
 definition
   wordarray_put2_u32 :: "string Cogent.expr"
 where
-  "wordarray_put2_u32 \<equiv> Let (Var 0) (App (AFun ''wordarray_put2_0'' []) (Var 0))"
+  "wordarray_put2_u32 \<equiv> Let (Var 0) (App (AFun ''wordarray_put2_0'' [] []) (Var 0))"
 
 definition
-  add_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  add_type :: " poly_type"
 where
-  "add_type \<equiv> ([], (abbreviatedType1, TPrim (Num U32)))"
+  "add_type \<equiv> (0, [], {}, abbreviatedType1, TPrim (Num U32))"
 
 definition
   add :: "string Cogent.expr"
@@ -112,19 +112,19 @@ where
   "add \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 1) 2 (Prim (Plus U32) [Var 4, Var 2])))"
 
 definition
-  sum_arr_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  sum_arr_type :: " poly_type"
 where
-  "sum_arr_type \<equiv> ([], (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32)))"
+  "sum_arr_type \<equiv> (0, [], {}, TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None), TPrim (Num U32))"
 
 definition
   sum_arr :: "string Cogent.expr"
 where
-  "sum_arr \<equiv> Let (Var 0) (Let (App (AFun ''wordarray_length_0'' []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun add []) (Let (Lit (LU32 0)) (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType1 (TPrim (Num U32)), TPrim (Num U32), TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_fold_no_break_0'' []) (Var 0))))))))"
+  "sum_arr \<equiv> Let (Var 0) (Let (App (AFun ''wordarray_length_0'' [] []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun add [] []) (Let (Lit (LU32 0)) (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType1 (TPrim (Num U32)), TPrim (Num U32), TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_fold_no_break_0'' [] []) (Var 0))))))))"
 
 definition
-  dec_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  dec_type :: " poly_type"
 where
-  "dec_type \<equiv> ([], (abbreviatedType4, abbreviatedType3))"
+  "dec_type \<equiv> (0, [], {}, abbreviatedType4, abbreviatedType3)"
 
 definition
   dec :: "string Cogent.expr"
@@ -132,19 +132,19 @@ where
   "dec \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 1) 2 (Let (Lit (LU32 1)) (Let (Prim (Minus U32) [Var 5, Var 0]) (Struct [TPrim (Num U32), TUnit] [Var 0, Var 4])))))"
 
 definition
-  dec_arr_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  dec_arr_type :: " poly_type"
 where
-  "dec_arr_type \<equiv> ([], (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), abbreviatedType2))"
+  "dec_arr_type \<equiv> (0, [], {}, TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None), abbreviatedType2)"
 
 definition
   dec_arr :: "string Cogent.expr"
 where
-  "dec_arr \<equiv> Let (Var 0) (LetBang (set [0]) (App (AFun ''wordarray_length_0'' []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun dec []) (Let Unit (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType4 abbreviatedType3, TUnit, TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_map_no_break_0'' []) (Var 0))))))))"
+  "dec_arr \<equiv> Let (Var 0) (LetBang (set [0]) (App (AFun ''wordarray_length_0'' [] []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun dec [] []) (Let Unit (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType4 abbreviatedType3, TUnit, TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_map_no_break_0'' [] []) (Var 0))))))))"
 
 definition
-  inc_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  inc_type :: " poly_type"
 where
-  "inc_type \<equiv> ([], (abbreviatedType4, abbreviatedType3))"
+  "inc_type \<equiv> (0, [], {}, abbreviatedType4, abbreviatedType3)"
 
 definition
   inc :: "string Cogent.expr"
@@ -152,19 +152,19 @@ where
   "inc \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 1) 2 (Let (Lit (LU32 1)) (Let (Prim (Plus U32) [Var 5, Var 0]) (Struct [TPrim (Num U32), TUnit] [Var 0, Var 4])))))"
 
 definition
-  inc_arr_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  inc_arr_type :: " poly_type"
 where
-  "inc_arr_type \<equiv> ([], (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), abbreviatedType2))"
+  "inc_arr_type \<equiv> (0, [], {}, TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None), abbreviatedType2)"
 
 definition
   inc_arr :: "string Cogent.expr"
 where
-  "inc_arr \<equiv> Let (Var 0) (LetBang (set [0]) (App (AFun ''wordarray_length_0'' []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun inc []) (Let Unit (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType4 abbreviatedType3, TUnit, TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_map_no_break_0'' []) (Var 0))))))))"
+  "inc_arr \<equiv> Let (Var 0) (LetBang (set [0]) (App (AFun ''wordarray_length_0'' [] []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun inc [] []) (Let Unit (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType4 abbreviatedType3, TUnit, TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_map_no_break_0'' [] []) (Var 0))))))))"
 
 definition
-  mul_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  mul_type :: " poly_type"
 where
-  "mul_type \<equiv> ([], (abbreviatedType1, TPrim (Num U32)))"
+  "mul_type \<equiv> (0, [], {}, abbreviatedType1, TPrim (Num U32))"
 
 definition
   mul :: "string Cogent.expr"
@@ -172,14 +172,14 @@ where
   "mul \<equiv> Take (Var 0) 0 (Take (Var 1) 1 (Take (Var 1) 2 (Prim (Times U32) [Var 4, Var 2])))"
 
 definition
-  mul_arr_type :: " Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  mul_arr_type :: " poly_type"
 where
-  "mul_arr_type \<equiv> ([], (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32)))"
+  "mul_arr_type \<equiv> (0, [], {}, TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None), TPrim (Num U32))"
 
 definition
   mul_arr :: "string Cogent.expr"
 where
-  "mul_arr \<equiv> Let (Var 0) (Let (App (AFun ''wordarray_length_0'' []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun mul []) (Let (Lit (LU32 0)) (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType1 (TPrim (Num U32)), TPrim (Num U32), TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_fold_no_break_0'' []) (Var 0))))))))"
+  "mul_arr \<equiv> Let (Var 0) (Let (App (AFun ''wordarray_length_0'' [] []) (Var 0)) (Let (Lit (LU32 0)) (Let (Fun mul [] []) (Let (Lit (LU32 0)) (Let Unit (Let (Struct [TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None), TPrim (Num U32), TPrim (Num U32), TFun abbreviatedType1 (TPrim (Num U32)), TPrim (Num U32), TUnit] [Var 5, Var 3, Var 4, Var 2, Var 1, Var 0]) (App (AFun ''wordarray_fold_no_break_0'' [] []) (Var 0))))))))"
 
 ML \<open>
 val Cogent_functions = ["wordarray_get_u32", "wordarray_length_u32", "wordarray_put2_u32", "add", "sum_arr", "dec", "dec_arr", "inc", "inc_arr", "mul", "mul_arr"]
@@ -187,9 +187,9 @@ val Cogent_abstract_functions = ["wordarray_get_0", "wordarray_length_0", "worda
 \<close>
 
 definition
-  \<Xi> :: " string \<Rightarrow>  Cogent.kind list \<times>  Cogent.type \<times>  Cogent.type"
+  \<Xi> :: " string \<Rightarrow>  poly_type"
 where
-  "\<Xi> \<equiv> assoc_lookup [(''wordarray_get_0'', wordarray_get_0_type), (''wordarray_length_0'', wordarray_length_0_type), (''wordarray_put2_0'', wordarray_put2_0_type), (''wordarray_fold_no_break_0'', wordarray_fold_no_break_0_type), (''wordarray_map_no_break_0'', wordarray_map_no_break_0_type), (''wordarray_get_u32'', wordarray_get_u32_type), (''wordarray_length_u32'', wordarray_length_u32_type), (''wordarray_put2_u32'', wordarray_put2_u32_type), (''add'', add_type), (''sum_arr'', sum_arr_type), (''dec'', dec_type), (''dec_arr'', dec_arr_type), (''inc'', inc_type), (''inc_arr'', inc_arr_type), (''mul'', mul_type), (''mul_arr'', mul_arr_type)] ([], TUnit, TUnit)"
+  "\<Xi> \<equiv> assoc_lookup [(''wordarray_get_0'', wordarray_get_0_type), (''wordarray_length_0'', wordarray_length_0_type), (''wordarray_put2_0'', wordarray_put2_0_type), (''wordarray_fold_no_break_0'', wordarray_fold_no_break_0_type), (''wordarray_map_no_break_0'', wordarray_map_no_break_0_type), (''wordarray_get_u32'', wordarray_get_u32_type), (''wordarray_length_u32'', wordarray_length_u32_type), (''wordarray_put2_u32'', wordarray_put2_u32_type), (''add'', add_type), (''sum_arr'', sum_arr_type), (''dec'', dec_type), (''dec_arr'', dec_arr_type), (''inc'', inc_type), (''inc_arr'', inc_arr_type), (''mul'', mul_type), (''mul_arr'', mul_arr_type)] (0, [], {}, TUnit, TUnit)"
 
 definition
   "\<xi> \<equiv> assoc_lookup [(''wordarray_get_0'', (\<lambda>_ _. False)), (''wordarray_length_0'', (\<lambda>_ _. False)), (''wordarray_put2_0'', (\<lambda>_ _. False)), (''wordarray_fold_no_break_0'', (\<lambda>_ _. False)), (''wordarray_map_no_break_0'', (\<lambda>_ _. False))]"
@@ -198,7 +198,7 @@ definition
   "wordarray_get_u32_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some abbreviatedType6] TyTrLeaf"
 
 definition
-  "wordarray_length_u32_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined))] TyTrLeaf"
+  "wordarray_length_u32_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None))] TyTrLeaf"
 
 definition
   "wordarray_put2_u32_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some abbreviatedType5] TyTrLeaf"
@@ -207,396 +207,398 @@ definition
   "add_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TUnit, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 2 None) [])))) [] TyTrLeaf [Some TUnit, Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TUnit, Taken))] Unboxed)] TyTrLeaf))"
 
 definition
-  "sum_arr_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined))] (TyTrSplit (Cons (Some TSK_S) (Cons None [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))) [] TyTrLeaf [Some (TFun abbreviatedType1 (TPrim (Num U32)))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons None []))))))) [] TyTrLeaf [Some (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed)] TyTrLeaf))))))"
+  "sum_arr_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None))] (TyTrSplit (Cons (Some TSK_S) (Cons None [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))) [] TyTrLeaf [Some (TFun abbreviatedType1 (TPrim (Num U32)))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons None []))))))) [] TyTrLeaf [Some (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed)] TyTrLeaf))))))"
 
 definition
   "dec_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some TUnit, Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Taken)), (''obsv'', (TUnit, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 2 None) [])))) [] TyTrLeaf [Some TUnit, Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Taken)), (''obsv'', (TUnit, Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 2 None) [])))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 2 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (append (replicate 2 None) [])))))) [] TyTrLeaf [Some (TPrim (Num U32))] TyTrLeaf))))"
 
 definition
-  "dec_arr_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined))] (TyTrSplit (Cons (Some TSK_NS) (Cons None [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))) [] TyTrLeaf [Some (TFun abbreviatedType4 abbreviatedType3)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons None []))))))) [] TyTrLeaf [Some (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed)] TyTrLeaf))))))"
+  "dec_arr_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None))] (TyTrSplit (Cons (Some TSK_NS) (Cons None [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))) [] TyTrLeaf [Some (TFun abbreviatedType4 abbreviatedType3)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons None []))))))) [] TyTrLeaf [Some (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed)] TyTrLeaf))))))"
 
 definition
   "inc_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some TUnit, Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Taken)), (''obsv'', (TUnit, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 2 None) [])))) [] TyTrLeaf [Some TUnit, Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Taken)), (''obsv'', (TUnit, Taken))] Unboxed)] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_R) (append (replicate 2 None) [])))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_L) (append (replicate 2 None) (Cons (Some TSK_R) (Cons None (Cons (Some TSK_L) (append (replicate 2 None) [])))))) [] TyTrLeaf [Some (TPrim (Num U32))] TyTrLeaf))))"
 
 definition
-  "inc_arr_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined))] (TyTrSplit (Cons (Some TSK_NS) (Cons None [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))) [] TyTrLeaf [Some (TFun abbreviatedType4 abbreviatedType3)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons None []))))))) [] TyTrLeaf [Some (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed)] TyTrLeaf))))))"
+  "inc_arr_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None))] (TyTrSplit (Cons (Some TSK_NS) (Cons None [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))) [] TyTrLeaf [Some (TFun abbreviatedType4 abbreviatedType3)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons None []))))))) [] TyTrLeaf [Some (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed)] TyTrLeaf))))))"
 
 definition
   "mul_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32)), Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TUnit, Present))] Unboxed)] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_L) (Cons (Some TSK_R) (append (replicate 2 None) [])))) [] TyTrLeaf [Some TUnit, Some (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TUnit, Taken))] Unboxed)] TyTrLeaf))"
 
 definition
-  "mul_arr_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined))] (TyTrSplit (Cons (Some TSK_S) (Cons None [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))) [] TyTrLeaf [Some (TFun abbreviatedType1 (TPrim (Num U32)))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons None []))))))) [] TyTrLeaf [Some (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed)] TyTrLeaf))))))"
+  "mul_arr_typetree \<equiv> TyTrSplit (Cons (Some TSK_L) []) [] TyTrLeaf [Some (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None))] (TyTrSplit (Cons (Some TSK_S) (Cons None [])) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))) [] TyTrLeaf [Some (TFun abbreviatedType1 (TPrim (Num U32)))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None []))))) [] TyTrLeaf [Some (TPrim (Num U32))] (TyTrSplit (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons (Some TSK_R) (Cons None [])))))) [] TyTrLeaf [Some TUnit] (TyTrSplit (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons (Some TSK_L) (Cons None []))))))) [] TyTrLeaf [Some (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed)] TyTrLeaf))))))"
 
 ML \<open> open TTyping_Tactics \<close>
 
 ML_quiet \<open>
 val typing_helper_1_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_1[unfolded abbreviated_type_defs] :
-  "kinding [] abbreviatedType6 {S, D}"
+  "kinding 0 [] {} abbreviatedType6 {S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_1_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_2_script : tac list = [
-(ForceTac [])
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_2[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 abbreviatedType6"
+  "type_wellformed 0 0 {} abbreviatedType6"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_2_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_3_script : tac list = [
+(RTac @{thm typing_subst}),
+(SimpSolveTac ([],[])),
 (SimpTac ([],[(nth @{thms HOL.simp_thms} (25-1)),(nth @{thms HOL.simp_thms} (26-1))]))
 ] \<close>
 
 
 lemma typing_helper_3[unfolded abbreviated_type_defs] :
-  "list_all2 (kinding []) [] []"
+  "subst_wellformed 0 [] {} [] [] 0 [] {}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_3_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_4_script : tac list = [
-(ForceTac [])
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_4[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TFun abbreviatedType6 (TPrim (Num U32)))"
+  "type_wellformed 0 0 {} (TFun abbreviatedType6 (TPrim (Num U32)))"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_4_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_5_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_5[unfolded abbreviated_type_defs] :
-  "kinding [] (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined)) {S, D}"
+  "kinding 0 [] {} (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None)) {S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_5_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_6_script : tac list = [
-(ForceTac [])
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_6[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined))"
+  "type_wellformed 0 0 {} (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None))"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_6_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_7_script : tac list = [
-(ForceTac [])
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_7[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TFun (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined)) (TPrim (Num U32)))"
+  "type_wellformed 0 0 {} (TFun (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None)) (TPrim (Num U32)))"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_7_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_8_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_8[unfolded abbreviated_type_defs] :
-  "kinding [] abbreviatedType5 {E}"
+  "kinding 0 [] {} abbreviatedType5 {E}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_8_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_9_script : tac list = [
-(ForceTac [])
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_9[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 abbreviatedType5"
+  "type_wellformed 0 0 {} abbreviatedType5"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_9_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_10_script : tac list = [
-(ForceTac [])
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_10[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TFun abbreviatedType5 (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined)))"
+  "type_wellformed 0 0 {} (TFun abbreviatedType5 (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None)))"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_10_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_11_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_11[unfolded abbreviated_type_defs] :
-  "kinding [] abbreviatedType1 {E, S, D}"
+  "kinding 0 [] {} abbreviatedType1 {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_11_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_12_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_12[unfolded abbreviated_type_defs] :
-  "kinding [] (TPrim (Num U32)) {E, S, D}"
+  "kinding 0 [] {} (TPrim (Num U32)) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_12_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_13_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_13[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed) {E, S, D}"
+  "kinding 0 [] {} (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_13_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_14_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_14[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TUnit, Present))] Unboxed) {E, S, D}"
+  "kinding 0 [] {} (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TUnit, Present))] Unboxed) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_14_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_15_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_15[unfolded abbreviated_type_defs] :
-  "kinding [] TUnit {E, S, D}"
+  "kinding 0 [] {} TUnit {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_15_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_16_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_16[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TUnit, Taken))] Unboxed) {E, S, D}"
+  "kinding 0 [] {} (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TPrim (Num U32), Taken)), (''obsv'', (TUnit, Taken))] Unboxed) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_16_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_17_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_17[unfolded abbreviated_type_defs] :
-  "kinding [] (TFun abbreviatedType1 (TPrim (Num U32))) {E, S, D}"
+  "kinding 0 [] {} (TFun abbreviatedType1 (TPrim (Num U32))) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_17_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_18_script : tac list = [
-(ForceTac [])
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_18[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 abbreviatedType1"
+  "type_wellformed 0 0 {} abbreviatedType1"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_18_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_19_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_19[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed) {S, D}"
+  "kinding 0 [] {} (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed) {S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_19_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_20_script : tac list = [
-(ForceTac [])
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_20[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed)"
+  "type_wellformed 0 0 {} (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed)"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_20_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_21_script : tac list = [
-(ForceTac [])
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_21[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TFun (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed) (TPrim (Num U32)))"
+  "type_wellformed 0 0 {} (TFun (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed ReadOnly None), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType1 (TPrim (Num U32)), Present)), (''acc'', (TPrim (Num U32), Present)), (''obsv'', (TUnit, Present))] Unboxed) (TPrim (Num U32)))"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_21_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_22_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_22[unfolded abbreviated_type_defs] :
-  "kinding [] abbreviatedType4 {E, S, D}"
+  "kinding 0 [] {} abbreviatedType4 {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_22_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_23_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_23[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed) {E, S, D}"
+  "kinding 0 [] {} (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_23_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_24_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_24[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Taken)), (''obsv'', (TUnit, Present))] Unboxed) {E, S, D}"
+  "kinding 0 [] {} (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Taken)), (''obsv'', (TUnit, Present))] Unboxed) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_24_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_25_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_25[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Taken)), (''obsv'', (TUnit, Taken))] Unboxed) {E, S, D}"
+  "kinding 0 [] {} (TRecord [(''elem'', (TPrim (Num U32), Taken)), (''acc'', (TUnit, Taken)), (''obsv'', (TUnit, Taken))] Unboxed) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_25_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_26_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_26[unfolded abbreviated_type_defs] :
-  "kinding [] (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined)) {E}"
+  "kinding 0 [] {} (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None)) {E}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_26_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_27_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_27[unfolded abbreviated_type_defs] :
-  "kinding [] (TFun abbreviatedType4 abbreviatedType3) {E, S, D}"
+  "kinding 0 [] {} (TFun abbreviatedType4 abbreviatedType3) {E, S, D}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_27_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_28_script : tac list = [
-(ForceTac [])
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_28[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 abbreviatedType4"
+  "type_wellformed 0 0 {} abbreviatedType4"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_28_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_29_script : tac list = [
-(ForceTac [@{thm kinding_def},@{thm kinding_all_def},@{thm kinding_variant_def},@{thm kinding_record_def}])
+(ForceTac @{thms kinding_def kinding_all_def kinding_variant_def kinding_record_def matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_29[unfolded abbreviated_type_defs] :
-  "kinding [] (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed) {E}"
+  "kinding 0 [] {} (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed) {E}"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_29_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_30_script : tac list = [
-(ForceTac [])
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_30[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed)"
+  "type_wellformed 0 0 {} (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed)"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_30_script |> EVERY \<close>)
   done
 
 ML_quiet \<open>
 val typing_helper_31_script : tac list = [
-(ForceTac [])
+(ForceTac @{thms matches_fields_layout_def upt_def match_repr_layout_simps match_constraint_def size_ptr_def})
 ] \<close>
 
 
 lemma typing_helper_31[unfolded abbreviated_type_defs] :
-  "type_wellformed 0 (TFun (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable undefined), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed) abbreviatedType2)"
+  "type_wellformed 0 0 {} (TFun (TRecord [(''arr'', (TCon ''WordArray'' [TPrim (Num U32)] (Boxed Writable None), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun abbreviatedType4 abbreviatedType3, Present)), (''acc'', (TUnit, Present)), (''obsv'', (TUnit, Present))] Unboxed) abbreviatedType2)"
   apply (unfold abbreviated_type_defs)?
   apply (tactic \<open> map (fn t => DETERM (interpret_tac t @{context} 1)) typing_helper_31_script |> EVERY \<close>)
   done
@@ -623,7 +625,7 @@ val wordarray_get_u32_ttyping_details_future = get_all_typing_details_future fal
 
 
 lemma wordarray_get_u32_typecorrect :
-  "\<Xi>, prod.fst wordarray_get_u32_type, (wordarray_get_u32_typetree, [Some (prod.fst (prod.snd wordarray_get_u32_type))]) T\<turnstile> wordarray_get_u32 : prod.snd (prod.snd wordarray_get_u32_type)"
+  "\<Xi>, prod.fst wordarray_get_u32_type, prod.fst (prod.snd wordarray_get_u32_type), prod.fst (prod.snd (prod.snd wordarray_get_u32_type)), (wordarray_get_u32_typetree, [Some (prod.fst (prod.snd (prod.snd (prod.snd wordarray_get_u32_type))))]) T\<turnstile> wordarray_get_u32 : prod.snd (prod.snd (prod.snd (prod.snd wordarray_get_u32_type)))"
   apply (tactic \<open> resolve_future_typecorrect @{context} wordarray_get_u32_ttyping_details_future \<close>)
   done
 
@@ -649,7 +651,7 @@ val wordarray_length_u32_ttyping_details_future = get_all_typing_details_future 
 
 
 lemma wordarray_length_u32_typecorrect :
-  "\<Xi>, prod.fst wordarray_length_u32_type, (wordarray_length_u32_typetree, [Some (prod.fst (prod.snd wordarray_length_u32_type))]) T\<turnstile> wordarray_length_u32 : prod.snd (prod.snd wordarray_length_u32_type)"
+  "\<Xi>, prod.fst wordarray_length_u32_type, prod.fst (prod.snd wordarray_length_u32_type), prod.fst (prod.snd (prod.snd wordarray_length_u32_type)), (wordarray_length_u32_typetree, [Some (prod.fst (prod.snd (prod.snd (prod.snd wordarray_length_u32_type))))]) T\<turnstile> wordarray_length_u32 : prod.snd (prod.snd (prod.snd (prod.snd wordarray_length_u32_type)))"
   apply (tactic \<open> resolve_future_typecorrect @{context} wordarray_length_u32_ttyping_details_future \<close>)
   done
 
@@ -675,7 +677,7 @@ val wordarray_put2_u32_ttyping_details_future = get_all_typing_details_future fa
 
 
 lemma wordarray_put2_u32_typecorrect :
-  "\<Xi>, prod.fst wordarray_put2_u32_type, (wordarray_put2_u32_typetree, [Some (prod.fst (prod.snd wordarray_put2_u32_type))]) T\<turnstile> wordarray_put2_u32 : prod.snd (prod.snd wordarray_put2_u32_type)"
+  "\<Xi>, prod.fst wordarray_put2_u32_type, prod.fst (prod.snd wordarray_put2_u32_type), prod.fst (prod.snd (prod.snd wordarray_put2_u32_type)), (wordarray_put2_u32_typetree, [Some (prod.fst (prod.snd (prod.snd (prod.snd wordarray_put2_u32_type))))]) T\<turnstile> wordarray_put2_u32 : prod.snd (prod.snd (prod.snd (prod.snd wordarray_put2_u32_type)))"
   apply (tactic \<open> resolve_future_typecorrect @{context} wordarray_put2_u32_ttyping_details_future \<close>)
   done
 
@@ -719,7 +721,7 @@ val add_ttyping_details_future = get_all_typing_details_future false @{context} 
 
 
 lemma add_typecorrect :
-  "\<Xi>, prod.fst add_type, (add_typetree, [Some (prod.fst (prod.snd add_type))]) T\<turnstile> add : prod.snd (prod.snd add_type)"
+  "\<Xi>, prod.fst add_type, prod.fst (prod.snd add_type), prod.fst (prod.snd (prod.snd add_type)), (add_typetree, [Some (prod.fst (prod.snd (prod.snd (prod.snd add_type))))]) T\<turnstile> add : prod.snd (prod.snd (prod.snd (prod.snd add_type)))"
   apply (tactic \<open> resolve_future_typecorrect @{context} add_ttyping_details_future \<close>)
   done
 
@@ -781,7 +783,7 @@ val sum_arr_ttyping_details_future = get_all_typing_details_future false @{conte
 
 
 lemma sum_arr_typecorrect :
-  "\<Xi>, prod.fst sum_arr_type, (sum_arr_typetree, [Some (prod.fst (prod.snd sum_arr_type))]) T\<turnstile> sum_arr : prod.snd (prod.snd sum_arr_type)"
+  "\<Xi>, prod.fst sum_arr_type, prod.fst (prod.snd sum_arr_type), prod.fst (prod.snd (prod.snd sum_arr_type)), (sum_arr_typetree, [Some (prod.fst (prod.snd (prod.snd (prod.snd sum_arr_type))))]) T\<turnstile> sum_arr : prod.snd (prod.snd (prod.snd (prod.snd sum_arr_type)))"
   apply (tactic \<open> resolve_future_typecorrect @{context} sum_arr_ttyping_details_future \<close>)
   done
 
@@ -837,7 +839,7 @@ val dec_ttyping_details_future = get_all_typing_details_future false @{context} 
 
 
 lemma dec_typecorrect :
-  "\<Xi>, prod.fst dec_type, (dec_typetree, [Some (prod.fst (prod.snd dec_type))]) T\<turnstile> dec : prod.snd (prod.snd dec_type)"
+  "\<Xi>, prod.fst dec_type, prod.fst (prod.snd dec_type), prod.fst (prod.snd (prod.snd dec_type)), (dec_typetree, [Some (prod.fst (prod.snd (prod.snd (prod.snd dec_type))))]) T\<turnstile> dec : prod.snd (prod.snd (prod.snd (prod.snd dec_type)))"
   apply (tactic \<open> resolve_future_typecorrect @{context} dec_ttyping_details_future \<close>)
   done
 
@@ -903,7 +905,7 @@ val dec_arr_ttyping_details_future = get_all_typing_details_future false @{conte
 
 
 lemma dec_arr_typecorrect :
-  "\<Xi>, prod.fst dec_arr_type, (dec_arr_typetree, [Some (prod.fst (prod.snd dec_arr_type))]) T\<turnstile> dec_arr : prod.snd (prod.snd dec_arr_type)"
+  "\<Xi>, prod.fst dec_arr_type, prod.fst (prod.snd dec_arr_type), prod.fst (prod.snd (prod.snd dec_arr_type)), (dec_arr_typetree, [Some (prod.fst (prod.snd (prod.snd (prod.snd dec_arr_type))))]) T\<turnstile> dec_arr : prod.snd (prod.snd (prod.snd (prod.snd dec_arr_type)))"
   apply (tactic \<open> resolve_future_typecorrect @{context} dec_arr_ttyping_details_future \<close>)
   done
 
@@ -959,7 +961,7 @@ val inc_ttyping_details_future = get_all_typing_details_future false @{context} 
 
 
 lemma inc_typecorrect :
-  "\<Xi>, prod.fst inc_type, (inc_typetree, [Some (prod.fst (prod.snd inc_type))]) T\<turnstile> inc : prod.snd (prod.snd inc_type)"
+  "\<Xi>, prod.fst inc_type, prod.fst (prod.snd inc_type), prod.fst (prod.snd (prod.snd inc_type)), (inc_typetree, [Some (prod.fst (prod.snd (prod.snd (prod.snd inc_type))))]) T\<turnstile> inc : prod.snd (prod.snd (prod.snd (prod.snd inc_type)))"
   apply (tactic \<open> resolve_future_typecorrect @{context} inc_ttyping_details_future \<close>)
   done
 
@@ -1025,7 +1027,7 @@ val inc_arr_ttyping_details_future = get_all_typing_details_future false @{conte
 
 
 lemma inc_arr_typecorrect :
-  "\<Xi>, prod.fst inc_arr_type, (inc_arr_typetree, [Some (prod.fst (prod.snd inc_arr_type))]) T\<turnstile> inc_arr : prod.snd (prod.snd inc_arr_type)"
+  "\<Xi>, prod.fst inc_arr_type, prod.fst (prod.snd inc_arr_type), prod.fst (prod.snd (prod.snd inc_arr_type)), (inc_arr_typetree, [Some (prod.fst (prod.snd (prod.snd (prod.snd inc_arr_type))))]) T\<turnstile> inc_arr : prod.snd (prod.snd (prod.snd (prod.snd inc_arr_type)))"
   apply (tactic \<open> resolve_future_typecorrect @{context} inc_arr_ttyping_details_future \<close>)
   done
 
@@ -1069,7 +1071,7 @@ val mul_ttyping_details_future = get_all_typing_details_future false @{context} 
 
 
 lemma mul_typecorrect :
-  "\<Xi>, prod.fst mul_type, (mul_typetree, [Some (prod.fst (prod.snd mul_type))]) T\<turnstile> mul : prod.snd (prod.snd mul_type)"
+  "\<Xi>, prod.fst mul_type, prod.fst (prod.snd mul_type), prod.fst (prod.snd (prod.snd mul_type)), (mul_typetree, [Some (prod.fst (prod.snd (prod.snd (prod.snd mul_type))))]) T\<turnstile> mul : prod.snd (prod.snd (prod.snd (prod.snd mul_type)))"
   apply (tactic \<open> resolve_future_typecorrect @{context} mul_ttyping_details_future \<close>)
   done
 
@@ -1131,7 +1133,7 @@ val mul_arr_ttyping_details_future = get_all_typing_details_future false @{conte
 
 
 lemma mul_arr_typecorrect :
-  "\<Xi>, prod.fst mul_arr_type, (mul_arr_typetree, [Some (prod.fst (prod.snd mul_arr_type))]) T\<turnstile> mul_arr : prod.snd (prod.snd mul_arr_type)"
+  "\<Xi>, prod.fst mul_arr_type, prod.fst (prod.snd mul_arr_type), prod.fst (prod.snd (prod.snd mul_arr_type)), (mul_arr_typetree, [Some (prod.fst (prod.snd (prod.snd (prod.snd mul_arr_type))))]) T\<turnstile> mul_arr : prod.snd (prod.snd (prod.snd (prod.snd mul_arr_type)))"
   apply (tactic \<open> resolve_future_typecorrect @{context} mul_arr_ttyping_details_future \<close>)
   done
 

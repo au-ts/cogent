@@ -10,9 +10,9 @@ imports "Cogent.Mono_Tac"
 begin
 
 definition
-  rename__assocs :: "(( string \<times>  Cogent.type list) \<times>  string) list"
+  rename__assocs :: "(( string \<times>  Cogent.type list \<times>  Cogent.ptr_layout list) \<times>  string) list"
 where
-  "rename__assocs \<equiv> [((''add'', Nil), ''add''), ((''dec'', Nil), ''dec''), ((''dec_arr'', Nil), ''dec_arr''), ((''inc'', Nil), ''inc''), ((''inc_arr'', Nil), ''inc_arr''), ((''mul'', Nil), ''mul''), ((''mul_arr'', Nil), ''mul_arr''), ((''sum_arr'', Nil), ''sum_arr''), ((''wordarray_fold_no_break'', [TPrim (Num U32), TPrim (Num U32), TUnit]), ''wordarray_fold_no_break_0''), ((''wordarray_get'', [TPrim (Num U32)]), ''wordarray_get_0''), ((''wordarray_get_u32'', Nil), ''wordarray_get_u32''), ((''wordarray_length'', [TPrim (Num U32)]), ''wordarray_length_0''), ((''wordarray_length_u32'', Nil), ''wordarray_length_u32''), ((''wordarray_map_no_break'', [TPrim (Num U32), TUnit, TUnit]), ''wordarray_map_no_break_0''), ((''wordarray_put2'', [TPrim (Num U32)]), ''wordarray_put2_0''), ((''wordarray_put2_u32'', Nil), ''wordarray_put2_u32'')]"
+  "rename__assocs \<equiv> [((''add'', Nil, Nil), ''add''), ((''dec'', Nil, Nil), ''dec''), ((''dec_arr'', Nil, Nil), ''dec_arr''), ((''inc'', Nil, Nil), ''inc''), ((''inc_arr'', Nil, Nil), ''inc_arr''), ((''mul'', Nil, Nil), ''mul''), ((''mul_arr'', Nil, Nil), ''mul_arr''), ((''sum_arr'', Nil, Nil), ''sum_arr''), ((''wordarray_fold_no_break'', [TPrim (Num U32), TPrim (Num U32), TUnit], []), ''wordarray_fold_no_break_0''), ((''wordarray_get'', [TPrim (Num U32)], []), ''wordarray_get_0''), ((''wordarray_get_u32'', Nil, Nil), ''wordarray_get_u32''), ((''wordarray_length'', [TPrim (Num U32)], []), ''wordarray_length_0''), ((''wordarray_length_u32'', Nil, Nil), ''wordarray_length_u32''), ((''wordarray_map_no_break'', [TPrim (Num U32), TUnit, TUnit], []), ''wordarray_map_no_break_0''), ((''wordarray_put2'', [TPrim (Num U32)], []), ''wordarray_put2_0''), ((''wordarray_put2_u32'', Nil, Nil), ''wordarray_put2_u32'')]"
 
 local_setup \<open>
 gen_mono_rename Cogent_functions @{thm rename__assocs_def} "rename"
