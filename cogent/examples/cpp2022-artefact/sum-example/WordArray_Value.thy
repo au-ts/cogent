@@ -261,7 +261,7 @@ lemma val_wa_foldnb_bod_back_step:
 lemma val_wa_foldnb_bod_preservation:
   "\<lbrakk>proc_ctx_wellformed \<Xi>'; proc_env_matches \<xi>\<^sub>v \<Xi>'; val_wa_foldnb_bod \<xi>\<^sub>v t xs frm to f acc obsv r; 
     wa_abs_typing_v \<Xi>' (VWA t xs) ''WordArray'' [t]; vval_typing \<Xi>' acc u; vval_typing \<Xi>' obsv v;
-    \<Xi>', [], [option.Some (TRecord [(a0, (t, Present)), (a1, (u, Present)), 
+    \<Xi>', 0, [], {}, [option.Some (TRecord [(a0, (t, Present)), (a1, (u, Present)), 
       (a2, (v, Present))] Unboxed)] \<turnstile> App f (Var 0) : u; distinct [a0, a1, a2]\<rbrakk>
     \<Longrightarrow> vval_typing \<Xi>' r u"
   apply (induct to arbitrary: r)
@@ -271,8 +271,8 @@ lemma val_wa_foldnb_bod_preservation:
   apply (case_tac "Suc to \<le> frm")
    apply (erule val_wa_foldnb_bod.elims; clarsimp)
   apply (drule val_wa_foldnb_bod_back_step; clarsimp)
-  apply (drule_tac x = r' in meta_spec)
-  apply (drule preservation(1)[of "[]" "[]" _ _ _  \<xi>\<^sub>v, simplified]; simp?)
+  apply (drule_tac x = r' in meta_spec) 
+  apply (drule preservation(1)[of "[]" "[]" "0" "[]" "{}"  _ _ _ \<xi>\<^sub>v, OF subst_wellformed_nothing]; simp?)
   apply (clarsimp simp: matches_def)
   apply (rule v_t_record; simp?)
   apply (rule v_t_r_cons1)
@@ -293,7 +293,7 @@ lemma val_wa_foldnb_bod_rename_monoexpr_correct:
     is_vval_fun (rename_val rename' (monoval f)); wa_abs_typing_v \<Xi>' (VWA t xs) ''WordArray'' [t]; 
     vval_typing \<Xi>' (rename_val rename' (monoval acc )) u;
     vval_typing \<Xi>' (rename_val rename' (monoval obsv)) v;
-    \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)] \<turnstile>
+    \<Xi>', 0, [], {}, [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)] \<turnstile>
       App (vvalfun_to_exprfun (rename_val rename' (monoval f))) (Var 0) : u; 
     distinct [a0, a1, a2]\<rbrakk>
        \<Longrightarrow> is_vval_fun f \<and> (\<exists>r'. r = rename_val rename' (monoval r') \<and>
@@ -358,7 +358,7 @@ definition val_wa_foldnb
       wa_abs_typing_v \<Xi>' (VWA t xs) ''WordArray'' [t]  \<and>
       is_vval_fun func \<and> \<tau> = TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
       vval_typing \<Xi>' acc u \<and> vval_typing \<Xi>' obsv v \<and> distinct [a0, a1, a2] \<and>
-      (\<Xi>', [], [option.Some \<tau>] \<turnstile> (App (vvalfun_to_exprfun func) (Var 0)) : u) \<and>
+      (\<Xi>', 0, [], {}, [option.Some \<tau>] \<turnstile> (App (vvalfun_to_exprfun func) (Var 0)) : u) \<and>
       (val_wa_foldnb_bod \<xi>\<^sub>v t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y))"
 
 definition val_wa_foldnbp

@@ -902,12 +902,13 @@ lemma typing_mono_app_cogent_absfun:
   done
 
 lemma typing_mono_afun_cogent_absfun:
-  "\<lbrakk>proc_ctx_wellformed \<Xi>'; \<Xi>' f = ([], a, b)\<rbrakk> \<Longrightarrow> \<Xi>', 0, [], {}, [option.None] \<turnstile> AFun f [] [] : TFun a b"
+  "\<lbrakk>proc_ctx_wellformed \<Xi>'; \<Xi>' f = (0, [], {}, a, b)\<rbrakk> \<Longrightarrow> \<Xi>', 0, [], {}, [option.None] \<turnstile> AFun f [] [] : TFun a b"
   apply (unfold  proc_ctx_wellformed_def)
   apply (erule_tac x = f in allE; clarsimp)
   apply (rule typing_afun[where ts = "[]", OF _ _ _ _]; (simp add: Cogent.empty_def weakening_conv_all_nth)?)
-   apply clarsimp
-  apply (rule none)
+    apply (rule weakening_comp.none)
+   apply simp
+  apply (rule subst_wellformed_nothing)
   done
 
 lemma typing_mono_afun_imp_appafun:

@@ -101,7 +101,9 @@ end;
 \<close>
 
 lemma
-  "\<xi>p' ''wordarray_length'' =  val_wa_length \<Longrightarrow> scorres((wordarray_length:: ('a :: len8) word WordArray \<Rightarrow> 32 word)) (AFun ''wordarray_length'' ts) \<gamma> \<xi>p'"
+  "\<xi>p' ''wordarray_length'' =  val_wa_length \<Longrightarrow> 
+  scorres ((wordarray_length:: ('a :: len8) word WordArray \<Rightarrow> 32 word)) 
+          (AFun ''wordarray_length'' ts ls) \<gamma> \<xi>p'"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_afunE)
   apply (clarsimp simp: val_wa_length_def  wordarray_length' valRel_WordArray_simps split: if_splits)
@@ -110,7 +112,7 @@ lemma
 lemma scorres_wordarray_length:
   "\<lbrakk>i < length \<gamma>; \<xi>p' ''wordarray_length'' =  val_wa_length;
     valRel \<xi>p' (v:: ('a :: len8) word WordArray) (\<gamma> ! i)\<rbrakk>
-    \<Longrightarrow> scorres (wordarray_length v) (App (AFun ''wordarray_length'' ts) (Var i)) \<gamma> \<xi>p'"
+    \<Longrightarrow> scorres (wordarray_length v) (App (AFun ''wordarray_length'' ts ls) (Var i)) \<gamma> \<xi>p'"
   by (tactic \<open>wa_length_tac @{context}\<close>)
 
 \<comment>\<open> Proofs for alternate definition of @{term valRel} for word arrays \<close>
@@ -174,25 +176,25 @@ end;
 lemma scorres_wordarray_get_u8:
   "\<lbrakk>i < length \<gamma>;  \<xi>p' ''wordarray_get'' =  val_wa_get;
     valRel \<xi>p' (v:: (8 word WordArray, 32 word) T0) (\<gamma> ! i)\<rbrakk>
-    \<Longrightarrow> scorres (wordarray_get v) (App (AFun ''wordarray_get'' ts) (Var i)) \<gamma> \<xi>p'"
+    \<Longrightarrow> scorres (wordarray_get v) (App (AFun ''wordarray_get'' ts ls) (Var i)) \<gamma> \<xi>p'"
   by (tactic \<open>wa_get_tac @{context}\<close>)
 
 lemma scorres_wordarray_get_u16:
   "\<lbrakk>i < length \<gamma>;  \<xi>p' ''wordarray_get'' =  val_wa_get;
     valRel \<xi>p' (v:: (16 word WordArray, 32 word) T0) (\<gamma> ! i)\<rbrakk>
-    \<Longrightarrow> scorres (wordarray_get v) (App (AFun ''wordarray_get'' ts) (Var i)) \<gamma> \<xi>p'"
+    \<Longrightarrow> scorres (wordarray_get v) (App (AFun ''wordarray_get'' ts ls) (Var i)) \<gamma> \<xi>p'"
   by (tactic \<open>wa_get_tac @{context}\<close>)
 
 lemma scorres_wordarray_get_u32:
   "\<lbrakk>i < length \<gamma>;  \<xi>p' ''wordarray_get'' =  val_wa_get;
     valRel \<xi>p' (v:: (32 word WordArray, 32 word) T0) (\<gamma> ! i)\<rbrakk>
-    \<Longrightarrow> scorres (wordarray_get v) (App (AFun ''wordarray_get'' ts) (Var i)) \<gamma> \<xi>p'"
+    \<Longrightarrow> scorres (wordarray_get v) (App (AFun ''wordarray_get'' ts ls) (Var i)) \<gamma> \<xi>p'"
   by (tactic \<open>wa_get_tac @{context}\<close>)
 
 lemma scorres_wordarray_get_u64:
   "\<lbrakk>i < length \<gamma>; \<xi>p' ''wordarray_get'' =  val_wa_get;
     valRel \<xi>p' (v:: (64 word WordArray, 32 word) T0) (\<gamma> ! i)\<rbrakk>
-    \<Longrightarrow> scorres (wordarray_get v) (App (AFun ''wordarray_get'' ts) (Var i)) \<gamma> \<xi>p'"
+    \<Longrightarrow> scorres (wordarray_get v) (App (AFun ''wordarray_get'' ts ls) (Var i)) \<gamma> \<xi>p'"
   by (tactic \<open>wa_get_tac @{context}\<close>)
 
 subsection "wordarray_put2"
@@ -250,25 +252,25 @@ end;
 lemma scorres_wordarray_put2_u8:
   "\<lbrakk>k < length \<gamma>;  \<xi>p' ''wordarray_put2'' =  val_wa_put2;
     valRel \<xi>p' (v:: (8 word WordArray, 32 word, 8 word) WordArrayPutP) (\<gamma> ! k)\<rbrakk>
-    \<Longrightarrow> scorres (wordarray_put2 v) (App (AFun ''wordarray_put2'' ts) (Var k)) \<gamma> \<xi>p'"
+    \<Longrightarrow> scorres (wordarray_put2 v) (App (AFun ''wordarray_put2'' ts ls) (Var k)) \<gamma> \<xi>p'"
   by (tactic \<open> wa_put2_tac @{context}\<close>)
 
 lemma scorres_wordarray_put2_u16:
   "\<lbrakk>k < length \<gamma>;  \<xi>p' ''wordarray_put2'' =  val_wa_put2;
     valRel \<xi>p' (v:: (16 word WordArray, 32 word, 16 word) WordArrayPutP) (\<gamma> ! k)\<rbrakk>
-    \<Longrightarrow> scorres (wordarray_put2 v) (App (AFun ''wordarray_put2'' ts) (Var k)) \<gamma> \<xi>p'"
+    \<Longrightarrow> scorres (wordarray_put2 v) (App (AFun ''wordarray_put2'' ts ls) (Var k)) \<gamma> \<xi>p'"
   by (tactic \<open> wa_put2_tac @{context}\<close>)
 
 lemma scorres_wordarray_put2_u32:
   "\<lbrakk>k < length \<gamma>;  \<xi>p' ''wordarray_put2'' =  val_wa_put2;
     valRel \<xi>p' (v:: (32 word WordArray, 32 word, 32 word) WordArrayPutP) (\<gamma> ! k)\<rbrakk>
-    \<Longrightarrow> scorres (wordarray_put2 v) (App (AFun ''wordarray_put2'' ts) (Var k)) \<gamma> \<xi>p'"
+    \<Longrightarrow> scorres (wordarray_put2 v) (App (AFun ''wordarray_put2'' ts ls) (Var k)) \<gamma> \<xi>p'"
   by (tactic \<open> wa_put2_tac @{context}\<close>)
 
 lemma scorres_wordarray_put2_u64:
   "\<lbrakk>k < length \<gamma>;  \<xi>p' ''wordarray_put2'' =  val_wa_put2;
     valRel \<xi>p' (v:: (64 word WordArray, 32 word, 64 word) WordArrayPutP) (\<gamma> ! k)\<rbrakk>
-    \<Longrightarrow> scorres (wordarray_put2 v) (App (AFun ''wordarray_put2'' ts) (Var k)) \<gamma> \<xi>p'"
+    \<Longrightarrow> scorres (wordarray_put2 v) (App (AFun ''wordarray_put2'' ts ls) (Var k)) \<gamma> \<xi>p'"
   by (tactic \<open> wa_put2_tac @{context}\<close>)
 
 subsection "wordarray_fold_no_break"
@@ -332,7 +334,7 @@ lemma scorres_wordarray_fold_no_break_u32:
     \<forall>x x'. valRel \<xi>p' (x :: 'b) x' \<longleftrightarrow> valRel \<xi>p1' x x'\<rbrakk>
     \<Longrightarrow> scorres 
     (wordarray_fold_no_break \<lparr>WordArrayMapNoBreakP.arr\<^sub>f = arr, frm\<^sub>f = frm, to\<^sub>f = to, f\<^sub>f = f, 
-        acc\<^sub>f = acc, obsv\<^sub>f = obsv\<rparr>) (App (AFun ''wordarray_fold_no_break'' ts) (Var i)) \<gamma> \<xi>p1'"
+        acc\<^sub>f = acc, obsv\<^sub>f = obsv\<rparr>) (App (AFun ''wordarray_fold_no_break'' ts ls) (Var i)) \<gamma> \<xi>p1'"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_appE; erule v_sem_afunE; clarsimp)
   apply (erule v_sem_varE; clarsimp)
@@ -421,7 +423,7 @@ lemma scorres_wordarray_map_no_break_u32:
       f\<^sub>f = f, acc\<^sub>f = (acc :: 'b), obsv\<^sub>f = obsv\<rparr> (\<gamma> ! i); \<forall>x x'. valRel \<xi>p' (x :: 'b) x' \<longleftrightarrow> valRel \<xi>p1' x x'\<rbrakk>
     \<Longrightarrow> scorres 
     (wordarray_map_no_break \<lparr>WordArrayMapNoBreakP.arr\<^sub>f = arr, frm\<^sub>f = frm, to\<^sub>f = to, f\<^sub>f = f, 
-        acc\<^sub>f = acc, obsv\<^sub>f = obsv\<rparr>) (App (AFun ''wordarray_map_no_break'' ts) (Var i)) \<gamma> \<xi>p1'"
+        acc\<^sub>f = acc, obsv\<^sub>f = obsv\<rparr>) (App (AFun ''wordarray_map_no_break'' ts ls) (Var i)) \<gamma> \<xi>p1'"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_appE; erule v_sem_afunE; clarsimp)
   apply (erule v_sem_varE; clarsimp)
