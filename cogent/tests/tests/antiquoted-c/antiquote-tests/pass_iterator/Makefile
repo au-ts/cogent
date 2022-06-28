@@ -47,7 +47,7 @@ gen-anti:
 	cogent -g $(SRC) --infer-c-types="$(AHFILES)" \
 		--infer-c-funcs="$(ACFILES)" \
 		--cpp="$(CPP)" \
-	  --cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+	  --cpp-args="-x c \$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
 		--ext-types=types.cfg -O1 -ogenerated
 
 clean:

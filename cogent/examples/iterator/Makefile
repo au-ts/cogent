@@ -16,7 +16,7 @@ CFLAGS+=-I${LIBGUM} -I${LIBGUM}gum/anti -O2
 # C, how to invoke the C preprocessor so that it knows where all of the
 # necessary libraries are.
 COGENTFLAGS= \
-	--cpp-args="\$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" --cpp="$(CPP)"
+	--cpp-args="-x c \$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" --cpp="$(CPP)"
 
 # Our final program will be compiled into main.
 all: main

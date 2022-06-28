@@ -47,7 +47,7 @@ COGENT_FLAGS=--Wno-warn \
 			 --root-dir="$(REPO)" \
 			 --dist-dir=$(BUILD_DIR) \
 			 --cpp="$(CPP)" \
-			 --cpp-args="\$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
+			 --cpp-args="-x c \$$CPPIN -o \$$CPPOUT -P $(CFLAGS)" \
 			 --ext-types=types.cfg \
 			 --entry-funcs=entrypoints.cfg
 

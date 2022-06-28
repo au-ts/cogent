@@ -33,7 +33,7 @@ gen-anti:
 	cogent $(SRC) -g -Od -ogenerated --fno-fncall-as-macro --ffunc-purity-attr \
                 --infer-c-funcs="$(ACFILES)" \
 								--cpp="$(CPP)" \
-                --cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+                --cpp-args="-x c \$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
                 --entry-funcs=entry.cfg \
 
 manual:
