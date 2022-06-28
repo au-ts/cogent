@@ -1,0 +1,17 @@
+foo1 : U8 -> U16
+foo1 x = upcast x
+
+foo2 : U8 -> U21
+foo2 x = upcast x
+
+foo3 : U6 -> U8
+foo3 x = upcast x
+
+foo3' : U6 -> U16
+foo3' x = upcast x
+
+foo4 : U6 -> U7
+foo4 x = upcast x
+
+foo4' : U6 -> U21
+foo4' x = upcast x

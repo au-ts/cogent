@@ -830,7 +830,35 @@ desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
   let fs' = map (\ft@(f,(t,b)) -> if f == f0 then (f,(t,False)) else ft) fs
       t' = B.DT (S.TRecord rp fs' s)
   desugarExpr $ B.TE t (S.Put (B.TE t' (S.Put e [fa]) l) fas) l
-desugarExpr (B.TE t (S.Upcast e) _) = E <$> (Cast <$> desugarType t <*> desugarExpr e)
+desugarExpr (B.TE tb (S.Upcast e) _) = do
+  let ts = B.getTypeTE e
+  B.DT (S.TCon cs [] Unboxed) <- unfoldSynsShallowM ts
+  B.DT (S.TCon cb [] Unboxed) <- unfoldSynsShallowM tb
+  tb' <- desugarType tb
+  let (fu, fc, fd) = case (cs `elem` wordTypeCons, cb `elem` wordTypeCons) of
+        (True , True ) -> (return, return . E . Cast tb', return)
+        (True , False) -> let cm = nextWordTCon cb
+                              tm = B.DT (S.TCon cm [] Unboxed)
+                           in (return, (E <$>) . ((Cast <$> desugarType tm) <*>) . pure,
+                                       return . E . Truncate tb')
+        (False, True) -> 
+          let cm = nextWordTCon cs
+              tm = B.DT (S.TCon cm [] Unboxed)
+              fc = if cm == cb
+                      then return
+                      else return . E . Cast tb'
+           in ((E <$>) . ((Cast <$> desugarType tm) <*>) . pure, fc, return)
+        (False, False) ->
+          let cms = nextWordTCon cs
+              cmb = nextWordTCon cb
+              tms = B.DT (S.TCon cms [] Unboxed)
+              tmb = B.DT (S.TCon cmb [] Unboxed)
+              fc = if cms == cmb
+                      then return
+                      else (E <$>) . ((Cast <$> desugarType tmb) <*>) . pure
+           in ((E <$>) . ((Cast <$> desugarType tms) <*>) . pure, fc,
+               return . E . Truncate tb')
+  fd =<< fc =<< fu =<< desugarExpr e
 desugarExpr (B.TE t (S.Truncate e) _) = E <$> (Truncate <$> desugarType t <*> desugarExpr e)
 desugarExpr (B.TE t (S.Annot e tau) _) = E <$> (Promote <$> desugarType tau <*> desugarExpr e)
   -- \ ^^^ NOTE [How to handle type annotations?]

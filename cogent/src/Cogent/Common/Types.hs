@@ -27,7 +27,8 @@ import Data.Map as M
 import Data.Monoid
 #endif
 import GHC.Generics (Generic)
-import Text.PrettyPrint.ANSI.Leijen hiding (tupled,indent)
+import Text.PrettyPrint.ANSI.Leijen hiding (tupled, indent, (<$>))
+import Text.Read (readMaybe)
 
 type ReadOnly = Bool  -- True for r/o
 
@@ -128,12 +129,19 @@ wordSizes = [8, 16, 32, 64]
 primTypeCons :: [TypeName]
 primTypeCons = ['U':show x | x <- [1..64]] ++ words "Bool String"
 
+wordTypeCons :: [TypeName]
+wordTypeCons = ('U':) . show <$> wordSizes
+
 roundUpToWord :: Size -> Size
 roundUpToWord n | 0  < n && n <= 8  = 8
                 | 8  < n && n <= 16 = 16
                 | 16 < n && n <= 32 = 32
                 | 32 < n && n <= 64 = 64
                 | otherwise = __impossible "roundUpToWord: invalid int size"
+
+nextWordTCon :: TypeName -> TypeName
+nextWordTCon ('U':n) | Just s <- (readMaybe n :: Maybe Size) = 'U':show (roundUpToWord s)
+nextWordTCon _ = __impossible "nextWordTCon: not a valid UInt type"
 
 roundDownToWord :: Size -> Size
 roundDownToWord n | 8  <= n && n < 16 = 8
