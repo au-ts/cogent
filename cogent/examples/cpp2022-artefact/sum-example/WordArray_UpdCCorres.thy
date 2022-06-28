@@ -11,7 +11,7 @@ definition
   "abs_fun_rel \<Xi>' srel afun_name \<xi>' afun_mon \<sigma> st x x'
     = (proc_ctx_wellformed \<Xi>' \<longrightarrow> (\<xi>' matches-u \<Xi>') \<longrightarrow> (\<sigma>,st) \<in> srel \<longrightarrow>
       (\<forall>r' w'. val_rel x x'
-        \<and> (\<Xi>', \<sigma> \<turnstile> x :u prod.fst (prod.snd (\<Xi>' afun_name)) \<langle>r', w'\<rangle>)
+        \<and> (\<Xi>', \<sigma> \<turnstile> x :u prod.fst (prod.snd (prod.snd (prod.snd (\<Xi>' afun_name)))) \<langle>r', w'\<rangle>)
         \<longrightarrow> \<not> prod.snd (afun_mon x' st)
             \<and> (\<forall>st' y'. (y', st') \<in> prod.fst (afun_mon x' st)
                 \<longrightarrow> (\<exists>\<sigma>' y. \<xi>' afun_name (\<sigma>, x) (\<sigma>', y)
@@ -20,9 +20,9 @@ definition
 lemma absfun_corres:
   "abs_fun_rel \<Xi>' srel s \<xi>' afun' \<sigma> st (\<gamma> ! i) v'
   \<Longrightarrow> i < length \<gamma> \<Longrightarrow> val_rel (\<gamma> ! i) v'
-  \<Longrightarrow> \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi>' s)))
+  \<Longrightarrow> \<Gamma>' ! i = option.Some (prod.fst (prod.snd (prod.snd (prod.snd (\<Xi>' s)))))
   \<Longrightarrow> corres srel
-     (App (AFun s []) (Var i))
+     (App (AFun s [] ls) (Var i))                                            
      (do x \<leftarrow> afun' v'; gets (\<lambda>s. x) od)
      \<xi>' \<gamma> \<Xi>' \<Gamma>' \<sigma> st"
   apply (clarsimp simp: corres_def abs_fun_rel_def)
@@ -43,7 +43,8 @@ lemma absfun_corres:
 lemma abs_fun_rel_def':
   "abs_fun_rel \<Xi>' srel afun_name \<xi>' afun_mon \<sigma> st x x'
     = (proc_ctx_wellformed \<Xi>' \<longrightarrow> \<xi>' matches-u \<Xi>' \<longrightarrow> (\<sigma>,st) \<in> srel \<longrightarrow>
-        (\<forall>r' w'. val_rel x x' \<and> \<Xi>', \<sigma> \<turnstile> x :u prod.fst (prod.snd (\<Xi>' afun_name)) \<langle>r', w'\<rangle>
+        (\<forall>r' w'. val_rel x x' \<and> 
+            \<Xi>', \<sigma> \<turnstile> x :u prod.fst (prod.snd (prod.snd (prod.snd (\<Xi>' afun_name)))) \<langle>r', w'\<rangle>
         \<longrightarrow> \<lbrace>\<lambda>s0. s0 = st\<rbrace> 
               afun_mon x' 
             \<lbrace>\<lambda>y' s'. \<exists>\<sigma>' y. \<xi>' afun_name (\<sigma>, x) (\<sigma>', y) \<and> (\<sigma>',s') \<in> srel \<and> val_rel y y'\<rbrace>!))" 
@@ -55,14 +56,16 @@ sublocale WordArray \<subseteq> Generated _ wa_abs_typing_u wa_abs_repr
   by (unfold_locales)
 
 context WordArray begin
-
+              
 section "Correspondence Lemmas Between Update Semantics and C"
 
 lemma upd_C_wordarray_put2_corres_gen:
   "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
-    \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_put2_0'')));
+    \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; 
+    \<Gamma>' ! i = option.Some (prod.fst (prod.snd (prod.snd (prod.snd (\<Xi> ''wordarray_put2_0'')))));
      \<xi>0' ''wordarray_put2_0'' = upd_wa_put2_0\<rbrakk>
-    \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr) (App (AFun ''wordarray_put2_0'' []) (Var i))
+    \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr 
+        (Generated.state_rel wa_abs_repr) (App (AFun ''wordarray_put2_0'' [] ls) (Var i))
          (do x <- main_pp_inferred.wordarray_put2_0' v';
              gets (\<lambda>s. x)
           od)
@@ -130,9 +133,11 @@ lemmas upd_C_wordarray_put2_corres = upd_C_wordarray_put2_corres_gen[rotated -1,
 
 lemma upd_C_wordarray_length_corres_gen:
 "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
-    \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_length_0'')));
+    \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; 
+    \<Gamma>' ! i = option.Some (prod.fst (prod.snd (prod.snd (prod.snd (\<Xi> ''wordarray_length_0'')))));
      \<xi>0' ''wordarray_length_0''= upd_wa_length_0\<rbrakk>
-    \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr) (App (AFun ''wordarray_length_0'' []) (Var i))
+    \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr 
+         (Generated.state_rel wa_abs_repr) (App (AFun ''wordarray_length_0'' [] ls) (Var i))
          (do x <- main_pp_inferred.wordarray_length_0' v';
              gets (\<lambda>s. x)
           od)
@@ -166,9 +171,11 @@ lemmas upd_C_wordarray_length_corres = upd_C_wordarray_length_corres_gen[rotated
 
 lemma upd_C_wordarray_get_corres_gen:
 "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
-    \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_get_0'')));
+    \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v';
+     \<Gamma>' ! i = option.Some (prod.fst (prod.snd (prod.snd (prod.snd (\<Xi> ''wordarray_get_0'')))));
      \<xi>0' ''wordarray_get_0'' = upd_wa_get_0\<rbrakk>
-    \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr) (App (AFun ''wordarray_get_0'' []) (Var i))
+    \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr 
+         (Generated.state_rel wa_abs_repr) (App (AFun ''wordarray_get_0'' [] ls) (Var i))
          (do x <- main_pp_inferred.wordarray_get_0' v';
              gets (\<lambda>s. x)
           od)
@@ -216,7 +223,7 @@ lemma upd_C_wordarray_get_corres_gen:
 lemmas upd_C_wordarray_get_corres = upd_C_wordarray_get_corres_gen[rotated -1, of \<xi>0, simplified fun_eq_iff]
 
 
-abbreviation "mk_urecord xs \<equiv> URecord (map (\<lambda>x. (x, uval_repr x)) xs)"
+abbreviation "mk_urecord xs \<equiv> URecord (map (\<lambda>x. (x, uval_repr x)) xs) None"
 definition "foldmap_measure i end \<equiv> unat end - unat i"
 definition "foldmap_bounds frm to len i e 
   \<equiv> frm \<le> i \<and> e = min to len \<and> (frm < e \<longrightarrow> i \<le> e) \<and> ((\<not>(frm < e)) \<longrightarrow> frm = i)"
@@ -249,7 +256,7 @@ lemma fold_dispatch_wp:
     uval_typing \<Xi> \<sigma> acc (foldmap_acc_type ''wordarray_fold_no_break_0'') ra wa;
     uval_typing \<Xi> \<sigma> obsv (foldmap_obsv_type ''wordarray_fold_no_break_0'') ro {};
     wa \<inter> r = {}; wa \<inter> ro = {}; p \<notin> wa;
-    (\<Xi>, [], [option.Some (foldmap_funarg_type ''wordarray_fold_no_break_0'')] \<turnstile> 
+    (\<Xi>, 0, [], {}, [option.Some (foldmap_funarg_type ''wordarray_fold_no_break_0'')] \<turnstile> 
     (App f (Var 0)) : (foldmap_funret_type ''wordarray_fold_no_break_0''));
     \<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow>
       update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr) 
@@ -303,9 +310,11 @@ lemma fold_dispatch_wp:
    apply (rename_tac ret sb)
    apply (erule_tac x = ret in allE)
    apply (erule_tac x = sb in allE)
-   apply clarsimp
-   apply (frule update_sem.preservation[OF update_sem_axioms, where \<tau>s = "[]" and K = "[]", simplified]; simp?)
-   apply clarsimp
+   apply clarsimp 
+   apply (frule update_sem.preservation
+                  [OF update_sem_axioms, where \<tau>s = "[]" and \<epsilon>="[]"and K = "[]" and L=0 and C="{}",
+                   simplified subst_wellformed_nothing, simplified]; simp?)
+    apply clarsimp
    apply (rename_tac \<sigma>'' res' rb wb)
    apply (clarsimp simp: foldmap_bounds_def)
    apply (case_tac "frm < to \<and> frm < len"; clarsimp)
@@ -352,15 +361,15 @@ lemma fold_dispatch_wp:
      apply blast
     apply (drule_tac v = res in type_repr_uval_repr(1); simp)
   apply (subst (asm) val_rel_word; clarsimp)
-  apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+  apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon> = "[]", simplified])
   done
 
 lemma upd_C_wordarray_fold_no_break_corres_gen:
   "\<lbrakk>proc_env_matches_ptrs \<xi>0' \<Xi>; i < length \<gamma>; val_rel (\<gamma> ! i) v'; 
-    \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_fold_no_break_0'')));
-    D \<in> k \<or> S \<in> k; K' \<turnstile> (foldmap_obsv_type ''wordarray_fold_no_break_0'') :\<kappa> k;
-    \<gamma> ! i = URecord fs; f = prod.fst (fs ! 3);  
-    (\<Xi>, [], [option.Some (foldmap_funarg_type ''wordarray_fold_no_break_0'')] \<turnstile> 
+    \<Gamma>' ! i = option.Some (prod.fst (prod.snd (prod.snd(prod.snd (\<Xi> ''wordarray_fold_no_break_0'')))));
+    D \<in> k \<or> S \<in> k; 0, K',{} \<turnstile> (foldmap_obsv_type ''wordarray_fold_no_break_0'') :\<kappa> k;
+    \<gamma> ! i = URecord fs None; f = prod.fst (fs ! 3);  
+    (\<Xi>, 0, [], {}, [option.Some (foldmap_funarg_type ''wordarray_fold_no_break_0'')] \<turnstile> 
     (App (uvalfun_to_exprfun f) (Var 0)) : (foldmap_funret_type ''wordarray_fold_no_break_0''));
     \<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr) 
       (App (uvalfun_to_exprfun f) (Var 0)) (do ret <- dispatch_t4' (t5_C.f_C v') x'; gets (\<lambda>s. ret) od) 
@@ -368,7 +377,7 @@ lemma upd_C_wordarray_fold_no_break_corres_gen:
     \<xi>1' ''wordarray_fold_no_break_0'' = upd_wa_foldnb \<Xi> \<xi>0' (foldmap_funarg_type ''wordarray_fold_no_break_0'');
     elem_type (foldmap_funarg_type ''wordarray_fold_no_break_0'') = TPrim (Num num)\<rbrakk>
     \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr)
-         (App (AFun ''wordarray_fold_no_break_0'' []) (Var i)) (do x <- main_pp_inferred.wordarray_fold_no_break_0' v';
+         (App (AFun ''wordarray_fold_no_break_0'' [] []) (Var i)) (do x <- main_pp_inferred.wordarray_fold_no_break_0' v';
 gets (\<lambda>s. x)
                                                                 od)
          \<xi>1' \<gamma> \<Xi>  \<Gamma>' \<sigma> s"
@@ -418,7 +427,7 @@ gets (\<lambda>s. x)
       apply (wp; clarsimp simp: unknown_bind_ignore split: prod.splits)
           apply (rename_tac sa a n args a' n')
           apply (rule_tac a = a and wa = wa and ra = ra and ro = ro and w = "{}" and r = r and
-            ptrl = undefined in fold_dispatch_wp[rotated 2]; simp?)
+            ptrl = None in fold_dispatch_wp[rotated 2]; simp?) 
              apply (clarsimp simp: \<Xi>_wordarray_fold_no_break_0 wordarray_fold_no_break_0_type_def abbreviated_type_defs)+
          apply wp
         apply wp
@@ -433,7 +442,7 @@ gets (\<lambda>s. x)
       rb = ra and
       wb = wa and
       rc = ro and
-      ptrl = undefined and
+      ptrl = None and
       ra = r and
       wa = "{}" in upd_wa_foldnb_bod_preservation; simp?; (clarsimp simp: Int_commute)?)
        apply (frule_tac p = "ptr_val (t5_C.arr_C v')" in valid_ptr_not_in_frame_same; simp?)
@@ -476,7 +485,7 @@ gets (\<lambda>s. x)
        apply (thin_tac "_ \<longrightarrow> _")
        apply clarsimp
        apply (case_tac "j < t5_C.to_C v'"; clarsimp)
-       apply (rule_tac ptrl = undefined and
+       apply (rule_tac ptrl = None and
       ra = r and 
       wa = "{}" and
       rb = ra and
@@ -516,7 +525,7 @@ lemma map_dispatch_wp:
     uval_typing \<Xi> \<sigma> acc (foldmap_acc_type ''wordarray_map_no_break_0'') ra wa;
     uval_typing \<Xi> \<sigma> obsv (foldmap_obsv_type ''wordarray_map_no_break_0'') ro {}; wa \<inter> r = {}; p \<notin> w;
     p \<notin> r; w \<inter> wa = {}; w \<inter> (ra \<union> ro) = {}; wa \<inter> ro = {}; p \<notin> wa; p \<notin> ra; p \<notin> ro; p = ptr_val p';
-    (\<Xi>, [], [option.Some (foldmap_funarg_type ''wordarray_map_no_break_0'')] \<turnstile> 
+    (\<Xi>, 0, [], {}, [option.Some (foldmap_funarg_type ''wordarray_map_no_break_0'')] \<turnstile> 
     (App f (Var 0)) : (foldmap_funret_type ''wordarray_map_no_break_0''));
     \<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow>
       update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr) 
@@ -573,7 +582,9 @@ lemma map_dispatch_wp:
    apply (erule_tac x = ret in allE)
    apply (erule_tac x = sb in allE)
    apply clarsimp
-   apply (frule update_sem.preservation[OF update_sem_axioms, where \<tau>s = "[]" and K = "[]", simplified]; simp?)
+   apply (frule update_sem.preservation[OF update_sem_axioms, 
+                   where \<tau>s = "[]" and \<epsilon>="[]"and K = "[]" and L=0 and C="{}",
+                   simplified subst_wellformed_nothing, simplified]; simp?)
    apply clarsimp
    apply (rename_tac \<sigma>'' res' r'a w'a)
    apply (erule u_t_rectE; clarsimp)
@@ -660,15 +671,15 @@ lemma map_dispatch_wp:
      apply (subst Int_commute; blast)
     apply (drule_tac v = racc in type_repr_uval_repr(1); simp)
    apply (subst (asm) val_rel_word; clarsimp)
-  apply (rule matches_ptrs_empty[where \<tau>s = "[]", simplified])
+  apply (rule matches_ptrs_empty[where \<tau>s = "[]" and \<epsilon>="[]", simplified])
   done
 
 lemma upd_C_wordarray_map_no_break_corres_gen:
   "\<lbrakk>proc_env_matches_ptrs \<xi>0' \<Xi>; i < length \<gamma>; val_rel (\<gamma> ! i) v';
-    \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_map_no_break_0'')));
-     D \<in> k \<or> S \<in> k; K' \<turnstile> (foldmap_obsv_type ''wordarray_map_no_break_0'') :\<kappa> k;
-    \<gamma> ! i = URecord fs; f = prod.fst (fs ! 3);
-    (\<Xi>, [], [option.Some (foldmap_funarg_type ''wordarray_map_no_break_0'')] \<turnstile> 
+    \<Gamma>' ! i = option.Some (prod.fst (prod.snd (prod.snd (prod.snd (\<Xi> ''wordarray_map_no_break_0'')))));
+     D \<in> k \<or> S \<in> k; 0, K' , {} \<turnstile> (foldmap_obsv_type ''wordarray_map_no_break_0'') :\<kappa> k;
+    \<gamma> ! i = URecord fs None; f = prod.fst (fs ! 3);
+    (\<Xi>, 0, [], {}, [option.Some (foldmap_funarg_type ''wordarray_map_no_break_0'')] \<turnstile> 
     (App (uvalfun_to_exprfun f) (Var 0)) : (foldmap_funret_type ''wordarray_map_no_break_0''));
     \<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr) 
       (App (uvalfun_to_exprfun f) (Var 0)) (do ret <- dispatch_t8' (t9_C.f_C v') x'; gets (\<lambda>s. ret) od) 
@@ -677,7 +688,7 @@ lemma upd_C_wordarray_map_no_break_corres_gen:
       (foldmap_funarg_type ''wordarray_map_no_break_0'') (foldmap_funret_type ''wordarray_map_no_break_0'');
     elem_type (foldmap_funarg_type ''wordarray_map_no_break_0'') = TPrim (Num num)\<rbrakk>
     \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr)
-         (App (AFun ''wordarray_map_no_break_0'' []) (Var i)) (do x <- main_pp_inferred.wordarray_map_no_break_0' v';
+         (App (AFun ''wordarray_map_no_break_0'' [] []) (Var i)) (do x <- main_pp_inferred.wordarray_map_no_break_0' v';
 gets (\<lambda>s. x)
                                                                 od)
          \<xi>1' \<gamma> \<Xi>  \<Gamma>' \<sigma> s"
@@ -730,7 +741,7 @@ gets (\<lambda>s. x)
            apply (clarsimp simp: conj_left_commute[of "is_valid_w32 _ _", simplified])
            apply (clarsimp simp: conj_commute[of "is_valid_w32 _ _", simplified])
            apply (rule_tac a = a and wa = wa and ra = ra and ro = ro and w = w and r = r and
-              ptrl = undefined in map_dispatch_wp; simp?)
+              ptrl = None in map_dispatch_wp; simp?)
               apply (clarsimp simp: \<Xi>_wordarray_map_no_break_0 wordarray_map_no_break_0_type_def abbreviated_type_defs)+
           apply wp
          apply wp
@@ -739,7 +750,7 @@ gets (\<lambda>s. x)
         apply (clarsimp simp: foldmap_inv_def foldmap_bounds_def)
         apply (clarsimp simp: \<Xi>_wordarray_map_no_break_0 wordarray_map_no_break_0_type_def abbreviated_type_defs)
         apply (subst (asm) Int_Un_distrib; clarsimp)
-        apply (drule_tac ptrl = undefined and
+        apply (drule_tac ptrl = None and
       ra = r and
       wa = w and
       rb = ra and
@@ -778,7 +789,7 @@ gets (\<lambda>s. x)
          apply clarsimp
          apply (case_tac "j < t9_C.to_C v'"; clarsimp)
          apply (subst (asm) Int_Un_distrib; clarsimp)
-         apply (rule_tac ptrl = undefined and
+         apply (rule_tac ptrl = None and
       ra = r and
       wa = w and
       rb = ra and
@@ -813,26 +824,31 @@ gets (\<lambda>s. x)
 section "Specialised Lemmas for Cogent Functions"
 
 lemma typing_mono_app_cogent_fun:
-  "\<Xi>', [], [option.Some a] \<turnstile> f : b \<Longrightarrow> \<Xi>', [], [option.Some a] \<turnstile> App (Fun f []) (Var 0) : b"
+  "\<Xi>', 0, [], {}, [option.Some a] \<turnstile> f : b \<Longrightarrow> \<Xi>', 0, [], {}, [option.Some a] \<turnstile> App (Fun f [] []) (Var 0) : b"
   apply (frule typing_to_kinding_env(1); simp?)
   apply (rule typing_app[where x = a and y = b and ?\<Gamma>1.0 = "[option.None]" and ?\<Gamma>2.0 = "[option.Some a]"]; simp?)
     apply (clarsimp simp: split_conv_all_nth)
     apply (rule right; simp)
-    apply (rule typing_fun[where ts = "[]", OF _ _ _ _]; (simp add: Cogent.empty_def weakening_conv_all_nth)?)
-   apply (rule none)
+   apply (rule typing_fun[where \<delta> = "[]", OF _ _ _ _]; (simp add: Cogent.empty_def weakening_conv_all_nth)?)
+     apply (rule weakening_comp.none)
+    apply simp
+   apply (rule subst_wellformed_nothing)
   apply (rule typing_var; simp add: Cogent.empty_def weakening_conv_all_nth)
   apply (rule keep; simp)
   done
 
 lemma typing_mono_fun_cogent_fun:
-  "\<Xi>', [], [option.Some a] \<turnstile> f : b \<Longrightarrow> \<Xi>', [], [option.None] \<turnstile> Fun f [] : TFun a b"
+  "\<Xi>', 0, [], {}, [option.Some a] \<turnstile> f : b \<Longrightarrow> \<Xi>', 0, [], {}, [option.None] \<turnstile> Fun f [] [] : TFun a b"
   apply (frule typing_to_kinding_env(1); simp?)
-  apply (rule typing_fun[where ts = "[]", OF _ _ _ _]; (simp add: Cogent.empty_def weakening_conv_all_nth)?)
-  apply (rule none)
+  apply (rule typing_fun[where \<delta>= "[]"]; 
+          (simp add: Cogent.empty_def weakening_conv_all_nth )?)
+    apply(rule  weakening_comp.none)
+   apply simp
+  apply (rule subst_wellformed_nothing)
   done
 
 lemma typing_mono_fun_imp_appfun:
-  "\<Xi>', [], [option.None] \<turnstile> Fun f [] : TFun a b \<Longrightarrow> \<Xi>', [], [option.Some a] \<turnstile> App (Fun f []) (Var 0) : b"
+  "\<Xi>', 0, [], {}, [option.None] \<turnstile> Fun f [] []: TFun a b \<Longrightarrow> \<Xi>', 0, [], {}, [option.Some a] \<turnstile> App (Fun f [] []) (Var 0) : b"
   apply (frule typing_to_wellformed(1))
   apply (rule typing_app[where x = a and y = b and ?\<Gamma>1.0 = "[option.None]" and ?\<Gamma>2.0 = "[option.Some a]"]; simp?)
    apply (clarsimp simp: split_conv_all_nth)
@@ -843,23 +859,23 @@ lemma typing_mono_fun_imp_appfun:
 
 lemma upd_C_wordarray_fold_no_break_corres_cog:
   "\<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v'; 
-    \<Gamma>' ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_fold_no_break_0'')));
+    \<Gamma>' ! i = option.Some (prod.fst (prod.snd(prod.snd(prod.snd (\<Xi> ''wordarray_fold_no_break_0'')))));
     proc_env_matches_ptrs \<xi>0' \<Xi>;
-    \<Xi> ''wordarray_fold_no_break_0'' = ([], \<tau>, \<tau>acc);
-    \<tau> = TRecord [(''arr'', TCon ''WordArray'' [TPrim (Num num)] (Boxed ReadOnly undefined), Present),
+    \<Xi> ''wordarray_fold_no_break_0'' = (0, [],{}, \<tau>, \<tau>acc);
+    \<tau> = TRecord [(''arr'', TCon ''WordArray'' [TPrim (Num num)] (Boxed ReadOnly None), Present),
       (''frm'', TPrim (Num U32), Present), (''to'', TPrim (Num U32), Present),
       (''f'', TFun \<tau>f  \<tau>acc, Present), (''acc'', \<tau>acc, Present), (''obsv'', \<tau>obsv, Present)] Unboxed;
     \<tau>f = TRecord [(''elem'', TPrim (Num num), Present), (''acc'', \<tau>acc, Present), 
       (''obsv'', \<tau>obsv, Present)] Unboxed;
-    D \<in> k \<or> S \<in> k; K' \<turnstile> \<tau>obsv :\<kappa> k;
-    \<gamma> ! i = URecord fs; UFunction f [] = prod.fst (fs ! 3);  
-    \<Xi>, [], [option.Some \<tau>f] \<turnstile> f : \<tau>acc;
+    D \<in> k \<or> S \<in> k; 0, K', {} \<turnstile> \<tau>obsv :\<kappa> k;
+    \<gamma> ! i = URecord fs None; UFunction f [] [] = prod.fst (fs ! 3);  
+    \<Xi>, 0, [], {}, [option.Some \<tau>f] \<turnstile> f : \<tau>acc;
     \<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr) 
-      (App (Fun f []) (Var 0)) (do ret <- dispatch_t4' (t5_C.f_C v') x'; gets (\<lambda>s. ret) od) 
+      (App (Fun f [] []) (Var 0)) (do ret <- dispatch_t4' (t5_C.f_C v') x'; gets (\<lambda>s. ret) od) 
       \<xi>0' [x] \<Xi> [option.Some \<tau>f] \<sigma> s;
     \<xi>1' ''wordarray_fold_no_break_0'' = upd_wa_foldnb \<Xi> \<xi>0' \<tau>f\<rbrakk>
     \<Longrightarrow> update_sem_init.corres wa_abs_typing_u wa_abs_repr (Generated.state_rel wa_abs_repr)
-         (App (AFun ''wordarray_fold_no_break_0'' []) (Var i)) (do x <- main_pp_inferred.wordarray_fold_no_break_0' v';
+         (App (AFun ''wordarray_fold_no_break_0'' [] []) (Var i)) (do x <- main_pp_inferred.wordarray_fold_no_break_0' v';
 gets (\<lambda>s. x)
                                                                 od)
          \<xi>1' \<gamma> \<Xi>  \<Gamma>' \<sigma> s"
@@ -871,21 +887,22 @@ gets (\<lambda>s. x)
 
 section "Specialised Lemmas for Abstract Functions"
 lemma typing_mono_app_cogent_absfun:
-  "\<lbrakk>proc_ctx_wellformed \<Xi>'; \<Xi>' f = ([], a, b)\<rbrakk> \<Longrightarrow> \<Xi>', [], [option.Some a] \<turnstile> App (AFun f []) (Var 0) : b"
+  "\<lbrakk>proc_ctx_wellformed \<Xi>'; \<Xi>' f = (0,[],{}, a, b)\<rbrakk> \<Longrightarrow> \<Xi>', 0, [], {}, [option.Some a] \<turnstile> App (AFun f [] []) (Var 0) : b"
   apply (unfold  proc_ctx_wellformed_def)
   apply (erule_tac x = f in allE; clarsimp)
   apply (rule typing_app[where x = a and y = b and ?\<Gamma>1.0 = "[option.None]" and ?\<Gamma>2.0 = "[option.Some a]"]; simp?)
     apply (clarsimp simp: split_conv_all_nth)
     apply (rule right; simp)
    apply (rule typing_afun[where ts = "[]", OF _ _ _ _]; (simp add: Cogent.empty_def weakening_conv_all_nth)?)
-    apply clarsimp
-   apply (rule none)
+     apply (rule weakening_comp.none)
+    apply simp
+   apply (rule subst_wellformed_nothing)
   apply (rule typing_var; simp add: Cogent.empty_def weakening_conv_all_nth)
   apply (rule keep; simp)
   done
 
 lemma typing_mono_afun_cogent_absfun:
-  "\<lbrakk>proc_ctx_wellformed \<Xi>'; \<Xi>' f = ([], a, b)\<rbrakk> \<Longrightarrow> \<Xi>', [], [option.None] \<turnstile> AFun f [] : TFun a b"
+  "\<lbrakk>proc_ctx_wellformed \<Xi>'; \<Xi>' f = ([], a, b)\<rbrakk> \<Longrightarrow> \<Xi>', 0, [], {}, [option.None] \<turnstile> AFun f [] [] : TFun a b"
   apply (unfold  proc_ctx_wellformed_def)
   apply (erule_tac x = f in allE; clarsimp)
   apply (rule typing_afun[where ts = "[]", OF _ _ _ _]; (simp add: Cogent.empty_def weakening_conv_all_nth)?)
@@ -894,7 +911,7 @@ lemma typing_mono_afun_cogent_absfun:
   done
 
 lemma typing_mono_afun_imp_appafun:
-  "\<Xi>', [], [option.None] \<turnstile> AFun f [] : TFun a b \<Longrightarrow> \<Xi>', [], [option.Some a] \<turnstile> App (AFun f []) (Var 0) : b"
+  "\<Xi>', 0, [], {}, [option.None] \<turnstile> AFun f [] []: TFun a b \<Longrightarrow> \<Xi>', 0, [], {}, [option.Some a] \<turnstile> App (AFun f [] []) (Var 0) : b"
   apply (frule typing_to_wellformed(1))
   apply (rule typing_app[where x = a and y = b and ?\<Gamma>1.0 = "[option.None]" and ?\<Gamma>2.0 = "[option.Some a]"]; simp?)
    apply (clarsimp simp: split_conv_all_nth)
