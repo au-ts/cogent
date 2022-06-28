@@ -475,7 +475,7 @@ lemma scorres_wordarray_map_no_break_u32:
       f = "(\<lambda>a b. (T0.p1\<^sub>f (f \<lparr>ElemAO.elem\<^sub>f = a, acc\<^sub>f = b, obsv\<^sub>f = obsv\<rparr>),
                  T0.p2\<^sub>f (f \<lparr>ElemAO.elem\<^sub>f = a, acc\<^sub>f = b, obsv\<^sub>f = obsv\<rparr>)))" in mapAccum_length)
   apply (case_tac func; clarsimp)
-   apply (rename_tac racc'a rxs' racc' fn ts)
+   apply (rename_tac racc'a rxs' racc' fn ts ls)
    apply (erule_tac x = "\<lparr>ElemAO.elem\<^sub>f = arr ! unat to, acc\<^sub>f = racc', obsv\<^sub>f = obsv\<rparr>" in allE)
    apply (erule_tac x = "VRecord [VPrim (LU32 (arr ! unat to)), racc'a, obsva]" in allE)
    apply clarsimp
@@ -486,7 +486,7 @@ lemma scorres_wordarray_map_no_break_u32:
    apply (erule_tac x = j in allE; clarsimp)
    apply (erule_tac x = j in allE; clarsimp)
    apply (case_tac "j = unat to"; clarsimp simp: myslice_nth_last nth_append)
-  apply (rename_tac racc'a rxs' racc' fn ts)
+  apply (rename_tac racc'a rxs' racc' fn ts ls)
   apply (erule_tac x = "\<lparr>ElemAO.elem\<^sub>f = arr ! unat to, acc\<^sub>f = racc', obsv\<^sub>f = obsv\<rparr>" in allE)
   apply (erule_tac x = "VRecord [VPrim (LU32 (arr ! unat to)), racc'a, obsva]" in allE)
   apply clarsimp
