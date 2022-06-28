@@ -494,7 +494,7 @@ lemma val_wa_mapAccumnb_bod_preservation':
 lemma val_wa_mapAccumnb_bod_preservation:
   "\<lbrakk>proc_ctx_wellformed \<Xi>'; proc_env_matches \<xi>\<^sub>v \<Xi>'; val_wa_mapAccumnb_bod \<xi>\<^sub>v t xs frm to f acc obsv r; 
     wa_abs_typing_v \<Xi>' (VWA t xs) ''WordArray'' [t]; vval_typing \<Xi>' acc u; vval_typing \<Xi>' obsv v;
-    \<Xi>', [], [option.Some (TRecord [(a0, (t, Present)), (a1, (u, Present)), 
+    \<Xi>', 0, [], {}, [option.Some (TRecord [(a0, (t, Present)), (a1, (u, Present)), 
       (a2, (v, Present))] Unboxed)] \<turnstile> App f (Var 0) : 
       TRecord [(b0, (t, Present)), (b1, (u, Present))] Unboxed; 
     distinct [a0, a1, a2]; distinct [b0, b1]\<rbrakk>
@@ -530,7 +530,7 @@ lemma val_wa_mapAccumnb_bod_preservation:
       v = "VRecord [rxs ! to, racc]" and
       \<gamma> = "[VRecord [xs ! to, racc', obsv]]" and
       \<Gamma> = "[option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]" 
-      in preservation(1)[of "[]" "[]" _ _ _  \<xi>\<^sub>v, simplified]; simp?)
+      in preservation(1)[of "[]" "[]" "0" "[]" "{}"  _ _ _ \<xi>\<^sub>v, OF subst_wellformed_nothing]; simp?)
   apply (clarsimp simp: matches_def)
   apply (rule v_t_record; simp?)
    apply (rule v_t_r_cons1)
@@ -566,7 +566,7 @@ lemma val_wa_mapAccumnb_bod_rename_monoexpr_correct:
     is_vval_fun (rename_val rename' (monoval f)); wa_abs_typing_v \<Xi>' (VWA t xs) ''WordArray'' [t]; 
     vval_typing \<Xi>' (rename_val rename' (monoval acc )) u;
     vval_typing \<Xi>' (rename_val rename' (monoval obsv)) v;
-    \<Xi>', [], [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)] \<turnstile>
+    \<Xi>', 0, [], {}, [option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)] \<turnstile>
       App (vvalfun_to_exprfun (rename_val rename' (monoval f))) (Var 0) :
       TRecord [(b0, t, Present), (b1, u, Present)] Unboxed; distinct [a0, a1, a2]; distinct [b0, b1]\<rbrakk>
        \<Longrightarrow> is_vval_fun f \<and> (\<exists>r'. r = rename_val rename' (monoval r') \<and>
@@ -634,7 +634,7 @@ lemma val_wa_mapAccumnb_bod_rename_monoexpr_correct:
       \<gamma> = "[VRecord [xs ! to, rename_val rename' (monoval za), rename_val rename' (monoval obsv)]]" and
       \<tau> = "TRecord [(b0, t, Present), (b1, u, Present)] Unboxed" and
       \<Gamma> = "[option.Some (TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed)]" 
-      in preservation(1)[of "[]" "[]" _ _ _  \<xi>\<^sub>m, simplified]; simp?)
+      in preservation(1)[of "[]" "[]" "0" "[]" "{}"  _ _ _ \<xi>\<^sub>m, OF subst_wellformed_nothing]; simp?)
   apply (clarsimp simp: matches_def)
   apply (rule v_t_record; simp?)
    apply (rule v_t_r_cons1)
@@ -664,7 +664,7 @@ definition val_wa_mapAccumnb
       is_vval_fun func \<and> \<tau>i = TRecord [(a0, t, Present), (a1, u, Present), (a2, v, Present)] Unboxed \<and>
       \<tau>o = TRecord [(b0, t, Present), (b1, u, Present)] Unboxed \<and>
       vval_typing \<Xi>' acc u \<and> vval_typing \<Xi>' obsv v \<and> distinct [a0, a1, a2] \<and> distinct [b0, b1] \<and>
-      (\<Xi>', [], [option.Some \<tau>i] \<turnstile> (App (vvalfun_to_exprfun func) (Var 0)) : \<tau>o) \<and>
+      (\<Xi>', 0, [], {}, [option.Some \<tau>i] \<turnstile> (App (vvalfun_to_exprfun func) (Var 0)) : \<tau>o) \<and>
       (val_wa_mapAccumnb_bod \<xi>\<^sub>v t xs (unat frm) (unat to) (vvalfun_to_exprfun func) acc obsv y))"
 
 definition val_wa_mapAccumnbp
