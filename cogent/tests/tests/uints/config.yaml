@@ -2,6 +2,7 @@
   files:
     - pass_uint-take-put.cogent
     - pass_up-down.cogent
+    - pass_up-4.cogent
   expected_result: pass
   flags:
     - -g
