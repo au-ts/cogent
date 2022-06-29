@@ -15,6 +15,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 
 -- This module sets up Allocation as an abstract object so we can establish
 -- internal invariants
@@ -37,9 +38,9 @@ module Cogent.Dargent.Allocation
   , (\/)
   , (/\)
   , overlaps
-  , isZeroSizedAllocation
   , endOfAllocation
   , beginningOfAllocation
+  , containsAllocVars
   , AlignedBitRange (..)
   , alignSize
   , alignOffsettable
@@ -51,7 +52,7 @@ where
 import Control.Applicative
 import Control.Monad.Trans.Writer
 import Control.Monad (guard)
-import Data.Bifunctor (first)
+import Data.Bifunctor (first, second)
 import Data.Binary
 import GHC.Generics (Generic)
 
@@ -127,24 +128,26 @@ newtype OverlappingAllocationBlocks p =
 -- Represents the set which is the union of the sets represented by the 'BitRange's in the list.
 --
 -- We keep an internal invariant that the list is sorted.
-newtype Allocation' p = Allocation { unAllocation :: [AllocationBlock p] }
+data Allocation' p = Allocation { unAllocation :: [AllocationBlock p]
+                                , allocVars    :: [(VarName, Size)] }
   deriving (Eq, Show, Ord, Functor)
 
 instance Offsettable (Allocation' p) where
-  offset n = Allocation . fmap (first (offset n)) . unAllocation
+  offset n (Allocation bs vs) = Allocation (fmap (first (offset n)) bs)
+                                           (fmap (second (+ n)) vs)
 
 emptyAllocation :: Allocation' p
-emptyAllocation = Allocation []
+emptyAllocation = Allocation [] []
 
 singletonAllocation :: AllocationBlock p -> Allocation' p
-singletonAllocation b = Allocation [b]
+singletonAllocation b = Allocation [b] []
 
-undeterminedAllocation :: Allocation' p
-undeterminedAllocation = emptyAllocation
+undeterminedAllocation :: [VarName] -> Allocation' p
+undeterminedAllocation vs = Allocation [] (fmap (,0) vs)
 
 -- | Disjunction of allocations
 (\/) :: forall p. Ord p => Allocation' p -> Allocation' p -> Allocation' p
-(Allocation a1) \/ (Allocation a2) = Allocation (a1 ++ a2)
+(Allocation a1 vs1) \/ (Allocation a2 vs2) = Allocation (a1 ++ a2) (vs1 ++ vs2)
 
 
 -- | Conjunction of allocations
@@ -154,10 +157,10 @@ undeterminedAllocation = emptyAllocation
 -- It will either succeed, with an allocation, or return overlapping allocation blocks
 -- if the two allocations overlap.
 (/\) :: forall p. Ord p => Allocation' p -> Allocation' p -> Either [OverlappingAllocationBlocks p] (Allocation' p)
-(Allocation a1) /\ (Allocation a2) =
+(Allocation a1 vs1) /\ (Allocation a2 vs2) =
   case allOverlappingBlocks a1 a2 of
     overlappingBlocks@(_ : _) -> Left overlappingBlocks
-    []                        -> return $ Allocation (a1 ++ a2)
+    []                        -> return $ Allocation (a1 ++ a2) (vs1 ++ vs2)
   where
     allOverlappingBlocks :: [AllocationBlock p] -> [AllocationBlock p] -> [OverlappingAllocationBlocks p]
     allOverlappingBlocks xbs ybs =
@@ -177,16 +180,16 @@ overlaps :: BitRange -> BitRange -> Bool
 overlaps (BitRange s1 o1) (BitRange s2 o2) =
   o1 < o2 + s2 && o2 < o1 + s1 && s1 > 0 && s2 > 0
 
-isZeroSizedAllocation :: Allocation' p -> Bool
-isZeroSizedAllocation = all (isZeroSizedBR . fst) . unAllocation
-
 beginningOfAllocation :: Allocation -> Integer
-beginningOfAllocation (Allocation []) = 0
-beginningOfAllocation (Allocation abs) = minimum $ fmap (\(BitRange s o, _) -> o) abs
+beginningOfAllocation (Allocation [] vs) = 0
+beginningOfAllocation (Allocation abs vs) = minimum $ fmap (\(BitRange s o, _) -> o) abs
 
 endOfAllocation :: Allocation -> Integer  -- calculates the last bit of an allocation
-endOfAllocation (Allocation []) = 0
-endOfAllocation (Allocation abs) = maximum $ fmap (\(BitRange s o, _) -> s + o) abs
+endOfAllocation (Allocation [] vs) = 0
+endOfAllocation (Allocation abs vs) = maximum $ fmap (\(BitRange s o, _) -> s + o) abs
+
+containsAllocVars :: Allocation -> Bool
+containsAllocVars = not . null . allocVars
 
 type Allocation = Allocation' DataLayoutPath
 
