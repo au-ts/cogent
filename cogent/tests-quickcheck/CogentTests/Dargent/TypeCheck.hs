@@ -90,7 +90,7 @@ instance Arbitrary DataLayoutPath where
   arbitrary = InDecl <$> arbitrary <*> arbitrary
 
 instance Arbitrary p => Arbitrary (Allocation' p) where
-  arbitrary = Allocation <$> arbitrary <*> pure []
+  arbitrary = Allocation <$> arbitrary <*> arbitrary
 
 
 {- SET UTIL FUNCTIONS -}
