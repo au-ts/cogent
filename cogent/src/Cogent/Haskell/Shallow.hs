@@ -212,6 +212,7 @@ shallow tuples name stg defs consts log =
              , ImportDecl () (ModuleName () "Data.Tuple.Update") True False False Nothing (Just $ ModuleName () "Tup") Nothing
              , ImportDecl () (ModuleName () "Data.Word") False False False Nothing Nothing (Just $ ImportSpecList () False import_word)
              , ImportDecl () (ModuleName () "Prelude"  ) False False False Nothing Nothing (Just $ ImportSpecList () False import_prelude)
+             , ImportDecl () (ModuleName () "CogentPrims") False False False Nothing Nothing Nothing
              ]
       hsModule = Module () (Just moduleHead) exts imps $ tds ++ decls
       in hsModule & header .
@@ -477,11 +478,8 @@ shallowType (CC.TArray t _ _ _) = mkListT <$> shallowType t
 
 -- | generate a Haskell shallow embedding of a primitive Cogent type
 shallowPrimType :: PrimInt -> HS.Type ()
-shallowPrimType U8  = mkTyConT $ mkName "Word8"
-shallowPrimType U16 = mkTyConT $ mkName "Word16"
-shallowPrimType U32 = mkTyConT $ mkName "Word32"
-shallowPrimType U64 = mkTyConT $ mkName "Word64"
-shallowPrimType Boolean = mkTyConT $ mkName "Bool"
+shallowPrimType (UInt n) = mkTyConT $ mkName $ "Word" ++ show n
+shallowPrimType Boolean  = mkTyConT $ mkName "Bool"
 
 -- ----------------------------------------------------------------------------
 -- * Expression generators
@@ -602,7 +600,13 @@ shallowExpr (TE _ (CC.Promote _ e)) = shallowExpr e
 -- \ ^^^ NOTE: We guarantee that `Promote' doesn't change the underlying presentation, thus
 -- we don't care what type we promote to here. / zilinc
 
-shallowExpr (TE _ (CC.Cast    t e)) = do
+shallowExpr (TE _ (CC.Cast     t e)) = do
+  e' <- shallowExpr e
+  t' <- shallowType t
+  pure $ ExpTypeSig () (appFun (var $ mkName "fromIntegral") [e']) t'
+
+-- @fromIntegral@ truncates the integer accordingly
+shallowExpr (TE _ (CC.Truncate t e)) = do
   e' <- shallowExpr e
   t' <- shallowType t
   pure $ ExpTypeSig () (appFun (var $ mkName "fromIntegral") [e']) t'
@@ -771,6 +775,8 @@ mkLetE bs e =
   let decls = P.map (uncurry patBind) bs
    in letE decls e
 
+mkSpliceE :: Exp () -> Exp ()
+mkSpliceE e = SpliceExp () (ParenSplice () e)
 
 -- -----------------------------------------------------------------------------
 -- misc. helpers
