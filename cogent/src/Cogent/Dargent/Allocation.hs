@@ -180,11 +180,11 @@ overlaps :: BitRange -> BitRange -> Bool
 overlaps (BitRange s1 o1) (BitRange s2 o2) =
   o1 < o2 + s2 && o2 < o1 + s1 && s1 > 0 && s2 > 0
 
-beginningOfAllocation :: Allocation -> Integer
+beginningOfAllocation :: Allocation -> Size
 beginningOfAllocation (Allocation [] vs) = 0
 beginningOfAllocation (Allocation abs vs) = minimum $ fmap (\(BitRange s o, _) -> o) abs
 
-endOfAllocation :: Allocation -> Integer  -- calculates the last bit of an allocation
+endOfAllocation :: Allocation -> Size -- calculates the last bit of an allocation
 endOfAllocation (Allocation [] vs) = 0
 endOfAllocation (Allocation abs vs) = maximum $ fmap (\(BitRange s o, _) -> s + o) abs
 

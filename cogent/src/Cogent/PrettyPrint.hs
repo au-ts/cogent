@@ -1116,7 +1116,7 @@ instance Pretty (Allocation' p) where
   pretty (Allocation bs vs) = list (map pretty bs) <> prettyAllocVars vs
     where prettyAllocVars [] = empty
           prettyAllocVars vs = empty <+> symbol "#" <> list (map go vs)
-            where go (v,s) = varname v <> brackets (integer s <> symbol "b")
+            where go (v,s) = varname v <> brackets (int s <> symbol "b")
 
 instance Pretty a => Pretty (S.Set a) where
   pretty s = list $ S.foldr ((:) . pretty) [] s
