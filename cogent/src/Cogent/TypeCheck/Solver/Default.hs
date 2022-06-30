@@ -84,7 +84,7 @@ primGuess d ws (T (TCon n [] Unboxed)) (T (TCon m [] Unboxed))
           | otherwise = id
         f = (r .) . case d of GLB -> min ; LUB -> max
     in Just $ T (TCon (primTypeCons !! (f (n'+1) (m'+1) - 1)) [] Unboxed)
-       -- ^^^ The (+1) and (-1) business is because, index 0 is U1.
+       -- \ ^^^ The (+1) and (-1) business is because, index 0 is U1.
        -- The rounding-up/-down should be done on the size, but on the index.
 primGuess _ _ _ _ = Nothing
 
