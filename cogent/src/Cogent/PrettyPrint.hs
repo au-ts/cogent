@@ -1070,6 +1070,8 @@ instance Pretty DataLayoutTcError where
     err "Non-existing field" <+> symbol "after" <+> fieldname f <$$> indent (pretty ctx)
   pretty (InvalidUseOfAfter f ctx) =
     err "The use of" <+> symbol "after" <+> fieldname f <+> err "layout expression is invalid" <$$> indent (pretty ctx)
+  pretty (AfterUnknownOffset f ctx) =
+    err "Cannot use (possibly implicit)" <+> symbol "after" <+> fieldname f <+> err "when its offset is unknown"
   pretty (InvalidEndianness end ctx) =
     err "Endianness" <+> pretty end <+> err "can only be applied to int sizes"
   pretty (ArrayElementNotByteAligned sz p) = err "array element has a layout of size" <+> pretty sz <$$>
@@ -1111,7 +1113,10 @@ instance Pretty a => Pretty (DataLayout' a) where
           prettyOffset n = space <> symbol "offset" <+> int n <> symbol "b"
 
 instance Pretty (Allocation' p) where
-  pretty (Allocation bs) = list $ map pretty bs
+  pretty (Allocation bs vs) = list (map pretty bs) <> prettyAllocVars vs
+    where prettyAllocVars [] = empty
+          prettyAllocVars vs = empty <+> symbol "#" <> list (map go vs)
+            where go (v,s) = varname v <> brackets (int s <> symbol "b")
 
 instance Pretty a => Pretty (S.Set a) where
   pretty s = list $ S.foldr ((:) . pretty) [] s

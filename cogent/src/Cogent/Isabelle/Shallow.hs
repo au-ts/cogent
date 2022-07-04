@@ -400,7 +400,7 @@ shallowExpr (TE _ (Truncate t e)) = do
   te@(TPrim pt) <- unfoldSynsShallowM $ exprType e
   TPrim pt'@(UInt small) <- unfoldSynsShallowM t
   e' <- shallowExpr e
-  return $ TermWithType (mkApp (mkId "ucast") [e'])
+  return $ TermWithType (mkApp (mkId "ucast") [shallowPrimOp CS.BitAnd [e', mkInt (2^small - 1)]])
                         (shallowPrimType pt')
 
 

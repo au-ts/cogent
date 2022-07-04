@@ -85,7 +85,7 @@ instance Arbitrary BitRange where
 genDataLayout
   :: Size -- For sizing
   -> Gen (DataLayout BitRange, Allocation)
-genDataLayout n = first Layout <$> genDataLayout' n n (Allocation [])
+genDataLayout n = first Layout <$> genDataLayout' n n (Allocation [] [])
 
 genDataLayout'
   :: Size -- max allowed allocated bit index
@@ -259,7 +259,7 @@ allNonAllocatedRanges
   -> [(BitRange, Allocation)] -- All possible new (range, allocation) pairs
 allNonAllocatedRanges maxBitIndex alloc = do
   range <- allNonEmptyRanges maxBitIndex
-  case Allocation [(range, PathEnd)] /\ alloc of
+  case Allocation [(range, PathEnd)] [] /\ alloc of
     Right newAlloc -> return (range, newAlloc)
     _              -> []
 

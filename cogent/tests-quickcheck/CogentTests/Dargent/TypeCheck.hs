@@ -90,7 +90,7 @@ instance Arbitrary DataLayoutPath where
   arbitrary = InDecl <$> arbitrary <*> arbitrary
 
 instance Arbitrary p => Arbitrary (Allocation' p) where
-  arbitrary = Allocation <$> arbitrary
+  arbitrary = Allocation <$> arbitrary <*> arbitrary
 
 
 {- SET UTIL FUNCTIONS -}
@@ -104,7 +104,7 @@ instance SetLike BitRange where
   toSet (BitRange size offset) = S.fromList [offset..offset + size - 1]
 
 instance SetLike Allocation where
-  toSet (Allocation a) = foldr union empty $ fmap (toSet . fst) a
+  toSet (Allocation a _) = foldr union empty $ fmap (toSet . fst) a
 
 return []
 testAll = $quickCheckAll

@@ -97,11 +97,8 @@ def dName argTys retTy body =
 -- Types
 
 toLLVMInt :: Cogent.Common.Types.PrimInt -> AST.Type
-toLLVMInt Boolean = IntegerType 1
-toLLVMInt U8      = IntegerType 8
-toLLVMInt U16     = IntegerType 16
-toLLVMInt U32     = IntegerType 32
-toLLVMInt U64     = IntegerType 64
+toLLVMInt Boolean  = IntegerType 1
+toLLVMInt (UInt n) = IntegerType (fromIntegral n)
 
 
 toLLVMType :: Core.Type t b -> AST.Type
@@ -132,10 +129,7 @@ toLLVMType _ = VoidType
 typeSize :: Core.Type t b -> Int
 typeSize (TPrim p) = case p of
                        Boolean -> 1
-                       U8 -> 8
-                       U16 -> 16
-                       U32 -> 32
-                       U64 -> 64
+                       UInt n  -> n
 typeSize (TUnit) = 0
 typeSize _ = primIntSizeBits machineWordType
 
@@ -271,10 +265,7 @@ exprToLLVM (TE t Unit) = return (Left (ConstantOperand C.Undef { C.constantType 
 exprToLLVM (TE _ (ILit int bits)) =
   return (Left (case bits of
              Boolean -> ConstantOperand C.Int { C.integerBits = 1, C.integerValue = int }
-             U8 -> ConstantOperand C.Int { C.integerBits = 8, C.integerValue = int }
-             U16 -> ConstantOperand C.Int { C.integerBits = 16, C.integerValue = int }
-             U32 -> ConstantOperand C.Int { C.integerBits = 32, C.integerValue = int }
-             U64 -> ConstantOperand C.Int { C.integerBits = 64, C.integerValue = int }))
+             UInt n  -> ConstantOperand C.Int { C.integerBits = fromIntegral n, C.integerValue = int }))
 
 exprToLLVM (TE _ (SLit str)) =
   return (Left (ConstantOperand C.Array { C.memberType = IntegerType 8
@@ -563,6 +554,7 @@ hasBlock (TE _ e) = hasBlock' e
     hasBlock' (Put a _ b) = hasBlock a || hasBlock b
     hasBlock' (Promote _ e) = hasBlock e
     hasBlock' (Cast _ e) = hasBlock e
+    hasBlock' (Truncate _ e) = hasBlock e
     hasBlock' _ = True
 
 

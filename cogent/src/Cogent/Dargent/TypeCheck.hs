@@ -157,6 +157,7 @@ tcDataLayoutExpr env vs (DLRecord fields) = do
             Nothing ->
               throwE $ NonExistingField f (InField fn pos PathEnd)
             Just (ef, af) -> do
+              when (containsAllocVars af) $ throwE (AfterUnknownOffset f (InField fn pos PathEnd))
               let end = endOfAllocation af
               (e', a) <- tcDataLayoutExpr env vs e
               let a' = fmap (InField fn pos) $ offset end a
@@ -231,13 +232,15 @@ tcDataLayoutExpr env vs (DLArray e l pos) = do
 #endif
 
 tcDataLayoutExpr _ _ DLPtr = return (TLPtr, singletonAllocation (pointerBitRange, PathEnd))
-tcDataLayoutExpr _ vs (DLVar n) = if n `elem` vs then return (TLVar n, undeterminedAllocation)
-                                                 else throwE $ UnknownDataLayoutVar n PathEnd
+tcDataLayoutExpr _ vs (DLVar n) =
+  if n `elem` vs then return (TLVar n, undeterminedAllocation [n])
+                 else throwE $ UnknownDataLayoutVar n PathEnd
 tcDataLayoutExpr _ _ (DLAfter _ f) = throwE $ InvalidUseOfAfter f PathEnd
 tcDataLayoutExpr env vs (DLEndian expr end) = do
   (expr', alloc) <- tcDataLayoutExpr env vs expr
   case alloc of
-    Allocation [(br,_)] | bitSizeBR br `elem` [8,16,32,64] -> return (TLEndian expr' end, alloc)
+    Allocation [(br,_)] _ | bitSizeBR br `elem` [8,16,32,64]
+                         -> return (TLEndian expr' end, alloc)
     _ -> throwE $ InvalidEndianness end PathEnd
 tcDataLayoutExpr _ _ l = __impossible $ "tcDataLayoutExpr: tried to typecheck unexpected layout: " ++ show l
 
@@ -300,6 +303,7 @@ data DataLayoutTcErrorP p
   | CyclicFieldDepedency    [FieldName] p
   | NonExistingField        FieldName p
   | InvalidUseOfAfter       FieldName p
+  | AfterUnknownOffset      FieldName p
   | InvalidEndianness       Endianness p
   | ArrayElementNotByteAligned Int p
   deriving (Eq, Show, Ord, Functor)
