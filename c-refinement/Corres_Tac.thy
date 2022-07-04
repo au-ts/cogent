@@ -877,7 +877,9 @@ fun get_Cogent_funtype ctxt fname = let
 (* check whether the function argument type contains a TFun *)
 fun funtype_is_first_order (funtype:term) =
   case funtype of (Const (@{const_name Pair}, _) $ _ $
-                    (Const (@{const_name Pair}, _) $ arg $ _)) =>
+                  (Const (@{const_name Pair}, _) $ _ $
+                  (Const (@{const_name Pair}, _) $ _ $ 
+                  (Const (@{const_name Pair}, _) $ arg $ _)))) =>
                   not (Cogent_type_contains_TFun arg)
                 | _ => raise TERM ("Expected a Cogent type signature", [funtype])
 
