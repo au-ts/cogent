@@ -96,14 +96,14 @@ lemma sum_arr_scorres:
 *)
 
 section "The Shallow to C Correspondence With Assumptions"
-
+thm  Generated_cogent_shallow.corres_shallow_C_sum_arr
 text 
   "There are a few assumptions about the locales, we simplify the all refine theorem."
 lemmas sum_arr_corres_shallow_C = 
   Generated_cogent_shallow.corres_shallow_C_sum_arr[
     of wa_abs_repr wa_abs_typing_v wa_abs_typing_u wa_abs_upd_val,
-    simplified \<Xi>_def[symmetric] user_\<xi>_1',
-    OF local.Generated_cogent_shallow_axioms _ _ local.correspondence_init_axioms]
+    simplified \<Xi>_def[symmetric] user_\<xi>_1', 
+    OF local.Generated_cogent_shallow_axioms _ _ _ local.correspondence_init_axioms, simplified]
 
 section "Getting Our Theorems to Line Up"
 
@@ -115,45 +115,46 @@ lemmas wordarray_length_u32_corres =
   upd_C_wordarray_length_corres_gen[rotated -1, of \<xi>1, simplified fun_eq_iff \<xi>1.simps, simplified]
 
 lemma wordarray_fold_no_break_u32_corres:
-  "\<And>v' i \<gamma> \<Gamma> \<sigma> s.
-    \<lbrakk>t5_C.f_C v' = FUN_ENUM_add; i < length \<gamma>; val_rel (\<gamma> ! i) v';
-     \<Gamma> ! i = option.Some (prod.fst (prod.snd (\<Xi> ''wordarray_fold_no_break_0'')))\<rbrakk>
-    \<Longrightarrow> corres state_rel (App (AFun ''wordarray_fold_no_break_0'' []) (Var i)) (do x <- wordarray_fold_no_break_0' v';
+  "\<And>v' i \<gamma> \<Gamma> \<sigma> s. 
+    \<lbrakk> t5_C.f_C v' = FUN_ENUM_add; i < length \<gamma>; val_rel (\<gamma> ! i) v';
+     \<Gamma> ! i = option.Some (fst (snd (snd (snd (\<Xi> ''wordarray_fold_no_break_0'')))))\<rbrakk>
+    \<Longrightarrow> corres state_rel (App (AFun ''wordarray_fold_no_break_0'' [] []) (Var i)) (do x <- wordarray_fold_no_break_0' v';
                   gets (\<lambda>s. x)
                od)
-         \<xi>1 \<gamma> \<Xi> \<Gamma> \<sigma> s"
-  apply (subgoal_tac "\<exists>fs. (\<gamma> ! i) = URecord fs")
+         \<xi>1 \<gamma> \<Xi> \<Gamma> \<sigma> s" 
+  apply (subgoal_tac "\<exists>fs. (\<gamma> ! i) = URecord fs None")
    apply (erule exE)
    apply (rule_tac k = "kinding_fn [] (foldmap_obsv_type ''wordarray_fold_no_break_0'')" and
       \<xi>0' = \<xi>0 and K' = "[]" and num = U32
       in upd_C_wordarray_fold_no_break_corres_gen; simp?)
-          apply (rule upd_proc_env_matches_ptrs_\<xi>0_\<Xi>)
-         apply (rule disjI1)
-         apply (clarsimp simp: \<Xi>_def wordarray_fold_no_break_0_type_def)
+         apply (rule upd_proc_env_matches_ptrs_\<xi>0_\<Xi>)
+        apply (rule disjI1)
         apply (clarsimp simp: \<Xi>_def wordarray_fold_no_break_0_type_def)
+       apply (clarsimp simp: \<Xi>_def wordarray_fold_no_break_0_type_def)
        apply (rule kindingI; simp)
       apply (clarsimp simp: \<Xi>_def wordarray_fold_no_break_0_type_def val_rel_simp
-      abbreviated_type_defs cogent_function_val_rel untyped_func_enum_defs)
-    apply (rule typing_app[of _ 
-      "[option.Some (TRecord [(''elem'', TPrim (Num U32), Present),
-        (''acc'', TPrim (Num U32), Present), (''obsv'', TUnit, Present)] Unboxed)]"
-      "[option.Some (TRecord [(''elem'', TPrim (Num U32), Present),
-        (''acc'', TPrim (Num U32), Present), (''obsv'', TUnit, Present)] Unboxed)]"
-      "[option.Some (TRecord [(''elem'', TPrim (Num U32), Present),
-        (''acc'', TPrim (Num U32), Present), (''obsv'', TUnit, Present)] Unboxed)]"
-      _ _
-      "TRecord [(''elem'', TPrim (Num U32), Present), (''acc'', TPrim (Num U32), Present),
-        (''obsv'', TUnit, Present)] Unboxed"] ; simp?)
-      apply (clarsimp simp: split_def)
-      apply (rule_tac k = "{D, S}" in share, rule kindingI; simp?)
-     apply (rule typing_fun; simp?)
-       apply (subst Generated_TypeProof.abbreviated_type_defs[symmetric])+
-       apply (subst wordarray_fold_no_break_0_type_def[symmetric])
-       apply (subst \<Xi>_def[symmetric])
-       apply (rule add_typecorrect'[simplified add_type_def snd_conv fst_conv])
-      apply (clarsimp simp: empty_def weakening_def)
-      apply (rule_tac k = "{D, S}" in drop, rule kindingI; simp?)
-     apply clarsimp
+                           abbreviated_type_defs cogent_function_val_rel untyped_func_enum_defs)
+      apply (rule typing_app[of _ _ _
+        "[option.Some (TRecord [(''elem'', TPrim (Num U32), Present),
+         (''acc'', TPrim (Num U32), Present), (''obsv'', TUnit, Present)] Unboxed)]"
+        "[option.Some (TRecord [(''elem'', TPrim (Num U32), Present),
+         (''acc'', TPrim (Num U32), Present), (''obsv'', TUnit, Present)] Unboxed)]"
+        "[option.Some (TRecord [(''elem'', TPrim (Num U32), Present),
+         (''acc'', TPrim (Num U32), Present), (''obsv'', TUnit, Present)] Unboxed)]"
+         _ _
+         "TRecord [(''elem'', TPrim (Num U32), Present), (''acc'', TPrim (Num U32), Present),
+          (''obsv'', TUnit, Present)] Unboxed"] ; simp?)
+        apply (clarsimp simp: split_def)
+        apply (rule_tac k = "{D, S}" in share, rule kindingI; simp?)
+       apply (rule typing_fun[of _ 0 _ "{}"]; simp?)
+          apply (subst Generated_TypeProof.abbreviated_type_defs[symmetric])+
+          apply (subst wordarray_fold_no_break_0_type_def[symmetric])
+          apply (simp only: \<Xi>_def[symmetric])
+          apply (rule add_typecorrect'[simplified add_type_def snd_conv fst_conv]) 
+         apply (clarsimp simp: empty_def weakening_def)
+         apply (rule_tac k = "{D, S}" in drop, rule kindingI; simp?)
+        apply simp
+       apply(simp add: subst_wellformed_nothing)
     apply (subst Generated_TypeProof.abbreviated_type_defs[symmetric])+
     apply (subst wordarray_fold_no_break_0_type_def[symmetric])
     apply (subst \<Xi>_def[symmetric])
@@ -226,10 +227,9 @@ declare \<xi>0.simps[simp del]
 declare \<xi>1.simps[simp del]
 
 lemmas sum_arr_corres_shallow_C_concrete =  sum_arr_corres_shallow_C[
-  of \<xi>m1 \<xi>p1, simplified,
+  of \<xi>m1 \<xi>p1, simplified, 
   OF wordarray_length_u32_corres, simplified,
   OF wordarray_fold_no_break_u32_corres[simplified], simplified TrueI, simplified]
-
 section "Further Improvements"
 
 text
@@ -281,7 +281,7 @@ text
    @{term \<xi>m} and @{term \<xi>m1}."
 
 lemmas sum_arr_corres_shallow_C_concrete_strong = 
-  sum_arr_corres_shallow_C_concrete[OF value_sem_rename_mono_prog_rename_\<Xi>_\<xi>m1_\<xi>p1 _ _ 
+  sum_arr_corres_shallow_C_concrete[OF _ value_sem_rename_mono_prog_rename_\<Xi>_\<xi>m1_\<xi>p1 _ _ 
                                        proc_ctx_wellformed_\<Xi> val_proc_env_matches_\<xi>m1_\<Xi>]
 
 section "Even More Improvement"
@@ -318,11 +318,11 @@ text
 lemma sum_arr_corres_shallow_C_concrete_stronger:
   "\<lbrakk>vv\<^sub>m = rename_val rename (monoval vv\<^sub>p); val_rel_shallow_C rename vv\<^sub>s uv\<^sub>C vv\<^sub>p uv\<^sub>m \<xi>p1 \<sigma> \<Xi>;
     matches \<Xi> [rename_val rename (monoval vv\<^sub>p)] 
-      [option.Some (prod.fst (prod.snd Generated_TypeProof.sum_arr_type))]\<rbrakk>
+      [option.Some (prod.fst (prod.snd (prod.snd (prod.snd Generated_TypeProof.sum_arr_type))))]\<rbrakk>
     \<Longrightarrow> 
     (\<sigma>, s) \<in> state_rel \<longrightarrow>
     (\<exists>r w. u_v_matches \<Xi> \<sigma> [uv\<^sub>m] [rename_val rename (monoval vv\<^sub>p)]
-            [option.Some (prod.fst (prod.snd Generated_TypeProof.sum_arr_type))] r w) \<longrightarrow>
+            [option.Some (prod.fst (prod.snd (prod.snd (prod.snd Generated_TypeProof.sum_arr_type))))] r w) \<longrightarrow>
     \<not> prod.snd (sum_arr' uv\<^sub>C s) \<and>
     (\<forall>r' s'.
         (r', s') \<in> prod.fst (sum_arr' uv\<^sub>C s) \<longrightarrow>
@@ -331,8 +331,10 @@ lemma sum_arr_corres_shallow_C_concrete_stronger:
             \<xi>m1 , [rename_val rename
                     (monoval vv\<^sub>p)] \<turnstile> Generated_TypeProof.sum_arr \<Down> rename_val rename (monoval v\<^sub>p) \<and>
             (\<sigma>', s') \<in> state_rel \<and> val_rel_shallow_C rename (Generated_Shallow_Desugar.sum_arr vv\<^sub>s) r' v\<^sub>p v\<^sub>u\<^sub>m \<xi>p1 \<sigma>' \<Xi>))"
-  apply (frule sum_arr_corres_shallow_C_concrete_strong[simplified corres_shallow_C_def
+  apply (frule sum_arr_corres_shallow_C_concrete_strong[rotated, simplified corres_shallow_C_def
         proc_ctx_wellformed_\<Xi> upd_proc_env_matches_ptrs_\<xi>1_\<Xi> proc_env_u_v_matches_\<xi>1_\<xi>m1_\<Xi>]; simp?)
+  apply (clarsimp simp: \<Xi>_def  Generated_TypeProof.sum_arr_type_def wordarray_fold_no_break_0_type_def
+                        Generated_TypeProof.abbreviated_type_defs FUN_ENUM_add_def t5_C.f_C_def val_rel_shallow_C_def )
   done
 
 section "Proving Functional Correctness"
