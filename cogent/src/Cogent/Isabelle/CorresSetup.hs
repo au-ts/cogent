@@ -113,7 +113,7 @@ setup cfile =
 localSetup :: String -> [String]
 localSetup cfile =
   [ 
-   	"local_setup \\<open> local_setup_val_rel_type_rel_put_them_in_buckets \"" ++ cfile ++ "\" [] \\<close>"
+    "local_setup \\<open> local_setup_val_rel_type_rel_put_them_in_buckets \"" ++ cfile ++ "\" [] \\<close>"
   , "local_setup \\<open> local_setup_instantiate_cogent_C_heaps_store_them_in_buckets \"" ++ cfile ++ "\" \\<close>"
   ]
 

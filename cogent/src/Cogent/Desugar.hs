@@ -808,8 +808,8 @@ desugarExpr (B.TE t (S.Put e (fa@(Just (f0,_)):fas)) l) = do
   desugarExpr $ B.TE t (S.Put (B.TE t' (S.Put e [fa]) l) fas) l
 desugarExpr (B.TE tb (S.Upcast e) _) = do
   let ts = B.getTypeTE e
-  B.DT (S.TCon cs [] Unboxed) <- unfoldSynsShallowM ts
-  B.DT (S.TCon cb [] Unboxed) <- unfoldSynsShallowM tb
+      B.DT (S.TCon cs [] Unboxed) = ts
+      B.DT (S.TCon cb [] Unboxed) = tb
   tb' <- desugarType tb
   let (fu, fc, fd) = case (cs `elem` wordTypeCons, cb `elem` wordTypeCons) of
         (True , True ) -> (return, return . E . Cast tb', return)

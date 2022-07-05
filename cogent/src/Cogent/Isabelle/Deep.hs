@@ -115,7 +115,6 @@ deepTypeInner mod ta (TProduct t1 t2) = mkApp (mkId "TProduct") [deepType mod ta
 -- TODO: Do recursive types have a place in the deep embedding?
 deepTypeInner mod ta (TRecord _ fs s) = mkApp (mkId "TRecord") [mkList $ map (\(fn,(t,b)) -> mkPair (mkString fn) (mkPair (deepType mod ta t) (deepRecordState b))) fs, deepSigil s]
 deepTypeInner mod ta (TUnit) = mkId "TUnit"
-deepTypeInner mod ta (TSyn n _ _ _) = mkId n -- FIXME: we should unfold the type synonym
 deepTypeInner _ _ t = __impossible $ "deepTypeInner: " ++ show (pretty t) ++ " is not yet implemented"
 
 mkAbbrevNm :: NameMod -> Int -> String

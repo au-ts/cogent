@@ -253,7 +253,7 @@ substituteDL ls l = case l of
         fes = fmap snd fsl
      in RecordLayout $ M.fromList (zip fns (fmap (substituteDL ls) fes))
 #ifdef BUILTIN_ARRAYS
-      ArrayLayout e l -> ArrayLayout  (substituteS' ls e) l
+  ArrayLayout e l -> ArrayLayout  (substituteDL ls e) l
 #endif
   _ -> l
 
@@ -392,22 +392,22 @@ tc = flip tc' M.empty
       -- Enable recursion by inserting this function's type into the function type dictionary
       -- here
       let ft = FT (snd <$> ks) (Vec.length ls) [] t rt in
-      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader, tdfs) (Cons (Just t) Nil) of
+      case runTC (infer e >>= flip typecheck rt) (fmap snd ks, M.insert fn ft reader) (Cons (Just t) Nil) of
         Left x -> Left x
         Right (_, e') ->
            let c0 = zip (fmap (`VarLayout` 0) [Zero ..]) $ Vec.cvtToList ls <&> (^._2) in
            let cls = nub $ inferLayConstraints t ++ inferLayConstraints rt ++ inferLayConstraintsTE reader e' ++ c0 in
            let m = (M.insert fn (FT (fmap snd ks) (Vec.length ls) cls t rt) reader) in
            
-             (first (FunDef attr fn ks ls t rt e':)) <$> tc' ds m tdfs
-    tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader tdfs =
+             (first (FunDef attr fn ks ls t rt e':)) <$> tc' ds m
+    tc' (d@(AbsDecl _ fn ks ls t rt):ds) reader =
       let cls = nub $ 
             (zip (fmap (`VarLayout` 0) [Zero ..]) $ Vec.cvtToList ls <&> (^._2))
             ++ inferLayConstraints t ++ inferLayConstraints rt 
       in      
       first (Unsafe.unsafeCoerce d:) <$>
-        tc' ds (M.insert fn (FT (fmap snd ks) (Vec.length ls) cls t rt) reader) tdfs       
-    tc' (d:ds) reader tdfs = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader tdfs
+        tc' ds (M.insert fn (FT (fmap snd ks) (Vec.length ls) cls t rt) reader)
+    tc' (d:ds) reader = (first (Unsafe.unsafeCoerce d:)) <$> tc' ds reader
 
 tc_ :: (Show b, Eq b, Pretty b, a ~ b)
     => [Definition UntypedExpr a b]
@@ -419,7 +419,6 @@ isMonoType (TVar _) = False
 isMonoType (TVarBang _) = False
 isMonoType (TVarUnboxed _) = False
 isMonoType (TCon _ l _) = all isMonoType l
-isMonoType (TSyn _ l _ _) = all isMonoType l -- should we unfold type synonyms before?
 isMonoType (TFun t rt) = isMonoType t && isMonoType rt
 isMonoType (TPrim _) = True
 isMonoType TString = True
@@ -441,7 +440,7 @@ isMonoDataLayout' (RecordLayout fs) = all isMonoDataLayout' fs
 isMonoDataLayout' (SumLayout tag alts) = all (isMonoDataLayout' . snd) alts
 isMonoDataLayout' (VarLayout v offset) = False
 #ifdef BUILTIN_ARRAYS
-isMonoDataLayout' (ArrayLayout l) = isMonoDataLayout' l
+isMonoDataLayout' (ArrayLayout l _) = isMonoDataLayout' l
 #endif
 
 
@@ -451,7 +450,6 @@ inferLayConstraints (TVar _) = []
 inferLayConstraints (TVarBang _) = []
 inferLayConstraints (TVarUnboxed _) = []
 inferLayConstraints (TCon _ l _) = concatMap inferLayConstraints l
-inferLayConstraints (TSyn name l sig _) = [] -- FIXME
 inferLayConstraints (TFun t rt) = inferLayConstraints t ++ inferLayConstraints rt
 inferLayConstraints (TPrim _) = []
 inferLayConstraints TString = []
@@ -502,9 +500,9 @@ inferLayConstraintsTE' m (ArrayIndex t u) = concatMap (inferLayConstraintsTE m) 
 inferLayConstraintsTE' m (Pop _ t u) = concatMap (inferLayConstraintsTE m) [t, u]
 inferLayConstraintsTE' m (Singleton t) = inferLayConstraintsTE t
 -- TODO check de Bruijn indices
-inferLayConstraintsTE' m (ArrayMap2 (_, e1) (e2, e3) = concatMap (inferLayConstraintsTE m) [e1, e2, e3]
-inferLayConstraintsTE' m (ArrayTake _ e1 e2 e3) =  concatMap (inferLayConstraintsTE m) [e1, e2, e3]
-inferLayConstraintsTE' m (ArrayPut _ e2 e3) =  concatMap (inferLayConstraintsTE m) [e1, e2, e3]
+inferLayConstraintsTE' m (ArrayMap2 (_, e1) (e2, e3)) = concatMap (inferLayConstraintsTE m) [e1, e2, e3]
+inferLayConstraintsTE' m (ArrayTake _ e1 e2 e3) = concatMap (inferLayConstraintsTE m) [e1, e2, e3]
+inferLayConstraintsTE' m (ArrayPut _ e2 e3) = concatMap (inferLayConstraintsTE m) [e2, e3]
 #endif
 -- TODO check de Bruijn indices
 inferLayConstraintsTE' m (Let _ t u) = inferLayConstraintsTE m t ++ inferLayConstraintsTE m u
@@ -683,8 +681,7 @@ infer (E (Fun f ts ls note))
            of (Just Refl, Just Refl) -> let ti' = substitute ts' $ substituteL ls ti
                                             to' = substitute ts' $ substituteL ls to
                                          in do forM_ (Vec.zip ts' ks) $ \(t, k) -> do
-                                                 t' <- unfoldSynsDeepM t
-                                                 k' <- kindcheck t'
+                                                 k' <- kindcheck t
                                                  when ((k <> k') /= k) $ __impossible "kind not matched in type instantiation"
                                                return $ TE (TFun ti' to') (Fun f ts ls note)
               _ -> __impossible "lengths don't match"
@@ -804,9 +801,7 @@ infer (E (Cast ty e))
         return $ TE ty (Cast ty $ TE t e')
 infer (E (Truncate ty e))
    = do (TE t e') <- infer e
-        t' <- unfoldSynsDeepM t
-        ty' <- unfoldSynsDeepM ty
-        guardShow ("truncate: " ++ show t' ++ " >>> " ++ show ty') =<< ty' `isUpcastable` t'
+        guardShow ("truncate: " ++ show t ++ " >>> " ++ show ty) =<< ty `isUpcastable` t
         return $ TE ty (Truncate ty $ TE t e')
 infer (E (Promote ty e))
    = do (TE t e') <- infer e

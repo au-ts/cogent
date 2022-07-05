@@ -235,10 +235,10 @@ parseArgs args = case getOpt' Permute options args of
           when (Ast stg `elem` cmds) $ genAst stg desugared'
           when (Pretty stg `elem` cmds) $ genPretty stg desugared'
           when (Deep stg `elem` cmds) $ genDeep cmds source stg desugared' typedefs fts log
-          case IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts $ filterTypeDefs desugared' of
+          case IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts of
             Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
             Right (constdefs,_) -> do
-              _ <- genShallow cmds source stg desugared' typedefs fts constdefs log
+              _ <- genShallow cmds source stg desugared' typedefs fts log
                      ( Shallow       stg   `elem` cmds
                      , SCorres       stg   `elem` cmds
                      , ShallowConsts stg   `elem` cmds
@@ -250,7 +250,7 @@ parseArgs args = case getOpt' Permute options args of
               when (TableShallow `elem` cmds) $
                 putProgressLn ("Generating shallow table...") >> putStrLn (printTable $ st desugared')
               when (Compile (succ stg) `elem` cmds) $
-                normal cmds desugared' ctygen' pragmas' source tced tcst typedefs fts constdefs buildinfo log
+                normal cmds desugared' ctygen' pragmas' source tced tcst typedefs fts buildinfo log
               exitSuccessWithBuildInfo cmds buildinfo
 
     normal cmds desugared ctygen pragmas source tced tcst typedefs fts buildinfo log = do
