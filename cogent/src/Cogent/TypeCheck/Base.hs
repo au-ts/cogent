@@ -534,8 +534,6 @@ type RawTypedExpr = TExpr RawType DataLayoutExpr
 type RawTypedPatn = TPatn RawType DataLayoutExpr
 type RawTypedIrrefPatn = TIrrefPatn RawType DataLayoutExpr
 
-type Typedefs   = M.Map TypeName ([VarName], DepType)  -- typenames |-> typeargs * strltype
-
 -- --------------------------------
 -- And their conversion functions
 -- --------------------------------
@@ -793,16 +791,6 @@ applyUnbox (DT (TRecord NonRec l _)) = DT $ TRecord NonRec l Unboxed
 applyUnbox (DT (TArray t e _ h)) = DT $ TArray t e Unboxed h
 #endif
 applyUnbox t = t
-
-substTransDTSyn :: Typedefs -> DepType -> DepType
-substTransDTSyn d t@(DT (TCon n ts b)) =
-  case M.lookup n d of
-    Just (ts', bdy) -> let applySigil = if unboxed b then applyUnbox else if readonly b then applyBang else id
-                           -- a layout is ignored here, but it seems that there never is one?
-                       in substTransDTSyn d $ applySigil $ substDepType (zip ts' ts) bdy
-    _ -> t
-substTransDTSyn _ t = t
-
 
 flexOf (U x) = Just x
 flexOf (T (TTake _ t))   = flexOf t

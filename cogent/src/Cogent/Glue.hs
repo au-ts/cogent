@@ -370,7 +370,7 @@ instance HandleQuotes CS.Definition (GlMono t) where
     , CS.Tstruct mid fldgrp attr1 loc3 <- tysp
     , Just (CS.AntiId ty loc4) <- mid = do
         tn' <- (lift . lift) (parseType ty loc4) >>= lift . tcType  >>=
-          lift . desugarType >>= lift . expandType >>= monoType >>= lift . lift. lift . genTypeId
+          lift . desugarType >>= monoType >>= lift . lift. lift . genTypeId
         let mid' = Just (CS.Id (toCName tn') loc4)
             tysp' = CS.Tstruct mid' fldgrp attr1 loc3
             dcsp' = CS.DeclSpec store tyqual tysp' loc2
@@ -386,9 +386,9 @@ instance HandleQuotes CS.Definition (GlMono t) where
     , Just (CS.AntiId ty loc4) <- mid
     , CS.Typedef (CS.AntiId syn loc6) decl attr2 loc5 <- tydef = do
         tn'  <- (lift . lift) (parseType ty  loc4) >>= lift . tcType >>=
-          lift . desugarType >>= lift . expandType >>= monoType >>= lift . lift . lift . genTypeId
+          lift . desugarType >>= monoType >>= lift . lift . lift . genTypeId
         syn' <- (lift . lift) (parseType syn loc6) >>= lift . tcType >>=
-          lift . desugarType >>= lift . expandType >>= monoType >>= lift . lift . lift . genTypeId
+          lift . desugarType >>= monoType >>= lift . lift . lift . genTypeId
         when (tn' /= syn') $ throwError $
           "Error: Type synonyms `" ++ syn ++ "' is somewhat different from the type `" ++ ty ++ "'"
         let tydef' = CS.Typedef (CS.Id (toCName syn') loc6) decl attr2 loc5
@@ -402,7 +402,7 @@ instance HandleQuotes CS.Definition (GlMono t) where
     | CS.TypedefGroup dcsp attr0 [tydef] loc1 <- initgrp
     , CS.Typedef (CS.AntiId syn loc6) decl attr2 loc5 <- tydef = do
         syn' <- (lift . lift) (parseType syn loc6) >>= lift . tcType >>=
-          lift . desugarType >>= lift . expandType >>= monoType >>= lift . lift . lift . genTypeId
+          lift . desugarType >>= monoType >>= lift . lift . lift . genTypeId
         let tydef' = CS.Typedef (CS.Id (toCName syn') loc6) decl attr2 loc5
             initgrp' = CS.TypedefGroup dcsp attr0 [tydef'] loc1
         decdef <- defaultHandleQuotes (CS.DecDef initgrp' loc0)
@@ -418,19 +418,19 @@ instance HandleQuotes CS.Stm (GlMono t) where
 
 instance HandleQuotes CS.Exp (GlMono t) where
   handleQuotes (CS.FnCall (CS.AntiExp fn loc1) [e] loc0) = do
-    e'  <- lift . lift . lift . genFn =<< monoExp =<< lift . expandExp =<< lift . coreTcExp =<<
+    e'  <- lift . lift . lift . genFn =<< monoExp =<< lift . coreTcExp =<<
            lift . desugarExp =<< lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc1)
-    fn' <- lift . lift . lift . genFnCall =<< return . CC.exprType =<< monoExp =<< lift . expandExp =<< lift . coreTcExp =<<
+    fn' <- lift . lift . lift . genFnCall =<< return . CC.exprType =<< monoExp =<< lift . coreTcExp =<<
            lift . desugarExp =<< lift . tcFnCall =<< (lift . lift) (parseFnCall fn loc1)
     defaultHandleQuotes $ CS.FnCall fn' [e',e] loc0
   handleQuotes (CS.FnCall (CS.Cast ty e1 loc1) [e2] loc0)
     | CS.Type dcsp decl loc2 <- ty
     , CS.AntiDeclSpec s loc3 <- dcsp = do
-        disp <- lift . lift . lift . genFnCall =<< monoType =<< lift . expandType =<< lift . desugarType =<<
+        disp <- lift . lift . lift . genFnCall =<< monoType =<< lift . desugarType =<<
                 lift . tcType =<< (lift . lift) (parseType s loc3)
         defaultHandleQuotes (CS.FnCall disp [e1,e2] loc0)
   handleQuotes (CS.AntiExp s loc) = (lift . lift) (parseExp s loc) >>=
-    lift . flip tcExp Nothing >>= lift . desugarExp >>= lift . coreTcExp >>= lift . expandExp >>=
+    lift . flip tcExp Nothing >>= lift . desugarExp >>= lift . coreTcExp >>=
     monoExp >>= lift . lift . lift . genExp
   handleQuotes e = defaultHandleQuotes e
 
@@ -439,25 +439,25 @@ instance HandleQuotes CS.Exp (GlMono t) where
 instance HandleQuotes CS.DeclSpec (GlMono t) where
   handleQuotes (CS.AntiTypeDeclSpec strg qual s l) = do
     CS.DeclSpec [] [] tysp loc <- (fst . CG.splitCType) <$> (lift . lift . lift . genType =<<
-      monoType =<< lift . expandType =<< lift . desugarType =<< lift . tcType =<< (lift . lift) (parseType s l))
+      monoType =<< lift . desugarType =<< lift . tcType =<< (lift . lift) (parseType s l))
     defaultHandleQuotes (CS.DeclSpec strg qual tysp loc)
   handleQuotes x = defaultHandleQuotes x
 
 instance HandleQuotes CS.Decl (GlMono t) where
   handleQuotes (CS.AntiTypeDecl s l) = (snd . CG.splitCType) <$>
-    (lift . lift . lift . genType =<< monoType =<< lift . expandType =<< lift . desugarType =<< lift . tcType =<< (lift . lift) (parseType s l))
+    (lift . lift . lift . genType =<< monoType =<< lift . desugarType =<< lift . tcType =<< (lift . lift) (parseType s l))
   handleQuotes x = defaultHandleQuotes x
 
 instance HandleQuotes CS.Type (GlMono t) where
   handleQuotes (CS.AntiType s l) = CG.cType <$>
-    (lift . lift . lift . genType =<< monoType =<< lift . expandType =<< lift . desugarType =<< lift . tcType =<< (lift . lift) (parseType s l))
+    (lift . lift . lift . genType =<< monoType =<< lift . desugarType =<< lift . tcType =<< (lift . lift) (parseType s l))
   handleQuotes x = defaultHandleQuotes x
 
 instance HandleQuotes CS.TypeSpec (GlMono t) where
   handleQuotes (CS.Tstruct mid fldgrp attr loc0)
     | Just (CS.AntiId ty loc1) <- mid = do
         tn' <- (lift . lift) (parseType ty loc1) >>= lift . tcType >>=
-               lift . desugarType >>= lift . expandType >>= monoType >>= lift . lift . lift . genTypeId
+               lift . desugarType >>= monoType >>= lift . lift . lift . genTypeId
         defaultHandleQuotes (CS.Tstruct (Just $ CS.Id (toCName tn') loc1) fldgrp attr loc0)
   handleQuotes x = defaultHandleQuotes x
 
@@ -499,7 +499,7 @@ desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
 
 coreTcAnti :: (a -> IN.TC t 'Zero VarName b) -> a -> GlDefn t b
 coreTcAnti m a = view kenv >>= \(fmap snd -> ts) -> lift . lift $
-  StateT $ \s -> let reader = (ts, view (coreTcState.funtypes) s, view (coreTcState.typesyns) s)
+  StateT $ \s -> let reader = (ts, view (coreTcState.funtypes) s, [])
                   in case flip evalState Nil $ flip runReaderT reader $ runExceptT $ IN.unTC $ m a of
                        Left  e -> __impossible "coreTcAnti"
                        Right x -> return (x, s)
@@ -556,9 +556,6 @@ tcType t = do
 desugarType :: TC.DepType -> GlDefn t (CC.Type t VarName)
 desugarType = desugarAnti DS.desugarType
 
-expandType :: CC.Type t VarName -> GlDefn t (CC.Type t VarName)
-expandType = coreTcAnti IN.expandAllSyns
-
 monoType :: CC.Type t VarName -> GlMono t (CC.Type 'Zero VarName)
 monoType = monoAnti MN.monoType
 
@@ -613,9 +610,6 @@ desugarExp = desugarAnti DS.desugarExpr
 
 coreTcExp :: CC.UntypedExpr t 'Zero VarName VarName -> GlDefn t (CC.TypedExpr t 'Zero VarName VarName)
 coreTcExp = coreTcAnti IN.infer
-
-expandExp :: CC.TypedExpr t 'Zero VarName VarName -> GlDefn t (CC.TypedExpr t 'Zero VarName VarName)
-expandExp = coreTcAnti IN.expandAllSynsTE
 
 monoExp :: CC.TypedExpr t 'Zero VarName VarName -> GlMono t (CC.TypedExpr 'Zero 'Zero VarName VarName)
 monoExp = monoAnti MN.monoExpr
@@ -704,7 +698,7 @@ traverseOneFunc fn d loc = do
                   pos = newPos filepath line col
               CC.TE _ (CC.Fun _ coreTargs _ _) <- (flip tcExp (Nothing) >=>
                                                    desugarExp >=>
-                                                   coreTcExp >=> expandExp) $
+                                                   coreTcExp) $
                                                   (SF.LocExpr pos (SF.TLApp fnName targs' [] SF.NoInline))
               -- Matching @coreTargs@ with @ts@. More specifically: match them in @mp@, and trim
               -- those in @mp@ that don't match up @coreTargs@.
@@ -879,7 +873,7 @@ readEntryFuncs tced tcState dsState ftypes lns
                               Nothing -> throwError "Use of wildcard disallowed in --entry-funcs file"
                               Just t  -> flip runReaderT (DefnState Vec.Nil []) $
                                          flip runReaderT (MonoState (([], []), Nothing))
-                                                         (lift . tcType >=> lift . desugarType >=> lift . expandType >=> monoType $ t)
+                                                         (lift . tcType >=> lift . desugarType >=> monoType $ t)
                   return (fnName, inst)
       case er of Left s  -> hPutStrLn stderr ("\nError: " ++ s) >> return Nothing
                  Right r -> return $ Just $ (fst r,) (snd r, [])

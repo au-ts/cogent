@@ -42,7 +42,7 @@ import           Cogent.Glue                      as GL (GlState, GlueMode (..),
 #ifdef WITH_HASKELL
 import           Cogent.Haskell.Shallow           as HS
 #endif
-import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_, expandDefs, filterTypeDefs)
+import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_, tcExpand, tcConstExpand, filterTypeDefs)
 import           Cogent.Interpreter               as Repl (replWithState)
 import           Cogent.Isabelle                  as Isa
 #ifdef WITH_LLVM
@@ -235,8 +235,7 @@ parseArgs args = case getOpt' Permute options args of
           when (Ast stg `elem` cmds) $ genAst stg desugared'
           when (Pretty stg `elem` cmds) $ genPretty stg desugared'
           when (Deep stg `elem` cmds) $ genDeep cmds source stg desugared' typedefs fts log
-          let tsyndefs = filterTypeDefs desugared'
-          case IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts tsyndefs of
+          case IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts $ filterTypeDefs desugared' of
             Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
             Right (constdefs,_) -> do
               _ <- genShallow cmds source stg desugared' typedefs fts constdefs log
@@ -257,8 +256,7 @@ parseArgs args = case getOpt' Permute options args of
     normal cmds desugared ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log = do
       let stg = STGNormal
       putProgress "Normalising..."
-      let desugared' = IN.expandDefs desugared
-          tsyndefs = filterTypeDefs desugared'
+      let desugared' = IN.tcExpand desugared
       nfed' <- case __cogent_fnormalisation of
         NoNF -> putProgressLn "Skipped." >> return desugared'
         nf -> do putProgressLn (show nf)
@@ -294,7 +292,7 @@ parseArgs args = case getOpt' Permute options args of
         simpl cmds nfed' ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
 
-    simpl cmds nfed ctygen pragmas source tced tcst typedefs fts constdefs tsyndefs buildinfo log = do
+    simpl cmds nfed ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log = do
       let stg = STGSimplify
       putProgressLn "Simplifying..."
       simpled' <- case __cogent_fsimplifier of
@@ -307,10 +305,10 @@ parseArgs args = case getOpt' Permute options args of
                       Right simpled' -> return simpled'
       when (Ast stg `elem` cmds) $ genAst stg simpled'
       when (Pretty stg `elem` cmds) $ genPretty stg simpled'
-      when (Compile (succ stg) `elem` cmds) $ mono cmds simpled' ctygen pragmas source tced tcst typedefs fts tsyndefs buildinfo log
+      when (Compile (succ stg) `elem` cmds) $ mono cmds simpled' ctygen pragmas source tced tcst typedefs fts buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
 
-    mono cmds simpled ctygen pragmas source tced tcst typedefs fts tsyndefs buildinfo log = do
+    mono cmds simpled ctygen pragmas source tced tcst typedefs fts buildinfo log = do
       let stg = STGMono
       putProgressLn "Monomorphising..."
       efuns <- T.forM __cogent_entry_funcs $
@@ -343,9 +341,9 @@ parseArgs args = case getOpt' Permute options args of
                                                                                    False, False, False, False, False)
               -- LLVM Entrance
 #ifdef WITH_LLVM
-          when (LLVMGen `elem` cmds) $ llvmg cmds monoed' ctygen' insts source tced tcst typedefs fts tsyndefs buildinfo log
+          when (LLVMGen `elem` cmds) $ llvmg cmds monoed' ctygen' insts source tced tcst typedefs fts buildinfo log
 #endif
-          when (Compile (succ stg) `elem` cmds) $ cg cmds monoed' ctygen' pragmas' insts source tced tcst typedefs fts tsyndefs buildinfo log
+          when (Compile (succ stg) `elem` cmds) $ cg cmds monoed' ctygen' pragmas' insts source tced tcst typedefs fts buildinfo log
           c_refinement source monoed' insts log (ACInstall `elem` cmds, CorresSetup `elem` cmds, CorresProof `elem` cmds)
           when (MonoProof `elem` cmds) $ do
             let mpfile = mkThyFileName source __cogent_suffix_of_mono_proof
@@ -368,12 +366,12 @@ parseArgs args = case getOpt' Permute options args of
           exitSuccessWithBuildInfo cmds buildinfo
 
 #ifdef WITH_LLVM
-    llvmg cmds monoed ctygen insts source tced tcst typedefs fts tsyndefs buildinfo log = do
+    llvmg cmds monoed ctygen insts source tced tcst typedefs fts buildinfo log = do
       putProgressLn "Now using the LLVM backend"
       LLVM.to_llvm monoed source
 #endif
 
-    cg cmds monoed ctygen pragmas insts source tced tcst typedefs fts tsyndefs buildinfo log = do
+    cg cmds monoed ctygen pragmas insts source tced tcst typedefs fts buildinfo log = do
       let hName = mkOutputName source Nothing <.> __cogent_ext_of_h
           hscName = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi_types)
           hsName  = mkOutputName' toHsModName source (Just __cogent_suffix_of_ffi)
@@ -425,7 +423,7 @@ parseArgs args = case getOpt' Permute options args of
         writeFileMsg cf
         output cf $ flip M.hPutDoc (ppr c </> M.line)       -- .c file gen
         unless (null $ __cogent_infer_c_func_files ++ __cogent_infer_c_type_files) $
-          glue cmds tced tcst typedefs fts insts genst tsyndefs buildinfo log
+          glue cmds tced tcst typedefs fts insts genst buildinfo log
         forM_ __cogent_name_cache $ \cacheFile -> do
           unless decodingFailed $ do
             putProgressLn ("Writing name cache file: " ++ cacheFile)
@@ -456,9 +454,9 @@ parseArgs args = case getOpt' Permute options args of
         writeFileMsg cpfile
         output cpfile $ flip LJ.hPutDoc corresProofThy
 
-    glue cmds tced tcst typedefs fts insts genst tsyndefs buildinfo log = do
+    glue cmds tced tcst typedefs fts insts genst buildinfo log = do
       putProgressLn "Generating glue code..."
-      let glreader = GL.mkGlState tced tcst typedefs fts tsyndefs insts genst
+      let glreader = GL.mkGlState tced tcst typedefs fts [] insts genst
       runExceptT (GL.glue glreader defaultTypnames GL.TypeMode __cogent_infer_c_type_files) >>= \case
         Left err -> hPutStrLn stderr ("Glue code (types) generation failed: \n" ++ err) >> exitFailure
         Right infed -> do forM_ infed $ \(filename, defs) -> do
