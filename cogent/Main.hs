@@ -253,7 +253,7 @@ parseArgs args = case getOpt' Permute options args of
                 normal cmds desugared' ctygen' pragmas' source tced tcst typedefs fts constdefs buildinfo log
               exitSuccessWithBuildInfo cmds buildinfo
 
-    normal cmds desugared ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log = do
+    normal cmds desugared ctygen pragmas source tced tcst typedefs fts buildinfo log = do
       let stg = STGNormal
       putProgress "Normalising..."
       let desugared' = IN.tcExpand desugared
@@ -280,19 +280,18 @@ parseArgs args = case getOpt' Permute options args of
         output tpfile $ flip LJ.hPutDoc $
           deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy nfed' fts log
       shallowTypeNames <-
-        genShallow cmds source stg nfed' typedefs fts constdefs log (Shallow stg `elem` cmds,
-                                                                     SCorres stg `elem` cmds,
-                                                                     ShallowConsts stg `elem` cmds,
-                                                                     False, False, False, False, False)
+        genShallow cmds source stg nfed' typedefs fts log (Shallow stg `elem` cmds,
+                                                           SCorres stg `elem` cmds,
+                                                           ShallowConsts stg `elem` cmds,
+                                                           False, False, False, False, False)
       when (NormalProof `elem` cmds) $ do
         let npfile = mkThyFileName source __cogent_suffix_of_normal_proof
         writeFileMsg npfile
         output npfile $ flip LJ.hPutDoc $ normalProof thy shallowTypeNames nfed' log
-      when (Compile (succ stg) `elem` cmds) $
-        simpl cmds nfed' ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log
+      when (Compile (succ stg) `elem` cmds) $ simpl cmds nfed' ctygen pragmas source tced tcst typedefs fts buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
 
-    simpl cmds nfed ctygen pragmas source tced tcst typedefs fts constdefs buildinfo log = do
+    simpl cmds nfed ctygen pragmas source tced tcst typedefs fts buildinfo log = do
       let stg = STGSimplify
       putProgressLn "Simplifying..."
       simpled' <- case __cogent_fsimplifier of
@@ -332,14 +331,11 @@ parseArgs args = case getOpt' Permute options args of
           when (Ast stg `elem` cmds) $ lessPretty stdout monoed'
           when (Pretty stg `elem` cmds) $ pretty stdout monoed'
           when (Deep stg `elem` cmds) $ genDeep cmds source stg monoed' typedefs fts log
-          case IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts $ filterTypeDefs monoed' of
-            Left err -> hPutStrLn stderr ("Re-typing constants failed: " ++ err) >> exitFailure
-            Right (constdefs',_) -> do
-              _ <- genShallow cmds source stg monoed' typedefs fts constdefs' log (Shallow stg `elem` cmds,
-                                                                                   SCorres stg `elem` cmds,
-                                                                                   ShallowConsts stg `elem` cmds,
-                                                                                   False, False, False, False, False)
-              -- LLVM Entrance
+          _ <- genShallow cmds source stg monoed' typedefs fts log (Shallow stg `elem` cmds,
+                                                                    SCorres stg `elem` cmds,
+                                                                    ShallowConsts stg `elem` cmds,
+                                                                    False, False, False, False, False)
+          -- LLVM Entrance
 #ifdef WITH_LLVM
           when (LLVMGen `elem` cmds) $ llvmg cmds monoed' ctygen' insts source tced tcst typedefs fts buildinfo log
 #endif
@@ -512,10 +508,8 @@ parseArgs args = case getOpt' Permute options args of
       writeFileMsg dpfile
       output dpfile $ flip LJ.hPutDoc de
 
-    genShallow cmds source stg defns typedefs fts constdefs log (False,False,False,False,False,False,False,False) = return empty
-    genShallow cmds source stg defns typedefs fts constdefs log (sh,sc,ks,sh_tup,ks_tup,tup_proof,shhs,shhs_tup) = do
-      isaResvNames <- concat <$> flip mapM __cogent_isabelle_var_avoidance_file simpleLineParser
-      writeIORef __cogent_isa_vars_avoided_ref isaResvNames
+    genShallow cmds source stg defns typedefs fts log (False,False,False,False,False,False,False,False) = return empty
+    genShallow cmds source stg defns typedefs fts log (sh,sc,ks,sh_tup,ks_tup,tup_proof,shhs,shhs_tup) = do
           -- Isabelle files
       let shfile = mkThyFileName source (__cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
           ssfile = mkThyFileName source (__cogent_suffix_of_shallow_shared)
@@ -530,14 +524,15 @@ parseArgs args = case getOpt' Permute options args of
           -- Run the generators
           (shal    ,shrd    ,scorr,shallowTypeNames) = Isa.shallow False thy stg        defns log
           (shal_tup,shrd_tup,_    ,_               ) = Isa.shallow True  thy STGDesugar defns log
+          constsTypeCheck = IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts $ filterTypeDefs defns
 #ifdef WITH_HASKELL
           -- Haskell shallow embedding
           hsShalName    = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)
           hsShalTupName = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage STGDesugar ++ __cogent_suffix_of_recover_tuples)
           hsShalFile         = nameToFileName hsShalName    __cogent_ext_of_hs
           hsShalTupFile      = nameToFileName hsShalTupName __cogent_ext_of_hs
-          hsShal    = HS.shallow False hsShalName    stg defns constdefs log
-          hsShalTup = HS.shallow True  hsShalTupName stg defns constdefs log
+          hsShal    = \consts -> HS.shallow False hsShalName    stg defns consts log
+          hsShalTup = \consts -> HS.shallow True  hsShalTupName stg defns consts log
 #endif
           tup_proof_thy = shallowTuplesProof thy
                             (mkProofName source (Just $ __cogent_suffix_of_shallow_shared))
@@ -554,13 +549,17 @@ parseArgs args = case getOpt' Permute options args of
 #ifdef WITH_HASKELL
       when shhs $ do
         putProgressLn ("Generating Haskell shallow embedding (" ++ stgMsg stg ++ ")...")
-        writeFileMsg hsShalFile
-        output hsShalFile $ flip hPutStrLn hsShal
+        case constsTypeCheck of
+          Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
+          Right (cs,_) -> do writeFileMsg hsShalFile
+                             output hsShalFile $ flip hPutStrLn (hsShal cs)
 #endif
       when ks $ do
         putProgressLn ("Generating shallow constants (" ++ stgMsg stg ++ ")...")
-        writeFileMsg ksfile
-        output ksfile $ flip LJ.hPutDoc $ shallowConsts False thy stg constdefs defns log
+        case constsTypeCheck of
+          Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
+          Right (cs,_) -> do writeFileMsg ksfile
+                             output ksfile $ flip LJ.hPutDoc $ shallowConsts False thy stg cs defns log
       when sc $ do
         putProgressLn ("Generating scorres (" ++ stgMsg stg ++ ")...")
         writeFileMsg scfile
@@ -574,13 +573,17 @@ parseArgs args = case getOpt' Permute options args of
 #ifdef WITH_HASKELL
       when shhs_tup $ do
         putProgressLn ("Generating Haskell shallow embedding (with Haskell tuples)...")
-        writeFileMsg hsShalTupFile
-        output hsShalTupFile $ flip hPutStrLn hsShalTup
+        case constsTypeCheck of
+          Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
+          Right (cs,_) -> do writeFileMsg hsShalTupFile
+                             output hsShalTupFile $ flip hPutStrLn (hsShalTup cs)
 #endif
       when ks_tup $ do
         putProgressLn ("Generating shallow constants (with HOL tuples)...")
-        writeFileMsg ks_tupfile
-        output ks_tupfile $ flip LJ.hPutDoc $ shallowConsts True thy stg constdefs defns log
+        case constsTypeCheck of
+          Left err -> hPutStrLn stderr ("Internal TC failed: " ++ err) >> exitFailure
+          Right (cs,_) -> do writeFileMsg ks_tupfile
+                             output ks_tupfile $ flip LJ.hPutDoc $ shallowConsts True thy stg cs defns log
 
       when tup_proof $ do
         putProgressLn ("Generating shallow tuple proof...")
