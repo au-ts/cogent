@@ -98,7 +98,7 @@ newtype SG b a = SG { runSG :: RWS (SGTables b) [Warning] StateGen a }
                            MonadWriter [Warning],
                            MonadState  StateGen)
 
-instance MonadFail (SG b) where
+instance MonadFail (SG b a) where
   fail = __impossible
 
 unfoldSynsShallowM :: CC.Type t b -> SG b (CC.Type t b)
