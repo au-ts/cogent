@@ -42,7 +42,7 @@ import           Cogent.Glue                      as GL (GlState, GlueMode (..),
 #ifdef WITH_HASKELL
 import           Cogent.Haskell.Shallow           as HS
 #endif
-import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_, expandDefs, filterTypeDefs, expandConsts, expandPragmas)
+import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_, expandDefs, filterTypeDefs)
 import           Cogent.Interpreter               as Repl (replWithState)
 import           Cogent.Isabelle                  as Isa
 #ifdef WITH_LLVM
@@ -258,9 +258,7 @@ parseArgs args = case getOpt' Permute options args of
       let stg = STGNormal
       putProgress "Normalising..."
       let desugared' = IN.expandDefs desugared
-          tsyndefs   = filterTypeDefs desugared'
-          constdefs' = IN.expandConsts constdefs tsyndefs
-          pragmas'   = IN.expandPragmas pragmas tsyndefs
+          tsyndefs = filterTypeDefs desugared'
       nfed' <- case __cogent_fnormalisation of
         NoNF -> putProgressLn "Skipped." >> return desugared'
         nf -> do putProgressLn (show nf)
@@ -284,10 +282,10 @@ parseArgs args = case getOpt' Permute options args of
         output tpfile $ flip LJ.hPutDoc $
           deepTypeProof id __cogent_ftp_with_decls __cogent_ftp_with_bodies tpthy nfed' fts log
       shallowTypeNames <-
-        genShallow cmds source stg nfed' typedefs fts constdefs' log (Shallow stg `elem` cmds,
-                                                                      SCorres stg `elem` cmds,
-                                                                      ShallowConsts stg `elem` cmds,
-                                                                      False, False, False, False, False)
+        genShallow cmds source stg nfed' typedefs fts constdefs log (Shallow stg `elem` cmds,
+                                                                     SCorres stg `elem` cmds,
+                                                                     ShallowConsts stg `elem` cmds,
+                                                                     False, False, False, False, False)
       when (NormalProof `elem` cmds) $ do
         let npfile = mkThyFileName source __cogent_suffix_of_normal_proof
         writeFileMsg npfile
@@ -309,10 +307,10 @@ parseArgs args = case getOpt' Permute options args of
                       Right simpled' -> return simpled'
       when (Ast stg `elem` cmds) $ genAst stg simpled'
       when (Pretty stg `elem` cmds) $ genPretty stg simpled'
-      when (Compile (succ stg) `elem` cmds) $ mono cmds simpled' ctygen pragmas source tced tcst typedefs fts constdefs tsyndefs buildinfo log
+      when (Compile (succ stg) `elem` cmds) $ mono cmds simpled' ctygen pragmas source tced tcst typedefs fts tsyndefs buildinfo log
       exitSuccessWithBuildInfo cmds buildinfo
 
-    mono cmds simpled ctygen pragmas source tced tcst typedefs fts constdefs tsyndefs buildinfo log = do
+    mono cmds simpled ctygen pragmas source tced tcst typedefs fts tsyndefs buildinfo log = do
       let stg = STGMono
       putProgressLn "Monomorphising..."
       efuns <- T.forM __cogent_entry_funcs $
@@ -336,11 +334,14 @@ parseArgs args = case getOpt' Permute options args of
           when (Ast stg `elem` cmds) $ lessPretty stdout monoed'
           when (Pretty stg `elem` cmds) $ pretty stdout monoed'
           when (Deep stg `elem` cmds) $ genDeep cmds source stg monoed' typedefs fts log
-          _ <- genShallow cmds source stg monoed' typedefs fts constdefs log (Shallow stg `elem` cmds,
-                                                                              SCorres stg `elem` cmds,
-                                                                              ShallowConsts stg `elem` cmds,
-                                                                              False, False, False, False, False)
-          -- LLVM Entrance
+          case IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts $ filterTypeDefs monoed' of
+            Left err -> hPutStrLn stderr ("Re-typing constants failed: " ++ err) >> exitFailure
+            Right (constdefs',_) -> do
+              _ <- genShallow cmds source stg monoed' typedefs fts constdefs' log (Shallow stg `elem` cmds,
+                                                                                   SCorres stg `elem` cmds,
+                                                                                   ShallowConsts stg `elem` cmds,
+                                                                                   False, False, False, False, False)
+              -- LLVM Entrance
 #ifdef WITH_LLVM
           when (LLVMGen `elem` cmds) $ llvmg cmds monoed' ctygen' insts source tced tcst typedefs fts tsyndefs buildinfo log
 #endif

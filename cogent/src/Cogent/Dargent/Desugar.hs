@@ -86,7 +86,6 @@ constructDataLayout' (TRecord rp fields Unboxed) = RecordLayout . fromList . snd
 
     -- Equations for as yet unsupported embedded types
     go' (TCon n _ Unboxed) = __impossible $ "go' (Type check should fail on boxed types containing embedded unboxed abstract types)\n Failed on TCon type: " ++ n
-    go' (TSyn     _ _ _ _) = __impossible $ "go' (Please unfold type synonyms before constructDataLayout)"  
     go' (TVar         _  ) = __impossible $ "go' (Type check should fail on boxed types containing type variables)"
     go' (TVarBang     _  ) = __impossible $ "go' (Type check should fail on boxed types containing type variables)"
     go' (TFun         _ _) = __impossible $ "go' (Type check should fail on boxed types containing functions)"

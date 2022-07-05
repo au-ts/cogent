@@ -38,7 +38,7 @@ module Cogent.Inference where
 import Cogent.Common.Syntax
 import Cogent.Common.Types
 import Cogent.Compiler
-import Cogent.Core as CC
+import Cogent.Core
 import Cogent.Dargent.Allocation
 import Cogent.Dargent.Util
 import Cogent.Util
@@ -205,13 +205,6 @@ unbox t                = t  -- NOTE that @#@ type operator behaves differently t
                             -- The application of @#@ should NOT be pushed inside of a
                             -- data type. / zilinc
 
-layout :: (DataLayout BitRange) -> Type t b -> Type t b
-layout l (TSyn n ts (Boxed r1 CLayout) r2) = TSyn n ts (Boxed r1 l) r2
-layout l (TRecord rp ts (Boxed r CLayout)) = TRecord rp ts (Boxed r l)
-#ifdef BUILTIN_ARRAYS
-layout l (TArray t sz (Boxed r CLayout) tkns) = TArray t sz (Boxed r l) tkns
-#endif
-layout l t = t
 
 substitute :: Vec t (Type u b) -> Type t b -> Type u b
 substitute vs (TVar v)         = vs `at` v
@@ -392,10 +385,9 @@ substTransSyn d t@(TSyn n ts s r) | ExI (Flip ts') <- Vec.fromList ts =
     Just (TypeDef _ vs (Just tb)) -> 
         case (Vec.length ts' =? Vec.length vs) of
           Just Refl -> let applySigil = 
-                            case s of
-                                 Unboxed -> if r then bang . unbox else unbox 
-                                 Boxed True l -> layout l . bang
-                                 Boxed False l -> layout l
+                            if unboxed s 
+                               then if r then bang . unbox else unbox 
+                               else if readonly s then bang else id
                        in substTransSyn d $ applySigil $ substitute ts' tb
           _ -> __impossible "substTransSyn: lengths don't match"
     _ -> __impossible ("substTransSyn: no type synonym: " ++ (show n))
@@ -472,15 +464,7 @@ expandConsts :: [CoreConst TypedExpr]
              -> [Definition TypedExpr VarName VarName]  -- type synonym definitions
              -> [CoreConst TypedExpr]
 expandConsts cs tdfs = map (\(vn,e) -> (vn, substSynsTE tdfs e)) cs
-
-expandPragmas :: [CC.Pragma VarName]
-              -> [Definition TypedExpr VarName VarName]  -- type synonym definitions
-              -> [CC.Pragma VarName]
-expandPragmas ps tdfs = map (expand tdfs) ps
-    where expand :: [Definition TypedExpr VarName VarName] -> CC.Pragma VarName -> CC.Pragma VarName
-          expand tdfs (GSetterPragma gs (SMT t) fld fun) = GSetterPragma gs (SMT $ substSyns tdfs t) fld fun
-          expand _ p = p
-
+ 
 runTC :: TC t v b x
       -> (Vec t Kind, Map FunName (FunctionType b), [Definition TypedExpr b b])
       -> Vec v (Maybe (Type t b))

@@ -154,7 +154,6 @@ typDiscardVar rm0 t = case t of
   TVar v            -> pure $ TVar v
   TVarBang v        -> pure $ TVarBang v
   TCon tn ts s      -> TCon tn <$> traverse go ts <*> pure s
-  TSyn tn ts s r    -> TSyn tn <$> traverse go ts <*> pure s <*> pure r
   TFun t1 t2        -> TFun <$> go t1 <*> go t2
   TPrim pt          -> pure $ TPrim pt
   TString           -> pure TString
