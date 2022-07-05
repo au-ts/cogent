@@ -96,7 +96,7 @@ lemma sum_arr_scorres:
 *)
 
 section "The Shallow to C Correspondence With Assumptions"
-thm  Generated_cogent_shallow.corres_shallow_C_sum_arr
+thm  Generated_cogent_shallow.corres_shallow_C_sum_arr[folded \<Xi>_def, no_vars]
 text 
   "There are a few assumptions about the locales, we simplify the all refine theorem."
 lemmas sum_arr_corres_shallow_C = 
