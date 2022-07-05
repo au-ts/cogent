@@ -115,7 +115,7 @@ normaliseT d (T (TUnbox t)) = do
      -- Cannot have an unboxed record with a recursive parameter
      (T (TRecord NonRec l _)) -> return (T (TRecord NonRec l Unboxed))
 #ifdef BUILTIN_ARRAYS
-     (T (TArray te e _ h)) -> return (T (TArray te e Unboxed h))
+     (T (TArray t e _ h)) -> return (T (TArray t e Unboxed h))
 #endif
      (T o)                -> normaliseT d (T $ fmap (T . TUnbox) o) -- recursive Unbox! Is this correct? / gteege
      _                    -> __impossible "normaliseT (TUnbox)"
@@ -128,9 +128,9 @@ normaliseT d (T (TBang t)) = do
      (T (TRecord rp l s)) -> mapM ((secondM . firstM) (normaliseT d . T . TBang)) l >>= \l' ->
                              normaliseT d (T (TRecord rp l' (bangSigil s)))
 #ifdef BUILTIN_ARRAYS
-     (T (TArray te e (Boxed False l) h)) -> do
-       te' <- normaliseT d $ T $ TBang te
-       normaliseT d (T (TArray te' e (Boxed True l) h))
+     (T (TArray t e (Boxed False l) h)) -> do
+       t' <- normaliseT d $ T $ TBang t
+       normaliseT d (T (TArray t' e (Boxed True l) h))
 #endif
      (T (TVar v b u))  -> return (T (TVar v True u))
      (T (TFun a b))    -> T <$> (TFun <$> normaliseT d a <*> normaliseT d b)
@@ -138,12 +138,12 @@ normaliseT d (T (TBang t)) = do
      _                 -> __impossible "normaliseT (TBang)"
 
 normaliseT d (T (TTake fs t)) = do
-   t' <- substTransTypeSyn d =<< normaliseT d t
+   t' <- substTransTypeSyn d <$> normaliseT d t
    case t' of
-     (T (TRecord rp l s)) -> takeFields fs l t' >>= \r -> normaliseT d (T (TRecord rp r s))
+     (T (TRecord rp l s)) -> takeFields fs l t >>= \r -> normaliseT d (T (TRecord rp r s))
      (T (TVariant ts)) -> takeFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
      _                 -> if __cogent_flax_take_put then return t
-                                                    else logErrExit (TakeFromNonRecordOrVariant fs t')
+                                                    else logErrExit (TakeFromNonRecordOrVariant fs t)
  where
    takeFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
    takeFields Nothing   fs' _  = return $ map (fmap (fmap (const True))) fs'
@@ -153,12 +153,12 @@ normaliseT d (T (TTake fs t)) = do
                                  return (f, (t, f `elem` fs || b))
 
 normaliseT d (T (TPut fs t)) = do
-   t' <- substTransTypeSyn d =<< normaliseT d t
+   t' <- substTransTypeSyn d <$> normaliseT d t
    case t' of
-     (T (TRecord rp l s)) -> putFields fs l t' >>= \r -> normaliseT d (T (TRecord rp r s))
+     (T (TRecord rp l s)) -> putFields fs l t >>= \r -> normaliseT d (T (TRecord rp r s))
      (T (TVariant ts)) -> putFields fs (M.toList ts) t' >>= \r -> normaliseT d (T (TVariant (M.fromList r)))
-     _                 -> if __cogent_flax_take_put then return t
-                                                    else logErrExit (PutToNonRecordOrVariant fs t')
+     _                 -> if __cogent_flax_take_put then return t'
+                                                    else logErrExit (PutToNonRecordOrVariant fs t)
  where
    putFields :: Maybe [FieldName] -> [(FieldName, (a, Bool))] -> TCType -> Post [(FieldName, (a, Bool))]
    putFields Nothing   fs' _  = return $ map (fmap (fmap (const False))) fs'
@@ -170,7 +170,7 @@ normaliseT d (T (TPut fs t)) = do
 #ifdef BUILTIN_ARRAYS
 -- TODO: we also need to check that the taken indices are in bounds / zilinc
 normaliseT d (T (TATake is t)) = do
-  t' <- substTransTypeSyn d =<< normaliseT d t
+  t' <- substTransTypeSyn d <$> normaliseT d t
   case t' of
     (T (TArray elt l s [])) -> normaliseT d (T (TArray elt l s $ map (,True) is))
     (T (TArray _ _ _ _)) -> __impossible "normaliseT: TArray can have at most one taken element"
@@ -178,7 +178,7 @@ normaliseT d (T (TATake is t)) = do
 
 normaliseT d (T (TAPut is t)) = do
   -- FIXME: dodgy implementation / zilinc
-  t' <- substTransTypeSyn d =<< normaliseT d t
+  t' <- substTransTypeSyn d <$> normaliseT d t
   case t' of
     (T (TArray elt l s [])) -> normaliseT d t'  -- no hole. no-op.
     (T (TArray elt l s [(h, True)])) ->  -- one hole
@@ -193,18 +193,17 @@ normaliseT d (T (TLayout l t)) = do
     (T (TRecord rp fs (Boxed p Nothing))) ->
       normaliseT d . T $ TRecord rp fs (Boxed p $ Just l)
     (T (TCon n ts (Boxed p Nothing))) -> do
-      -- expand synonyms because we cannot have a layout in desugared type synonyms
-      te <- substTransTypeSyn d t'
-      case te of
+        -- expand synonyms because we cannot have a layout in desugared type synonyms
+      case substTransTypeSyn d t' of
         (T (TCon ne tse (Boxed pe _))) -> do -- abstract or primitive type
           tse' <- mapM (normaliseT d) tse
           return $ T $ TCon ne tse' (Boxed pe $ Just l)
-        _ -> normaliseT d . T $ TLayout l te
+        teo -> normaliseT d . T $ TLayout l teo
 #ifdef BUILTIN_ARRAYS
     (T (TArray telt n (Boxed p Nothing) tkns)) ->
       normaliseT d . T $ TArray telt n (Boxed p $ Just l) tkns
 #endif
-    _ -> logErrExit (LayoutOnNonRecordOrCon t')
+    _ -> logErrExit (LayoutOnNonRecordOrCon t)
 
 normaliseT d t@(T (TCon n ts b)) = do
   ts' <- mapM (normaliseT d) ts
@@ -248,14 +247,14 @@ tkNorm (Right _) = __impossible "normaliseT: taken variable unsolved at normisat
 
 -- resolve transitive type synonyms until a non-synonym results
 -- synonyms in type arguments are not resolved
-substTransTypeSyn :: TypeDict -> TCType -> Post TCType
+substTransTypeSyn :: TypeDict -> TCType -> TCType
 substTransTypeSyn d (Synonym n ts) = 
   case lookup n d of
-    Just (ts', Just b) -> normaliseT d =<< substTransTypeSyn d (substType (zip ts' ts) b)
+    Just (ts', Just b) -> substTransTypeSyn d (substType (zip ts' ts) b)
     _ -> __impossible ("substTransTypeSyn: unresolved synonym " ++ show n)
 substTransTypeSyn d t@(T (TCon n ts b)) =
   case lookup n d of
-    Just (ts', Just b) -> normaliseT d =<< substTransTypeSyn d (substType (zip ts' ts) b)
-    _ -> return t
-substTransTypeSyn _ t = return t
+    Just (ts', Just b) -> substTransTypeSyn d (substType (zip ts' ts) b)
+    _ -> t
+substTransTypeSyn _ t = t
 
