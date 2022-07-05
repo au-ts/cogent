@@ -51,6 +51,7 @@ inductive type_lub :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constrai
                 ; map fst ts1 = map fst ts2
                 \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> TSum ts \<leftarrow> TSum ts1 \<squnion> TSum ts2"
 | lub_tunit  : "L, K, C \<turnstile> TUnit \<leftarrow> TUnit \<squnion> TUnit"
+| lub_tcustomnum: "L, K, C \<turnstile> TCustomNum a \<leftarrow> TCustomNum a \<squnion> TCustomNum a"
 
 | glb_tvar   : "\<lbrakk> n = n1
                 ; n2 = n1
@@ -89,7 +90,7 @@ inductive type_lub :: "lay_env \<Rightarrow> kind env \<Rightarrow> lay_constrai
                 ; map fst ts1 = map fst ts2
                 \<rbrakk> \<Longrightarrow> L, K, C \<turnstile> TSum ts \<leftarrow> TSum ts1 \<sqinter> TSum ts2"
 | glb_tunit  : "L, K, C \<turnstile> TUnit \<leftarrow> TUnit \<sqinter> TUnit"
-
+| glb_tcustomnum: "L, K, C \<turnstile> TCustomNum a \<leftarrow> TCustomNum a \<sqinter> TCustomNum a"
 
 lemma type_lub_type_glb_idem:
   assumes "L, K, C \<turnstile> t wellformed"
@@ -117,13 +118,13 @@ next
     proof (rule_tac lub_trecord)
       show "list_all3 (\<lambda>p p1 p2. L, K, C \<turnstile> fst (snd p) \<leftarrow> fst (snd p1) \<squnion> fst (snd p2)) ts ts ts"
         using TRecord.hyps
-        by (metis (no_types, lifting) fsts.intros in_set_conv_nth list_all3_same snds.intros tWellformed)
+        by (metis (no_types, lifting) fsts.intros list_all3_conv_all_nth nth_mem snds.intros tWellformed)
     qed (simp add: list_all3_same)+
     show "L, K, C \<turnstile> TRecord ts s \<leftarrow> TRecord ts s \<sqinter> TRecord ts s"
     proof (rule_tac glb_trecord)
       show "list_all3 (\<lambda>p p1 p2. L, K, C \<turnstile> fst (snd p) \<leftarrow> fst (snd p1) \<sqinter> fst (snd p2)) ts ts ts"
         using TRecord.hyps
-        by (metis (no_types, lifting) fsts.intros in_set_conv_nth list_all3_same snds.intros tWellformed)
+        by (metis (no_types, lifting) fsts.intros list_all3_conv_all_nth nth_mem snds.intros tWellformed)
     qed (simp add: list_all3_same)+
   qed
 qed (fastforce intro!: type_lub_type_glb.intros)+
@@ -252,8 +253,6 @@ next
   
   ultimately show ?case 
     by (auto simp add: list_all_length list_all3_conv_all_nth)
-
-
 qed (auto simp add: list_all_length list_all3_conv_all_nth)
 
 lemma type_lub_type_glb_wellformed_produce_wellformed:
@@ -303,21 +302,26 @@ proof (induct rule: type_lub_type_glb.inducts)
     using kinding_simps(4) type_lub_type_glb_wellformed_produce_wellformed by auto
 next
   case (lub_trecord L K C ts ts1 ts2 s s1 s2)
-  then show ?case
-  proof -
-    have "L, K, C \<turnstile> TRecord ts s wellformed"
-      using kinding_def lub_trecord.prems by blast
-    moreover have lrepr_ts12:
-    "map (\<lambda>(n, t, _). (n, type_lrepr t)) ts = map (\<lambda>(n, t, _). (n, type_lrepr t)) ts1"
-    "map (\<lambda>(n, t, _). (n, type_lrepr t)) ts = map (\<lambda>(n, t, _). (n, type_lrepr t)) ts2"
-    using lub_trecord
-      by(fastforce dest:type_lub_type_glb_lrepr_left type_lub_type_glb_lrepr_right split:prod.split simp add:
-  list_all3_conv_all_nth map_eq_iff_nth_eq)+
-  ultimately have ts1ts2Wellformed:
-      "L, K, C \<turnstile> TRecord ts1 s wellformed"
-      "L, K, C \<turnstile> TRecord ts2 s wellformed"  
-      using lub_trecord.hyps type_lub_type_glb_wellformed_produce_wellformed
-      by (metis (mono_tags, lifting) list_all3_conv_all_nth list_all_length type_wellformed.simps(8) type_wellformed_pretty_def)+
+
+  have "L, K, C \<turnstile> TRecord ts s \<leftarrow> TRecord ts1 s1 \<squnion> TRecord ts2 s2"
+    using lub_trecord.hyps
+    by (force intro: type_lub_type_glb.intros simp add: list_all3_split_conj)
+  moreover have trec_ts_wellformed: "L, K, C \<turnstile> TRecord ts s wellformed"
+    using kinding_def lub_trecord.prems
+    by blast
+  ultimately have ts12Wellformed:
+    "L, K, C \<turnstile> TRecord ts1 s wellformed"
+    "L, K, C \<turnstile> TRecord ts2 s wellformed"
+    using lub_trecord.hyps
+    by (blast dest: type_lub_type_glb_wellformed_produce_wellformed)+
+
+    have lrepr_ts12:
+    "map (\<lambda>(n, t, _). (n, type_lrepr t)) ts1 = map (\<lambda>(n, t, _). (n, type_lrepr t)) ts"
+    "map (\<lambda>(n, t, _). (n, type_lrepr t)) ts2 = map (\<lambda>(n, t, _). (n, type_lrepr t)) ts"
+      using lub_trecord
+      by (fastforce dest:type_lub_type_glb_lrepr_left type_lub_type_glb_lrepr_right
+          split: prod.split simp add: list_all3_conv_all_nth map_eq_iff_nth_eq)+
+
     have "L, K, C \<turnstile> TRecord ts1 s1 :\<kappa> {D}"
       using lub_trecord
     proof (clarsimp simp: kinding_record_conv_all_nth kinding_simps, intro conjI allI impI)
@@ -332,7 +336,7 @@ next
           using lub_trecord.hyps
           by (metis length_map)
         ultimately show ?thesis
-          using  ts1ts2Wellformed tsLength
+          using  ts12Wellformed tsLength
           by (auto simp add: list_all_length)
       next
         case Present
@@ -345,9 +349,8 @@ next
           done
       qed
     next
-      assume "matches_type_sigil L C (LRRecord (map (\<lambda>(n, t, _). (n, type_lrepr t)) ts)) s2 "
-      then show "matches_type_sigil L C (LRRecord (map (\<lambda>(n, t, _). (n, type_lrepr t)) ts1)) s2"
-        by (simp add:lrepr_ts12)
+      show "matches_type_sigil L C (LRRecord (map (\<lambda>(n, t, u). (n, type_lrepr t)) ts1)) s2"
+        using lrepr_ts12 lub_trecord.hyps ts12Wellformed by simp
     qed
     moreover have "L, K, C \<turnstile> TRecord ts2 s2 :\<kappa> {D}"
       using lub_trecord
@@ -363,7 +366,7 @@ next
           using lub_trecord.hyps
           by (metis length_map)
         ultimately show ?thesis
-          using  ts1ts2Wellformed tsLength
+          using  ts12Wellformed tsLength
           by (auto simp add: list_all_length)
       next
         case Present
@@ -375,81 +378,83 @@ next
           apply metis
           done
       qed
-   next
+    next
       assume "matches_type_sigil L C (LRRecord (map (\<lambda>(n, t, _). (n, type_lrepr t)) ts)) s2 "
       then show "matches_type_sigil L C (LRRecord (map (\<lambda>(n, t, _). (n, type_lrepr t)) ts2)) s2"
         using lrepr_ts12
         by simp            
     qed
-    ultimately show ?thesis
+    ultimately show ?case
       by blast
-  qed
 next
   case (lub_tsum L K C ts ts1 ts2)
-  then show ?case
-  proof -
-    have "L, K, C \<turnstile> TSum ts wellformed"
-      using kinding_def lub_tsum.prems by blast
-    then have ts1ts2Wellformed:
-      "L, K, C \<turnstile> TSum ts1 wellformed"
-      "L, K, C \<turnstile> TSum ts2 wellformed"
-      using lub_tsum.hyps type_lub_type_glb_wellformed_produce_wellformed
-      by (metis (mono_tags, lifting) list_all3_conv_all_nth list_all_length type_wellformed.simps(6) type_wellformed_pretty_def)+
-    have "L, K, C \<turnstile> TSum ts1 :\<kappa> {D}"
-      using lub_tsum
-    proof (clarsimp simp: kinding_variant_conv_all_nth kinding_simps)
-      fix i :: nat
-      assume tsLength: "i < length ts1"
-      let ?t1 = "fst (snd (ts1 ! i))"
-      let ?b1 = "snd (snd (ts1 ! i))"
-      show "case ?b1 of Checked \<Rightarrow> L, K, C \<turnstile> ?t1 wellformed | Unchecked \<Rightarrow> L, K, C \<turnstile> ?t1 :\<kappa> {D}"
-      proof (cases ?b1)
-        case Checked
-        moreover have "length ts = length ts1"
-          using lub_tsum.hyps
-          by (metis length_map)
-        ultimately show ?thesis
-          using  ts1ts2Wellformed tsLength
-          by (auto simp add: list_all_length)
-      next
-        case Unchecked
-        then show ?thesis
-          using lub_tsum.hyps lub_tsum.prems tsLength
-          apply (clarsimp
-              simp add: kinding_simps list_all3_conv_all_nth kinding_variant_conv_all_nth
-              split: variant_state.splits)
-          done
-      qed
+
+  have "L, K, C \<turnstile> TSum ts \<leftarrow> TSum ts1 \<squnion> TSum ts2"
+    using lub_tsum.hyps
+    by (force intro: type_lub_type_glb.intros simp add: list_all3_split_conj)
+  moreover have trec_ts_wellformed: "L, K, C \<turnstile> TSum ts wellformed"
+    using kinding_def lub_tsum.prems
+    by blast
+  ultimately have ts12Wellformed:
+    "L, K, C \<turnstile> TSum ts1 wellformed"
+    "L, K, C \<turnstile> TSum ts2 wellformed"
+    using lub_tsum.hyps
+    by (blast dest: type_lub_type_glb_wellformed_produce_wellformed)+
+
+  have "L, K, C \<turnstile> TSum ts1 :\<kappa> {D}"
+    using lub_tsum
+  proof (clarsimp simp: kinding_variant_conv_all_nth kinding_simps)
+    fix i :: nat
+    assume tsLength: "i < length ts1"
+    let ?t1 = "fst (snd (ts1 ! i))"
+    let ?b1 = "snd (snd (ts1 ! i))"
+    show "case ?b1 of Checked \<Rightarrow> L, K, C \<turnstile> ?t1 wellformed | Unchecked \<Rightarrow> L, K, C \<turnstile> ?t1 :\<kappa> {D}"
+    proof (cases ?b1)
+      case Checked
+      moreover have "length ts = length ts1"
+        using lub_tsum.hyps
+        by (metis length_map)
+      ultimately show ?thesis
+        using  ts12Wellformed tsLength
+        by (auto simp add: list_all_length)
+    next
+      case Unchecked
+      then show ?thesis
+        using lub_tsum.hyps lub_tsum.prems tsLength
+        apply (clarsimp
+            simp add: kinding_simps list_all3_conv_all_nth kinding_variant_conv_all_nth
+            split: variant_state.splits)
+        done
     qed
-    moreover have "L, K, C \<turnstile> TSum ts2 :\<kappa> {D}"
-      using lub_tsum
-    proof (clarsimp simp: kinding_variant_conv_all_nth kinding_simps)
-      fix i :: nat
-      assume tsLength: "i < length ts2"
-      let ?t2 = "fst (snd (ts2 ! i))"
-      let ?b2 = "snd (snd (ts2 ! i))"
-      show "case ?b2 of Checked \<Rightarrow> L, K, C \<turnstile> ?t2 wellformed | Unchecked \<Rightarrow> L, K, C \<turnstile> ?t2 :\<kappa> {D}"
-      proof (cases ?b2)
-        case Checked
-        moreover have "length ts = length ts2"
-          using lub_tsum.hyps
-          by (metis length_map)
-        ultimately show ?thesis
-          using  ts1ts2Wellformed tsLength
-          by (auto simp add: list_all_length)
-      next
-        case Unchecked
-        then show ?thesis
-          using lub_tsum.hyps lub_tsum.prems tsLength
-          apply (clarsimp
-              simp add: kinding_simps list_all3_conv_all_nth kinding_variant_conv_all_nth sup_commute
-              split: variant_state.splits)
-          done
-      qed
-    qed
-    ultimately show ?thesis
-      by blast
   qed
+  moreover have "L, K, C \<turnstile> TSum ts2 :\<kappa> {D}"
+    using lub_tsum
+  proof (clarsimp simp: kinding_variant_conv_all_nth kinding_simps)
+    fix i :: nat
+    assume tsLength: "i < length ts2"
+    let ?t2 = "fst (snd (ts2 ! i))"
+    let ?b2 = "snd (snd (ts2 ! i))"
+    show "case ?b2 of Checked \<Rightarrow> L, K, C \<turnstile> ?t2 wellformed | Unchecked \<Rightarrow> L, K, C \<turnstile> ?t2 :\<kappa> {D}"
+    proof (cases ?b2)
+      case Checked
+      moreover have "length ts = length ts2"
+        using lub_tsum.hyps
+        by (metis length_map)
+      ultimately show ?thesis
+        using  ts12Wellformed tsLength
+        by (auto simp add: list_all_length)
+    next
+      case Unchecked
+      then show ?thesis
+        using lub_tsum.hyps lub_tsum.prems tsLength
+        apply (clarsimp
+            simp add: kinding_simps list_all3_conv_all_nth kinding_variant_conv_all_nth sup_commute
+            split: variant_state.splits)
+        done
+    qed
+  qed
+  ultimately show ?case
+    by blast
 next
   case (glb_tcon n n1 n2 s s1 s2 ts ts1 ts2 K)
   then show ?case
@@ -460,13 +465,13 @@ next
     by (meson kinding_simps type_lub_type_glb_wellformed)
 next
   case (glb_trecord L K C ts ts1 ts2 s s1 s2)
-  
-have lrepr_ts12:
+
+  have lrepr_ts12:
     "map (\<lambda>(n, t, _). (n, type_lrepr t)) ts = map (\<lambda>(n, t, _). (n, type_lrepr t)) ts1"
     "map (\<lambda>(n, t, _). (n, type_lrepr t)) ts = map (\<lambda>(n, t, _). (n, type_lrepr t)) ts2"
     using glb_trecord
-      by(fastforce dest:type_lub_type_glb_lrepr_left type_lub_type_glb_lrepr_right split:prod.split simp add:
-  list_all3_conv_all_nth map_eq_iff_nth_eq)+
+    by (fastforce dest:type_lub_type_glb_lrepr_left type_lub_type_glb_lrepr_right
+        split: prod.split simp add: list_all3_conv_all_nth map_eq_iff_nth_eq)+
     moreover have 
       "(L, K, C \<turnstile> TRecord ts1 s1 wellformed)" 
       "(L, K, C \<turnstile> TRecord ts2 s2 wellformed)"
@@ -479,30 +484,27 @@ have lrepr_ts12:
     then show ?case
     using glb_trecord
   proof (clarsimp simp: kinding_record_conv_all_nth kinding_simps)
-    
-    {
-      fix i :: nat
-      assume tsLength: "i < length ts"
-      let ?t = "fst (snd (ts ! i))"
-      let ?b = "snd (snd (ts ! i))"
-      show "case ?b of Taken \<Rightarrow> L, K, C \<turnstile> ?t wellformed | Present \<Rightarrow> L, K, C \<turnstile> ?t :\<kappa> {D}"
-      proof (cases ?b)
-        case Taken
-        then show ?thesis
-          using tsWellformed tsLength
-          apply (simp add: list_all_length)
-          done
-      next
-        case Present
-        then show ?thesis
-          using glb_trecord.hyps glb_trecord.prems tsLength
-          apply (clarsimp
-              simp add: kinding_simps list_all3_conv_all_nth kinding_record_conv_all_nth sup_commute
-              split: record_state.splits)
-          apply metis
-          done
-      qed
-    }
+    fix i :: nat
+    assume tsLength: "i < length ts"
+    let ?t = "fst (snd (ts ! i))"
+    let ?b = "snd (snd (ts ! i))"
+    show "case ?b of Taken \<Rightarrow> L, K, C \<turnstile> ?t wellformed | Present \<Rightarrow> L, K, C \<turnstile> ?t :\<kappa> {D}"
+    proof (cases ?b)
+      case Taken
+      then show ?thesis
+        using tsWellformed tsLength
+        apply (simp add: list_all_length)
+        done
+    next
+      case Present
+      then show ?thesis
+        using glb_trecord.hyps glb_trecord.prems tsLength
+        apply (clarsimp
+            simp add: kinding_simps list_all3_conv_all_nth kinding_record_conv_all_nth sup_commute
+            split: record_state.splits)
+        apply metis
+        done
+    qed
   qed
 next
   case (glb_tsum L K C ts ts1 ts2)
