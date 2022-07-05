@@ -106,15 +106,11 @@ normaliseIP d tip@(TIP ip l) = do
         normaliseIP' d = traverse (normaliseE d) >=> ttraverse (normaliseIP d) >=> tttraverse (secondM (normaliseT d))
 
 -- postcondition: only types should remain in the TCType after running (aka 'T' constructors)
--- for unboxed type synonyms we keep the TBang to preserve the information about readonly.
--- these TBang are processed upon desugaring.
--- all other TUnbox and TBang are normalised away.
 normaliseT :: TypeDict -> TCType -> Post TCType
 normaliseT d (T (TUnbox t)) = do
    t' <- normaliseT d t
    case t' of
      (T (TCon x ps _))    -> return (T (TCon x ps Unboxed))
-     (T (TBang (T (TCon x ps Unboxed)))) -> return t'
      (T (TVar v b _))     -> return (T (TVar v b True))
      -- Cannot have an unboxed record with a recursive parameter
      (T (TRecord NonRec l _)) -> return (T (TRecord NonRec l Unboxed))
@@ -127,17 +123,8 @@ normaliseT d (T (TUnbox t)) = do
 normaliseT d (T (TBang t)) = do
    t' <- normaliseT d t
    case t' of
-     (T (TCon x ps s)) -> do
-         ps' <- mapM (normaliseT d . T . TBang) ps
-         if unboxed s
-            then case lookup x d of
-                      Just (_, Just _) -> -- unboxed type synonym, preserve TBang
-                         return $ T $ TBang $ T $ TCon x ps' s
-                      _ -> -- unboxed abstract or primitive type, ignore TBang
-                         return $ T $ TCon x ps' s
-            else -- boxed TCon, put bang into sigil
-                 return $ T $ TCon x ps' $ bangSigil s
-     (T (TBang (T (TCon _ _ Unboxed)))) -> return t'
+     (T (TCon x ps s)) -> mapM (normaliseT d . T . TBang) ps >>= \ps' ->
+                          normaliseT d (T (TCon x ps' (bangSigil s)))
      (T (TRecord rp l s)) -> mapM ((secondM . firstM) (normaliseT d . T . TBang)) l >>= \l' ->
                              normaliseT d (T (TRecord rp l' (bangSigil s)))
 #ifdef BUILTIN_ARRAYS
@@ -205,8 +192,14 @@ normaliseT d (T (TLayout l t)) = do
   case t' of
     (T (TRecord rp fs (Boxed p Nothing))) ->
       normaliseT d . T $ TRecord rp fs (Boxed p $ Just l)
-    (T (TCon n ts (Boxed p Nothing))) -> 
-      normaliseT d . T $ TCon n ts (Boxed p $ Just l)
+    (T (TCon n ts (Boxed p Nothing))) -> do
+      -- expand synonyms because we cannot have a layout in desugared type synonyms
+      te <- substTransTypeSyn d t'
+      case te of
+        (T (TCon ne tse (Boxed pe _))) -> do -- abstract or primitive type
+          tse' <- mapM (normaliseT d) tse
+          return $ T $ TCon ne tse' (Boxed pe $ Just l)
+        _ -> normaliseT d . T $ TLayout l te
 #ifdef BUILTIN_ARRAYS
     (T (TArray telt n (Boxed p Nothing) tkns)) ->
       normaliseT d . T $ TArray telt n (Boxed p $ Just l) tkns
@@ -260,21 +253,9 @@ substTransTypeSyn d (Synonym n ts) =
   case lookup n d of
     Just (ts', Just b) -> normaliseT d =<< substTransTypeSyn d (substType (zip ts' ts) b)
     _ -> __impossible ("substTransTypeSyn: unresolved synonym " ++ show n)
-substTransTypeSyn d t@(T (TCon n ts s)) =
+substTransTypeSyn d t@(T (TCon n ts b)) =
   case lookup n d of
-    Just (ts', Just b) ->  do
-        t' <- substTransTypeSyn d (substType (zip ts' ts) b)
-        case s of
-             Unboxed -> normaliseT d $ T $ TUnbox t'
-             Boxed False Nothing -> normaliseT d t'
-             Boxed True Nothing -> normaliseT d $ T $ TBang t'
-             Boxed False (Just l) -> normaliseT d $ T $ TLayout l t'
-             Boxed True (Just l) -> normaliseT d $ T $ TBang $ T $ TLayout l t'
-    _ -> return t
-substTransTypeSyn d t@(T (TBang (T (TCon n ts Unboxed)))) =
-  case lookup n d of
-    Just (ts', Just b) -> do
-        t' <- substTransTypeSyn d (substType (zip ts' ts) b)
-        normaliseT d $ T $ TBang t'
+    Just (ts', Just b) -> normaliseT d =<< substTransTypeSyn d (substType (zip ts' ts) b)
     _ -> return t
 substTransTypeSyn _ t = return t
+
