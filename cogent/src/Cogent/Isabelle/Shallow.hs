@@ -61,7 +61,7 @@ import Control.Monad.Writer (Writer, runWriter)
 import Data.Char (ord, chr, intToDigit, isDigit)
 import Data.Either (lefts, rights)
 import Data.Function (on)
-import Data.List (isPrefixOf, isSuffixOf, stripPrefix, partition, sortBy, sortOn, minimumBy, groupBy, unzip5, intercalate, nub, replicate, dropWhileEnd, find)
+import Data.List (isPrefixOf, isSuffixOf, stripPrefix, partition, sortBy, sortOn, minimumBy, groupBy, unzip5, intercalate, nub, replicate, dropWhileEnd)
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Set as S
@@ -123,8 +123,8 @@ shallowType t@(TCon tn ts _) =
          Just tn' -> -- name selected for a record or variant type. Use it after stripping the prefix.
            I.TyDatatype tn' <$> mapM shallowType ts
          Nothing -> do -- original Cogent type name. Append index T if it expands to a record or variant.
-           tn' <- adjustTypeName tn
-           I.TyDatatype tn' <$> mapM shallowType ts
+           t' <- expandTransSyns t
+           I.TyDatatype (typeSynName tn t') <$> mapM shallowType ts
 shallowType (TFun t1 t2) = I.TyArrow <$> shallowType t1 <*> shallowType t2
 shallowType (TPrim pt) = pure $ shallowPrimType pt
 shallowType (TString) = pure $ I.AntiType "string"
@@ -202,7 +202,7 @@ findTypeSyn :: CC.Type t b -> SG b String
 findTypeSyn t = findType t >>= \(TCon nm _ _) -> 
     case stripPrefix "internal:" nm of 
          Just nm' -> pure nm'
-         _ -> pure nm
+         _ -> __impossible "findTypeSyn"
 
 shallowExpr :: (Show b,Eq b) => TypedExpr t v VarName b -> SG b Term
 shallowExpr (TE _ (Variable (_,v))) = pure $ mkId (snm v)
@@ -347,7 +347,6 @@ expandSynsInCase (TE t (Case (TE tscrut escrut) tag alt1 (l2,n2,e2))) = do
         go (TE t (Let nalt (TE t1 (Esac (TE tscrut e))) erest)) = do
             tscrut' <- expandTransSyns tscrut
             return (TE t (Let nalt (TE t1 (Esac (TE tscrut' e))) erest))
-        go e = return e
 
 -- | @'mkL' nm t1 t2@:
 --
@@ -608,17 +607,6 @@ typeSynName :: TypeName -> CC.Type t b -> String
 typeSynName tn (TSum _) = tn ++ subSymStr "T"
 typeSynName tn (TRecord _ _ _) = tn ++ subSymStr "T"
 typeSynName tn _ = tn
-
-adjustTypeName :: TypeName -> SG b TypeName
-adjustTypeName tn = do
-  tdfs <- asks typeSynDefs
-  case find (isDefFor tn) tdfs of
-    Just (TypeDef _ _ (Just tb)) -> do
-        tb' <- expandTransSyns tb
-        return $ typeSynName tn tb'
-    _ -> return tn
-    where isDefFor n (TypeDef tn _ (Just _)) = (tn == n)
-          isDefFor n _ = False
 
 -- | Generates @type_synonym@ definitions for types.
 shallowTypeDef :: (Show b,Eq b) => TypeName -> [TyVarName] -> CC.Type t b -> SG b [TheoryDecl I.Type I.Term]
