@@ -379,7 +379,7 @@ substTransSyn d t@(TCon n ts s) | ExI (Flip ts') <- Vec.fromList ts =
         case (Vec.length ts' =? Vec.length vs) of
           Just Refl -> let applySigil = if unboxed s then unbox else if readonly s then bang else id
                        in substTransSyn d $ applySigil $ substitute ts' tb
-          _ -> __impossible "lengths don't match in substTransSyn"
+          _ -> __impossible "lengths don't match"
     _ -> t
     where isDefFor n (TypeDef tn _ (Just _)) = (tn == n)
           isDefFor n _ = False

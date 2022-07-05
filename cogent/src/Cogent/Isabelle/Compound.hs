@@ -162,7 +162,7 @@ typDiscardVar rm0 t = case t of
   TRecord rp fs s   -> TRecord rp <$> mapM (secondM $ firstM go) fs <*> pure s
   TUnit             -> pure TUnit
 #ifdef BUILTIN_ARRAYS
-  TArray t l s mh   -> TArray <$> go t <*> pure l <*> pure s <*> mapM (lexpDiscardVar rm0) mh -- no lexpDiscardVar for l, is that correct? / gteege
+  TArray t l s mh   -> TArray <$> go t <*> pure l <*> pure s <*> mapM (lexpDiscardVar rm0) mh
 #endif
  where
   go   = typDiscardVar rm0

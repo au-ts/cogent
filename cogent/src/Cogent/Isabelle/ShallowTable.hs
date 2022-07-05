@@ -71,10 +71,6 @@ toTypeStr (TRPar v m)      = []
 --   synonym, it will be used; otherwise we will create a unique name
 --   for the type according to the position of that type in the table.
 --   This will make the generated Isabelle files more readable by humans.
--- Modification: Since we now preserve the original type synonyms, the 
---   result would conflict with its original use. Therefore we modify
---   the returned synonym name in a unique way and map it back when the 
---   shallow embedding is generated in functions shallowType and findTypeSyn.
 getStrlType :: M.Map TypeStr TypeName -> [TypeStr] -> Type t a -> Type t a
 getStrlType tsmap table (TSum ts) =
   let tstr = VariantStr (P.map fst ts)
@@ -84,7 +80,7 @@ getStrlType tsmap table (TSum ts) =
       let idx = findIndex tstr table
       in TCon ('T':show idx) tps Unboxed
     Just tn ->
-      TCon ("internal:" ++ tn) tps Unboxed
+      TCon tn tps Unboxed
 -- TODO: recPars part of type strings?
 getStrlType tsmap table (TRecord _ fs s) =
   let tstr = RecordStr (P.map fst fs)
@@ -95,7 +91,7 @@ getStrlType tsmap table (TRecord _ fs s) =
       in TCon ('T':show idx) tps (__fixme (const () <$> s))
         -- The DataLayout is not included in shallow embeddings /mdimeglio zilinc
     Just tn ->
-      TCon ("internal:" ++ tn) tps (__fixme (const () <$> s))
+      TCon tn tps (__fixme (const () <$> s))
         -- The DataLayout is not included in shallow embeddings /mdimeglio zilinc
 getStrlType _ _ t = t
 
