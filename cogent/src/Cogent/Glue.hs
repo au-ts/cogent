@@ -557,7 +557,7 @@ desugarType :: TC.DepType -> GlDefn t (CC.Type t VarName)
 desugarType = desugarAnti DS.desugarType
 
 expandType :: CC.Type t VarName -> GlDefn t (CC.Type t VarName)
-expandType = coreTcAnti IN.unfoldSynsDeepM
+expandType = coreTcAnti IN.expandAllSyns
 
 monoType :: CC.Type t VarName -> GlMono t (CC.Type 'Zero VarName)
 monoType = monoAnti MN.monoType
@@ -615,7 +615,7 @@ coreTcExp :: CC.UntypedExpr t 'Zero VarName VarName -> GlDefn t (CC.TypedExpr t 
 coreTcExp = coreTcAnti IN.infer
 
 expandExp :: CC.TypedExpr t 'Zero VarName VarName -> GlDefn t (CC.TypedExpr t 'Zero VarName VarName)
-expandExp = coreTcAnti IN.unfoldSynsDeepInTEM
+expandExp = coreTcAnti IN.expandAllSynsTE
 
 monoExp :: CC.TypedExpr t 'Zero VarName VarName -> GlMono t (CC.TypedExpr 'Zero 'Zero VarName VarName)
 monoExp = monoAnti MN.monoExpr

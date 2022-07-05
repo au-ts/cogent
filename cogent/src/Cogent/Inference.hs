@@ -368,7 +368,7 @@ useVariable v = TC $ do readers <- ask
                         case ret of
                           Nothing -> return ret
                           Just t  -> do
-                            let t' = unfoldSynsDeep ((\(a,b,c)->c) readers) t
+                            let t' = substSyns ((\(a,b,c)->c) readers) t
                             ok <- canShare <$> unTC (kindcheck t')
                             unless ok $ modify (\s -> update s v Nothing)
                             return ret
@@ -376,18 +376,18 @@ useVariable v = TC $ do readers <- ask
 funType :: CoreFunName -> TC t v b (Maybe (FunctionType b))
 funType v = TC $ (M.lookup (unCoreFunName v) . (\(a,b,c)->b)) <$> ask
 
-unfoldSynsDeepM :: Type t b -> TC t' v b (Type t b)
-unfoldSynsDeepM t = do
+expandAllSyns :: Type t b -> TC t' v b (Type t b)
+expandAllSyns t = do
     tdfs <- (\(a,b,c)->c) <$> ask 
-    return $ unfoldSynsDeep tdfs t
+    return $ substSyns tdfs t
 
-unfoldSynsShallowM :: Type t b -> TC t' v b (Type t b)
-unfoldSynsShallowM t = do
+expandTransSyns :: Type t b -> TC t' v b (Type t b)
+expandTransSyns t = do
     tdfs <- (\(a,b,c)->c) <$> ask 
-    return $ unfoldSynsShallow tdfs t
+    return $ substTransSyn tdfs t
 
-unfoldSynsShallow :: [Definition TypedExpr a b] -> Type t b -> Type t b
-unfoldSynsShallow d t@(TSyn n ts s r) | ExI (Flip ts') <- Vec.fromList ts =
+substTransSyn :: [Definition TypedExpr a b] -> Type t b -> Type t b
+substTransSyn d t@(TSyn n ts s r) | ExI (Flip ts') <- Vec.fromList ts =
   case find (isDefFor n) d of
     Just (TypeDef _ vs (Just tb)) -> 
         case (Vec.length ts' =? Vec.length vs) of
@@ -396,34 +396,34 @@ unfoldSynsShallow d t@(TSyn n ts s r) | ExI (Flip ts') <- Vec.fromList ts =
                                  Unboxed -> if r then bang . unbox else unbox 
                                  Boxed True l -> layout l . bang
                                  Boxed False l -> layout l
-                       in unfoldSynsShallow d $ applySigil $ substitute ts' tb
-          _ -> __impossible "unfoldSynsShallow: lengths don't match"
-    _ -> __impossible ("unfoldSynsShallow: no type synonym: " ++ (show n))
+                       in substTransSyn d $ applySigil $ substitute ts' tb
+          _ -> __impossible "substTransSyn: lengths don't match"
+    _ -> __impossible ("substTransSyn: no type synonym: " ++ (show n))
     where isDefFor n (TypeDef tn _ (Just _)) = (tn == n)
           isDefFor n _ = False
-unfoldSynsShallow _ t = t
+substTransSyn _ t = t
 
-unfoldSynsDeep :: [Definition TypedExpr a b] -> Type t b -> Type t b
-unfoldSynsDeep d (TCon tn ts s) = TCon tn (map (unfoldSynsDeep d) ts) s
-unfoldSynsDeep d t@(TSyn _ _ _ _) = unfoldSynsDeep d $ unfoldSynsShallow d t
-unfoldSynsDeep d (TFun t1 t2) = TFun (unfoldSynsDeep d t1) (unfoldSynsDeep d t2) 
-unfoldSynsDeep d (TSum vs) = TSum $ map (second $ first $ unfoldSynsDeep d) vs
-unfoldSynsDeep d (TProduct t1 t2) = TProduct (unfoldSynsDeep d t1) (unfoldSynsDeep d t2) 
-unfoldSynsDeep d (TRecord rp fs s) = TRecord rp (map (second $ first $ unfoldSynsDeep d) fs) s
-unfoldSynsDeep d (TRPar rp ctxt) = TRPar rp $ fmap (M.map (unfoldSynsDeep d)) ctxt
-unfoldSynsDeep d (TRParBang rp ctxt) = TRParBang rp $ fmap (M.map (unfoldSynsDeep d)) ctxt
+substSyns :: [Definition TypedExpr a b] -> Type t b -> Type t b
+substSyns d (TCon tn ts s) = TCon tn (map (substSyns d) ts) s
+substSyns d t@(TSyn _ _ _ _) = substSyns d $ substTransSyn d t
+substSyns d (TFun t1 t2) = TFun (substSyns d t1) (substSyns d t2) 
+substSyns d (TSum vs) = TSum $ map (second $ first $ substSyns d) vs
+substSyns d (TProduct t1 t2) = TProduct (substSyns d t1) (substSyns d t2) 
+substSyns d (TRecord rp fs s) = TRecord rp (map (second $ first $ substSyns d) fs) s
+substSyns d (TRPar rp ctxt) = TRPar rp $ fmap (M.map (substSyns d)) ctxt
+substSyns d (TRParBang rp ctxt) = TRParBang rp $ fmap (M.map (substSyns d)) ctxt
 #ifdef BUILTIN_ARRAYS
-unfoldSynsDeep d (TArray t e s h) = TArray (unfoldSynsDeep d t) (unfoldSynsDeepInLE d e) s (fmap (unfoldSynsDeepInLE d) h)
-unfoldSynsDeep d (TRefine t e) = TRefine (unfoldSynsDeep d t) (unfoldSynsDeepInLE d e)
+substSyns d (TArray t e s h) = TArray (substSyns d t) (substSynsLE d e) s (fmap (substSynsLE d) h)
+substSyns d (TRefine t e) = TRefine (substSyns d t) (substSynsLE d e)
 #endif
-unfoldSynsDeep _ t = t
+substSyns _ t = t
 
-unfoldSynsDeepInLE :: [Definition TypedExpr a b] -> LExpr t b -> LExpr t b
-unfoldSynsDeepInLE d = \case
-  LFun fn ts ls      -> LFun fn (map (unfoldSynsDeep d) ts) ls
+substSynsLE :: [Definition TypedExpr a b] -> LExpr t b -> LExpr t b
+substSynsLE d = \case
+  LFun fn ts ls      -> LFun fn (map (substSyns d) ts) ls
   LOp op es          -> LOp op $ fmap go es
   LApp e1 e2         -> LApp (go e1) (go e2)
-  LCon tn e t        -> LCon tn (go e) (unfoldSynsDeep d t)
+  LCon tn e t        -> LCon tn (go e) (substSyns d t)
   LLet a e e'        -> LLet a (go e) (go e')
   LLetBang bs a e e' -> LLetBang bs a (go e) (go e')
   LTuple e1 e2       -> LTuple (go e1) (go e2)
@@ -436,49 +436,49 @@ unfoldSynsDeepInLE d = \case
   LMember e f        -> LMember (go e) f
   LTake as rec f e'  -> LTake as (go rec) f (go e')
   LPut rec f e       -> LPut (go rec) f (go e)
-  LPromote t e       -> LPromote (unfoldSynsDeep d t) (go e)
-  LCast t e          -> LCast (unfoldSynsDeep d t) (go e)
+  LPromote t e       -> LPromote (substSyns d t) (go e)
+  LCast t e          -> LCast (substSyns d t) (go e)
   e                  -> e
- where go = unfoldSynsDeepInLE d
+ where go = substSynsLE d
 
-unfoldSynsDeepInTEM :: TypedExpr t v b b -> TC t' v b (TypedExpr t v b b)
-unfoldSynsDeepInTEM e = do
+expandAllSynsTE :: TypedExpr t v b b -> TC t' v b (TypedExpr t v b b)
+expandAllSynsTE e = do
     tdfs <- (\(a,b,c)->c) <$> ask 
-    return $ unfoldSynsDeepInTE tdfs e
+    return $ substSynsTE tdfs e
 
-unfoldSynsDeepInTE :: [Definition TypedExpr a b] -> TypedExpr t v a b -> TypedExpr t v a b
-unfoldSynsDeepInTE d (TE t e) = 
+substSynsTE :: [Definition TypedExpr a b] -> TypedExpr t v a b -> TypedExpr t v a b
+substSynsTE d (TE t e) = 
     let e' = case e of
-               Fun fn ts l n -> Fun fn (map (unfoldSynsDeep d) ts) l n
-               Con tag e1 tt -> Con tag e1 (unfoldSynsDeep d tt)
-               Promote tt e1 -> Promote (unfoldSynsDeep d tt) e1
-               Cast tt e1 -> Cast (unfoldSynsDeep d tt) e1
-               Truncate tt e1 -> Truncate (unfoldSynsDeep d tt) e1
+               Fun fn ts l n -> Fun fn (map (substSyns d) ts) l n
+               Con tag e1 tt -> Con tag e1 (substSyns d tt)
+               Promote tt e1 -> Promote (substSyns d tt) e1
+               Cast tt e1 -> Cast (substSyns d tt) e1
+               Truncate tt e1 -> Truncate (substSyns d tt) e1
                _ -> e
-    in TE (unfoldSynsDeep d t) $ fmapE (unfoldSynsDeepInTE d) e'
+    in TE (substSyns d t) $ fmapE (substSynsTE d) e'
 
-unfoldSynsInDefs :: [Definition TypedExpr a b] -> [Definition TypedExpr a b]
-unfoldSynsInDefs tls = map (expand (filterTypeDefs tls)) tls
+expandDefs :: [Definition TypedExpr a b] -> [Definition TypedExpr a b]
+expandDefs tls = map (expand (filterTypeDefs tls)) tls
   where
     expand :: [Definition TypedExpr a b]  -- the type synonym definitions
            -> Definition TypedExpr a b -> Definition TypedExpr a b
     expand  tdfs (FunDef attr fn ks ls t rt e) =
-        FunDef attr fn ks ls (unfoldSynsDeep tdfs t) (unfoldSynsDeep tdfs rt) (unfoldSynsDeepInTE tdfs e)
+        FunDef attr fn ks ls (substSyns tdfs t) (substSyns tdfs rt) (substSynsTE tdfs e)
     expand tdfs (AbsDecl attr fn ks ls t rt) =
-        AbsDecl attr fn ks ls (unfoldSynsDeep tdfs t) (unfoldSynsDeep tdfs rt)
-    expand tdfs (TypeDef tn vs mt) = TypeDef tn vs $ fmap (unfoldSynsDeep tdfs) mt
+        AbsDecl attr fn ks ls (substSyns tdfs t) (substSyns tdfs rt)
+    expand tdfs (TypeDef tn vs mt) = TypeDef tn vs $ fmap (substSyns tdfs) mt
 
-unfoldSynsInConsts :: [CoreConst TypedExpr]
+expandConsts :: [CoreConst TypedExpr]
              -> [Definition TypedExpr VarName VarName]  -- type synonym definitions
              -> [CoreConst TypedExpr]
-unfoldSynsInConsts cs tdfs = map (\(vn,e) -> (vn, unfoldSynsDeepInTE tdfs e)) cs
+expandConsts cs tdfs = map (\(vn,e) -> (vn, substSynsTE tdfs e)) cs
 
-unfoldSynsInPragmas :: [CC.Pragma VarName]
+expandPragmas :: [CC.Pragma VarName]
               -> [Definition TypedExpr VarName VarName]  -- type synonym definitions
               -> [CC.Pragma VarName]
-unfoldSynsInPragmas ps tdfs = map (expand tdfs) ps
+expandPragmas ps tdfs = map (expand tdfs) ps
     where expand :: [Definition TypedExpr VarName VarName] -> CC.Pragma VarName -> CC.Pragma VarName
-          expand tdfs (GSetterPragma gs (SMT t) fld fun) = GSetterPragma gs (SMT $ unfoldSynsDeep tdfs t) fld fun
+          expand tdfs (GSetterPragma gs (SMT t) fld fun) = GSetterPragma gs (SMT $ substSyns tdfs t) fld fun
           expand _ p = p
 
 runTC :: TC t v b x
@@ -670,7 +670,7 @@ withBinding t x
               Left e -> throwError e
               Right (Cons Nothing s,r)   -> do put s; return r
               Right (Cons (Just t) s, r) -> do
-                let t' = unfoldSynsDeep ((\(a,b,c)->c) readers) t
+                let t' = substSyns ((\(a,b,c)->c) readers) t
                 ok <- canDiscard <$> unTC (kindcheck t')
                 if ok then put s >> return r
                       else throwError "Didn't use linear variable"
@@ -713,8 +713,8 @@ kindcheck = kindcheck_ lookupKind
 
 typecheck :: (Pretty a, Show a, Eq a) => TypedExpr t v a a -> Type t a -> TC t v a (TypedExpr t v a a)
 typecheck e t = do
-  t' <- unfoldSynsDeepM $ exprType e
-  t'' <- unfoldSynsDeepM t
+  t' <- expandAllSyns $ exprType e
+  t'' <- expandAllSyns t
   isSub <- isSubtype t' t''
   if | t'' == t' -> return e
      | isSub -> return (promote t e)
@@ -729,7 +729,7 @@ typecheck e t = do
 infer :: (Pretty a, Show a, Eq a) => UntypedExpr t v a a -> TC t v a (TypedExpr t v a a)
 infer (E (Op o es))
    = do es' <- mapM infer es
-        ts <- mapM (unfoldSynsShallowM . exprType) es'
+        ts <- mapM (expandTransSyns . exprType) es'
         let Just t = opType o ts
         return (TE t (Op o es'))
 infer (E (ILit i t)) = return (TE (TPrim t) (ILit i t))
@@ -738,7 +738,7 @@ infer (E (SLit s)) = return (TE TString (SLit s))
 infer (E (ALit [])) = __impossible "We don't allow 0-size array literals"
 infer (E (ALit es))
    = do es' <- mapM infer es
-        ts <- mapM (unfoldSynsDeepM . exprType) es'
+        ts <- mapM (expandAllSyns . exprType) es'
         let n = LILit (fromIntegral $ length es) (UInt 32)
         t <- lubAll ts
         isSub <- allM (`isSubtype` t) ts
@@ -751,17 +751,17 @@ infer (E (ALit es))
                            lubAll (t:ts)
 infer (E (ArrayIndex arr idx))
    = do arr'@(TE ta _) <- infer arr
-        TArray te l _ _ <- unfoldSynsShallowM ta
+        TArray te l _ _ <- expandTransSyns ta
         idx' <- infer idx
-        ta' <- unfoldSynsDeepM ta
+        ta' <- expandAllSyns ta
         -- guardShow ("arr-idx out of bound") $ idx >= 0 && idx < l  -- no way to check it. need ref types. / zilinc
         guardShow ("arr-idx on non-linear") . canShare =<< kindcheck ta'
         return (TE te (ArrayIndex arr' idx'))
 infer (E (ArrayMap2 (as,f) (e1,e2)))
    = do e1'@(TE t1 _) <- infer e1
         e2'@(TE t2 _) <- infer e2
-        TArray te1 l1 _ _ <- unfoldSynsShallowM t1
-        TArray te2 l2 _ _ <- unfoldSynsShallowM t2
+        TArray te1 l1 _ _ <- expandTransSyns t1
+        TArray te2 l2 _ _ <- expandTransSyns t2
         f' <- withBindings (Cons te2 (Cons te1 Nil)) $ infer f
         let t = case __cogent_ftuples_as_sugar of
                   False -> TProduct t1 t2
@@ -769,7 +769,7 @@ infer (E (ArrayMap2 (as,f) (e1,e2)))
         return $ TE t $ ArrayMap2 (as,f') (e1',e2')
 infer (E (Pop a e1 e2))
    = do e1'@(TE t1 _) <- infer e1
-        TArray te l s tkns <- unfoldSynsShallowM t1
+        TArray te l s tkns <- expandTransSyns t1
         let thd = te
             ttl = TArray te (LOp Minus [l, LILit 1 (UInt 32)]) s tkns
         -- guardShow "arr-pop on a singleton array" $ l > 1
@@ -777,13 +777,13 @@ infer (E (Pop a e1 e2))
         return (TE t2 (Pop a e1' e2'))
 infer (E (Singleton e))
    = do e'@(TE t _) <- infer e
-        TArray te l _ _ <- unfoldSynsShallowM t
+        TArray te l _ _ <- expandTransSyns t
         -- guardShow "singleton on a non-singleton array" $ l == 1
         return (TE te (Singleton e'))
 infer (E (ArrayTake as arr i e))
    = do arr'@(TE tarr _) <- infer arr
         i' <- infer i
-        TArray telt len s Nothing <- unfoldSynsShallowM tarr
+        TArray telt len s Nothing <- expandTransSyns tarr
         let tarr' = TArray telt len s (Just $ texprToLExpr id i')
         e'@(TE te _) <- withBindings (Cons telt (Cons tarr' Nil)) $ infer e
         return (TE te $ ArrayTake as arr' i' e')
@@ -795,7 +795,7 @@ infer (E (ArrayPut arr i e))
         -- refinement type system. Also, we cannot know the exact index that
         -- is being put, thus there's no way that we can infer the precise type
         -- for the new array (tarr').
-        TArray telm len s tkns <- unfoldSynsShallowM tarr
+        TArray telm len s tkns <- expandTransSyns tarr
         -- XXX | mi <- evalExpr i'
         -- XXX | guardShow "@put index not a integral constant" $ isJust mi
         -- XXX | let Just i'' = mi
@@ -824,12 +824,13 @@ infer (E (Fun f ts ls note))
                                                return $ TE (TFun ti' to') (Fun f ts ls note)
               _ -> __impossible "lengths don't match"
        _        -> error $ "Something went wrong in lookup of function type: '" ++ unCoreFunName f ++ "'"
+
 infer (E (App e1 e2))
    = do e1'@(TE tf _) <- infer e1
-        TFun ti to <- unfoldSynsShallowM tf
+        TFun ti to <- expandTransSyns tf
         e2'@(TE ti' _) <- infer e2
-        tie' <- unfoldSynsDeepM ti'
-        tie  <- unfoldSynsDeepM ti
+        tie' <- expandAllSyns ti'
+        tie  <- expandAllSyns ti
         isSub <- tie' `isSubtype` tie
         guardShow ("app (actual: " ++ show tie' ++ "; formal: " ++ show tie ++ ")") $ isSub
         if tie' /= tie then return $ TE to (App e1' (promote ti e2'))
@@ -840,7 +841,7 @@ infer (E (Let a e1 e2))
         return $ TE (exprType e2') (Let a e1' e2')
 infer (E (LetBang vs a e1 e2))
    = do e1' <- withBang (map fst vs) (infer e1)
-        t1 <- unfoldSynsDeepM $ exprType e1'
+        t1 <- expandAllSyns $ exprType e1'
         k <- kindcheck t1
         guardShow "let!" $ canEscape k
         e2' <- withBinding (exprType e1') (infer e2)
@@ -853,18 +854,18 @@ infer (E (Tuple e1 e2))
 infer (E (Con tag e tfull))
    = do e' <- infer e
         -- Find type of payload for given tag
-        TSum ts <- unfoldSynsShallowM tfull
+        TSum ts <- expandTransSyns tfull
         let Just (t, False) = lookup tag ts
         -- Make sure to promote the payload to type t if necessary
         e'' <- typecheck e' t
         return $ TE tfull (Con tag e'' tfull)
 infer (E (If ec et ee))
    = do ec' <- infer ec
-        tec <- unfoldSynsShallowM $ exprType ec'
+        tec <- expandTransSyns $ exprType ec'
         guardShow "if-1" $ tec == TPrim Boolean
         (et', ee') <- (,) <$> infer et <||> infer ee  -- have to use applicative functor, as they share the same initial env
-        tt <- unfoldSynsDeepM $ exprType et'
-        te <- unfoldSynsDeepM $ exprType ee'
+        tt <- expandAllSyns $ exprType et'
+        te <- expandAllSyns $ exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te
         isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
         guardShow' "if-2" ["Then type:", show (pretty tt) ++ ";", "else type:", show (pretty te)] isSub
@@ -874,7 +875,7 @@ infer (E (If ec et ee))
         return $ TE tl (If ec' et'' ee'')
 infer (E (Case e tag (lt,at,et) (le,ae,ee)))
    = do e' <- infer e
-        TSum ts <- unfoldSynsShallowM $ exprType e'
+        TSum ts <- expandTransSyns $ exprType e'
         let Just (t, taken) = lookup tag ts
             restt = TSum $ adjust tag (second $ const True) ts  -- set the tag to taken
         let e'' = case taken of
@@ -882,8 +883,8 @@ infer (E (Case e tag (lt,at,et) (le,ae,ee)))
                     False -> e'
         (et',ee') <- (,) <$>  withBinding t     (infer et)
                          <||> withBinding restt (infer ee)
-        tt <- unfoldSynsDeepM $ exprType et'
-        te <- unfoldSynsDeepM $ exprType ee'
+        tt <- expandAllSyns $ exprType et'
+        te <- expandAllSyns $ exprType ee'
         Just tlub <- runMaybeT $ tt `lub` te
         isSub <- (&&) <$> tt `isSubtype` tlub <*> te `isSubtype` tlub
         guardShow' "case" ["Match type:", show (pretty tt) ++ ";", "rest type:", show (pretty te)] isSub
@@ -893,20 +894,20 @@ infer (E (Case e tag (lt,at,et) (le,ae,ee)))
         return $ TE tl (Case e'' tag (lt,at,et'') (le,ae,ee''))
 infer (E (Esac e))
    = do e'@(TE te _) <- infer e
-        TSum ts <- unfoldSynsShallowM te
+        TSum ts <- expandTransSyns te
         let t1 = filter (not . snd . snd) ts
         case t1 of
           [(_, (t, False))] -> return $ TE t (Esac e')
           _ -> __impossible $ "infer: esac (t1 = " ++ show t1 ++ ", ts = " ++ show ts ++ ")"
 infer (E (Split a e1 e2))
    = do e1' <- infer e1
-        TProduct t1 t2 <- unfoldSynsShallowM $ exprType e1'
+        TProduct t1 t2 <- expandTransSyns $ exprType e1'
         e2' <- withBindings (Cons t1 (Cons t2 Nil)) (infer e2)
         return $ TE (exprType e2') (Split a e1' e2')
 infer (E (Member e f))
    = do e'@(TE t _) <- infer e  -- canShare
-        TRecord _ fs _ <- unfoldSynsShallowM t
-        t' <- unfoldSynsDeepM t
+        TRecord _ fs _ <- expandTransSyns t
+        t' <- expandAllSyns t
         guardShow "member-1" . canShare =<< kindcheck t'
         guardShow "member-2" $ f < length fs
         let (_,(tau,c)) = fs !! f
@@ -920,35 +921,35 @@ infer (E (Struct fs))
 infer (E (Take a e f e2))
    = do e'@(TE t _) <- infer e
         -- trace ("@@@@t is " ++ show t) $ return ()
-        TRecord rp ts s <- unfoldSynsShallowM t
+        TRecord rp ts s <- expandTransSyns t
         -- a common cause of this error is taking a field when you could have used member
         guardShow ("take: sigil cannot be readonly: " ++ show (pretty e)) $ not (readonly s)
         guardShow "take-1" $ f < length ts
         let (init, (fn,(tau,False)):rest) = splitAt f ts
-        tau' <- unfoldSynsDeepM tau
+        tau' <- expandAllSyns tau
         k <- kindcheck tau'
         e2' <- withBindings (Cons tau (Cons (TRecord rp (init ++ (fn,(tau,True)):rest) s) Nil)) (infer e2)  -- take that field regardless of its shareability
         return $ TE (exprType e2') (Take a e' f e2')
 infer (E (Put e1 f e2))
    = do e1'@(TE t1 _) <- infer e1
-        TRecord rp ts s <- unfoldSynsShallowM t1
+        TRecord rp ts s <- expandTransSyns t1
         guardShow "put: sigil not readonly" $ not (readonly s)
         guardShow "put-1" $ f < length ts
         let (init, (fn,(tau,taken)):rest) = splitAt f ts
-        tau' <- unfoldSynsDeepM tau
+        tau' <- expandAllSyns tau
         k <- kindcheck tau'
         unless taken $ guardShow "put-2" $ canDiscard k  -- if it's not taken, then it has to be discardable; if taken, then just put
         e2'@(TE t2 _) <- infer e2
-        t2' <- unfoldSynsDeepM t2
-        tau' <- unfoldSynsDeepM tau
+        t2' <- expandAllSyns t2
+        tau' <- expandAllSyns tau
         isSub <- t2' `isSubtype` tau'
         guardShow "put-3" isSub
         let e2'' = if t2' /= tau' then promote tau e2' else e2'
         return $ TE (TRecord rp (init ++ (fn,(tau,False)):rest) s) (Put e1' f e2'')  -- put it regardless
 infer (E (Cast ty e))
    = do (TE t e') <- infer e
-        t' <- unfoldSynsDeepM t
-        ty' <- unfoldSynsDeepM ty
+        t' <- expandAllSyns t
+        ty' <- expandAllSyns ty
         guardShow ("cast: " ++ show t' ++ " <<< " ++ show ty') =<< t' `isUpcastable` ty'
         return $ TE ty (Cast ty $ TE t e')
 infer (E (Truncate ty e))
@@ -959,8 +960,8 @@ infer (E (Truncate ty e))
         return $ TE ty (Truncate ty $ TE t e')
 infer (E (Promote ty e))
    = do (TE t e') <- infer e
-        t' <- unfoldSynsDeepM t
-        ty' <- unfoldSynsDeepM ty
+        t' <- expandAllSyns t
+        ty' <- expandAllSyns ty
         guardShow ("promote: " ++ show t' ++ " << " ++ show ty') =<< t' `isSubtype` ty'
         return $ if t' /= ty' then promote ty $ TE t e'
                               else TE t e'  -- see NOTE [How to handle type annotations?] in Desugar
