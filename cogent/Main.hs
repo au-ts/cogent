@@ -42,7 +42,7 @@ import           Cogent.Glue                      as GL (GlState, GlueMode (..),
 #ifdef WITH_HASKELL
 import           Cogent.Haskell.Shallow           as HS
 #endif
-import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_, tcExpand, tcConstExpand, filterTypeDefs)
+import           Cogent.Inference                 as IN (retype, tc, tcConsts, tc_)
 import           Cogent.Interpreter               as Repl (replWithState)
 import           Cogent.Isabelle                  as Isa
 #ifdef WITH_LLVM
@@ -256,11 +256,10 @@ parseArgs args = case getOpt' Permute options args of
     normal cmds desugared ctygen pragmas source tced tcst typedefs fts buildinfo log = do
       let stg = STGNormal
       putProgress "Normalising..."
-      let desugared' = IN.tcExpand desugared
       nfed' <- case __cogent_fnormalisation of
-        NoNF -> putProgressLn "Skipped." >> return desugared'
+        NoNF -> putProgressLn "Skipped." >> return desugared
         nf -> do putProgressLn (show nf)
-                 let nfed = NF.normal $ map untypeD desugared'
+                 let nfed = NF.normal $ map untypeD desugared
                  if not $ verifyNormal nfed
                    then hPutStrLn stderr "Normalisation failed!" >> exitFailure
                    else do when __cogent_ddump_pretty_normal_no_tc $ pretty stdout nfed
@@ -452,7 +451,7 @@ parseArgs args = case getOpt' Permute options args of
 
     glue cmds tced tcst typedefs fts insts genst buildinfo log = do
       putProgressLn "Generating glue code..."
-      let glreader = GL.mkGlState tced tcst typedefs fts [] insts genst
+      let glreader = GL.mkGlState tced tcst typedefs fts insts genst
       runExceptT (GL.glue glreader defaultTypnames GL.TypeMode __cogent_infer_c_type_files) >>= \case
         Left err -> hPutStrLn stderr ("Glue code (types) generation failed: \n" ++ err) >> exitFailure
         Right infed -> do forM_ infed $ \(filename, defs) -> do
@@ -524,7 +523,7 @@ parseArgs args = case getOpt' Permute options args of
           -- Run the generators
           (shal    ,shrd    ,scorr,shallowTypeNames) = Isa.shallow False thy stg        defns log
           (shal_tup,shrd_tup,_    ,_               ) = Isa.shallow True  thy STGDesugar defns log
-          constsTypeCheck = IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts $ filterTypeDefs defns
+          constsTypeCheck = IN.tcConsts ((\(a,b,c) -> c) $ fromJust $ getLast typedefs) fts
 #ifdef WITH_HASKELL
           -- Haskell shallow embedding
           hsShalName    = mkOutputName' toHsModName source (Just $ __cogent_suffix_of_shallow ++ __cogent_suffix_of_stage stg)

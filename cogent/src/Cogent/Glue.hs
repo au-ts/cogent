@@ -127,9 +127,7 @@ data DsState = DsState { _typedefs  :: DS.Typedefs
                        , _constdefs :: DS.Constants
                        }
 
-data CoreTcState = CoreTcState { _funtypes :: Map FunName (CC.FunctionType VarName)
-                               , _typesyns :: [CC.Definition CC.TypedExpr VarName VarName]
-                               }
+data CoreTcState = CoreTcState { _funtypes :: Map FunName (CC.FunctionType VarName) }
 
 data MnState = MnState { _funMono  :: MN.FunMono VarName
                        , _typeMono :: MN.InstMono VarName
@@ -499,7 +497,7 @@ desugarAnti m a = view kenv >>= \(fmap fst -> ts) -> lift . lift $
 
 coreTcAnti :: (a -> IN.TC t 'Zero VarName b) -> a -> GlDefn t b
 coreTcAnti m a = view kenv >>= \(fmap snd -> ts) -> lift . lift $
-  StateT $ \s -> let reader = (ts, view (coreTcState.funtypes) s, [])
+  StateT $ \s -> let reader = (ts, view (coreTcState.funtypes) s)
                   in case flip evalState Nil $ flip runReaderT reader $ runExceptT $ IN.unTC $ m a of
                        Left  e -> __impossible "coreTcAnti"
                        Right x -> return (x, s)
@@ -788,11 +786,10 @@ mkGlState :: [SF.TopLevel TC.DepType TC.TypedPatn TC.TypedExpr]
           -> TC.TcState
           -> Last (DS.Typedefs, DS.Constants, [CC.CoreConst CC.UntypedExpr])
           -> M.Map FunName (CC.FunctionType VarName)
-          -> [CC.Definition CC.TypedExpr VarName VarName]
           -> (MN.FunMono VarName, MN.InstMono VarName)
           -> CG.GenState
           -> GlState
-mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes typesyndefs (funMono, typeMono) genState =
+mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes (funMono, typeMono) genState =
   GlState { _tcDefs  = tced
           , _tcState = TcState { _tfuncs = view TC.knownFuns        tcState
                                , _ttypes = view TC.knownTypes       tcState
@@ -800,7 +797,7 @@ mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes typesyndefs
                                , _dldefs = view TC.knownDataLayouts tcState
                                }
           , _dsState = DsState typedefs constdefs
-          , _coreTcState = CoreTcState ftypes typesyndefs
+          , _coreTcState = CoreTcState ftypes
           , _mnState = MnState funMono typeMono
           , _cgState = CgState { _cTypeDefs    = view CG.cTypeDefs    genState
                                , _cTypeDefMap  = view CG.cTypeDefMap  genState
@@ -815,7 +812,7 @@ mkGlState tced tcState (Last (Just (typedefs, constdefs, _))) ftypes typesyndefs
                                }
           , _defns = M.empty
           }
-mkGlState _ _ _ _ _ _ _ = __impossible "mkGlState"
+mkGlState _ _ _ _ _ _ = __impossible "mkGlState"
 
 
 -- Misc.
@@ -854,7 +851,7 @@ readEntryFuncs tced tcState dsState ftypes lns
     -- Each string is a line in the @--entry-funcs@ file.
     readEntryFunc :: String -> IO (Maybe (FunName, MN.Instance VarName))
     readEntryFunc ln = do
-      er <- runExceptT $ flip evalStateT (mkGlState [] tcState dsState mempty [] (mempty, mempty) undefined) $
+      er <- runExceptT $ flip evalStateT (mkGlState [] tcState dsState mempty (mempty, mempty) undefined) $
               flip runReaderT (FileState "--entry-funcs file") $ do
                 (fnName, targs) <- genFuncId ln noLoc
                 let nargs = SF.numTypeVars $
