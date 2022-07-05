@@ -96,14 +96,14 @@ lemma sum_arr_scorres:
 *)
 
 section "The Shallow to C Correspondence With Assumptions"
-thm  Generated_cogent_shallow.corres_shallow_C_sum_arr[folded \<Xi>_def, no_vars]
+
 text 
   "There are a few assumptions about the locales, we simplify the all refine theorem."
 lemmas sum_arr_corres_shallow_C = 
   Generated_cogent_shallow.corres_shallow_C_sum_arr[
     of wa_abs_repr wa_abs_typing_v wa_abs_typing_u wa_abs_upd_val,
-    simplified \<Xi>_def[symmetric] user_\<xi>_1', 
-    OF local.Generated_cogent_shallow_axioms _ _ _ local.correspondence_init_axioms, simplified]
+    simplified \<Xi>_def[symmetric], 
+    OF local.Generated_cogent_shallow_axioms _ _ local.correspondence_init_axioms, simplified]
 
 section "Getting Our Theorems to Line Up"
 
@@ -225,9 +225,9 @@ text
 
 declare \<xi>0.simps[simp del]
 declare \<xi>1.simps[simp del]
-
+thm sum_arr_corres_shallow_C[simplified ]  user_\<xi>_1'[symmetric]
 lemmas sum_arr_corres_shallow_C_concrete =  sum_arr_corres_shallow_C[
-  of \<xi>m1 \<xi>p1, simplified, 
+  of \<xi>m1 \<xi>p1, simplified user_\<xi>_1',
   OF wordarray_length_u32_corres, simplified,
   OF wordarray_fold_no_break_u32_corres[simplified], simplified TrueI, simplified]
 section "Further Improvements"
@@ -281,7 +281,7 @@ text
    @{term \<xi>m} and @{term \<xi>m1}."
 
 lemmas sum_arr_corres_shallow_C_concrete_strong = 
-  sum_arr_corres_shallow_C_concrete[OF _ value_sem_rename_mono_prog_rename_\<Xi>_\<xi>m1_\<xi>p1 _ _ 
+  sum_arr_corres_shallow_C_concrete[OF value_sem_rename_mono_prog_rename_\<Xi>_\<xi>m1_\<xi>p1 _ _ 
                                        proc_ctx_wellformed_\<Xi> val_proc_env_matches_\<xi>m1_\<Xi>]
 
 section "Even More Improvement"
@@ -331,10 +331,8 @@ lemma sum_arr_corres_shallow_C_concrete_stronger:
             \<xi>m1 , [rename_val rename
                     (monoval vv\<^sub>p)] \<turnstile> Generated_TypeProof.sum_arr \<Down> rename_val rename (monoval v\<^sub>p) \<and>
             (\<sigma>', s') \<in> state_rel \<and> val_rel_shallow_C rename (Generated_Shallow_Desugar.sum_arr vv\<^sub>s) r' v\<^sub>p v\<^sub>u\<^sub>m \<xi>p1 \<sigma>' \<Xi>))"
-  apply (frule sum_arr_corres_shallow_C_concrete_strong[rotated, simplified corres_shallow_C_def
+  apply (frule sum_arr_corres_shallow_C_concrete_strong[simplified corres_shallow_C_def
         proc_ctx_wellformed_\<Xi> upd_proc_env_matches_ptrs_\<xi>1_\<Xi> proc_env_u_v_matches_\<xi>1_\<xi>m1_\<Xi>]; simp?)
-  apply (clarsimp simp: \<Xi>_def  Generated_TypeProof.sum_arr_type_def wordarray_fold_no_break_0_type_def
-                        Generated_TypeProof.abbreviated_type_defs FUN_ENUM_add_def t5_C.f_C_def val_rel_shallow_C_def )
   done
 
 section "Proving Functional Correctness"
@@ -442,7 +440,7 @@ lemma inputs_uv_matches:
   "\<lbrakk>valid_array s p; \<sigma> (ptr_val p) = option.Some (UAbstract (arr\<^sub>u (s, p)));
     \<forall>p \<in> set (arrptrs s p). \<sigma> p = option.Some (UPrim (LU32 (heap_w32 s (PTR(32 word)p))))\<rbrakk> \<Longrightarrow>
    u_v_matches \<Xi> \<sigma> [arrptr p] [arr\<^sub>m (s, p)]
-      [Some (fst (snd Generated_TypeProof.sum_arr_type))]
+      [Some (fst (snd (snd (snd Generated_TypeProof.sum_arr_type))))]
       (insert (ptr_val p) (set (arrptrs s p))) {}"
   apply (clarsimp simp: array_def
                         Let_def
@@ -454,7 +452,7 @@ lemma inputs_uv_matches:
                u_v_r_cons1[where r' = "{}" and w' = "{}", simplified]
                u_v_p_abs_ro[where a = "arr\<^sub>u (s, p)" and ts = "[TPrim (Num U32)]", simplified]
                u_v_prim'
-               u_v_r_empty; (simp add: array_def Let_def)?)
+               u_v_r_empty; (simp add: array_def Let_def u_v_matches.intros(1))?)
   apply (clarsimp simp: wa_abs_upd_val_def)
   apply (rule conjI)
    apply (clarsimp simp: wa_abs_typing_u_def valid_array_def Let_def)
@@ -479,7 +477,7 @@ lemma inputs_uv_matches:
     apply simp
    apply (subst ptr_val_inj[symmetric])
    apply simp
-  apply (simp add: word_less_nat_alt)
+  apply (simp add: word_less_nat_alt) 
   done
 
 lemma inputs_staterel_valrel:
@@ -537,7 +535,7 @@ lemma inputs_staterel_valrel:
    apply (clarsimp simp: word_less_nat_alt)
    apply (cut_tac y = j and z = "(SCAST(32 signed \<rightarrow> 32) (len_C (heap s p)))" in le_unat_uoi; simp?)
     apply (clarsimp simp: array_def Let_def)+
-  apply (rule_tac x = "fst (snd Generated_TypeProof.sum_arr_type)" in exI)
+  apply (rule_tac x = "fst (snd (snd (snd Generated_TypeProof.sum_arr_type)))" in exI)
   apply (drule_tac i = 0 in  u_v_matches_proj_single'; simp?)
   apply clarsimp
   apply (intro exI conjI; assumption)
@@ -549,7 +547,7 @@ lemma inputs_rename_monoval:
   done
 
 lemma inputs_val_matches:
-  "matches \<Xi> [arr\<^sub>m (s, p)] [Some (fst (snd Generated_TypeProof.sum_arr_type))]"
+  "matches \<Xi> [arr\<^sub>m (s, p)] [Some (fst (snd (snd (snd Generated_TypeProof.sum_arr_type))))]"
   apply (clarsimp simp: matches_def
                         Let_def
                         array_def
@@ -594,11 +592,13 @@ corollary sum_arr_C_correct:
    apply (thin_tac "_ \<in> state_rel")
    apply (frule_tac inputs_uv_matches; simp?)
    apply (drule u_v_matches_to_matches_ptrs)
-   apply (drule (1)  update_sem.preservation(1)[OF update_sem_axioms, where \<tau>s = "[]" and K = "[]", simplified, 
-                                        OF proc_ctx_wellformed_\<Xi> _ 
-                                        upd_proc_env_matches_ptrs_\<xi>1_\<Xi>  _ 
-                                        sum_arr_typecorrect',
-                                        rotated 1])
+   apply (drule (1)  update_sem.preservation(1)[OF update_sem_axioms, 
+                            where \<tau>s = "[]" and K = "[]" and 
+                                  L = 0 and C = "{}", 
+                             OF subst_wellformed_nothing, simplified, 
+                               OF proc_ctx_wellformed_\<Xi> _ 
+                                upd_proc_env_matches_ptrs_\<xi>1_\<Xi>  _ 
+                                sum_arr_typecorrect'])
    apply (clarsimp simp: Generated_TypeProof.sum_arr_type_def)
    apply (frule tprim_no_pointers(1))
    apply (drule tprim_no_pointers(2))
