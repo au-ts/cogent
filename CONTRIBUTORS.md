@@ -9,14 +9,14 @@ repository (in alphabetical order).
 * Joel Beeren, Data61 (was at NICTA)
 * Nelson Chen, UNSW
 * Zilin Chen, Data61 (was at NICTA) & UNSW
-* Louis Cheung, UNSW
+* Louis Cheung, University of Melbourne
 * Peter Chubb, Data61 & UNSW
 * Vivian Dang, UNSW
 * Matthew Di Meglio, UNSW
 * Sahan Fernando, UNSW
 * Gernot Heiser, Data61 & UNSW
 * Alex Hixon, NICTA (was at NICTA) & UNSW
-* Vincent Jackson, UNSW
+* Vincent Jackson, University of Melbourne
 * Jashank Jeremy, UNSW
 * Gabriele Keller, Universiteit Utrecht (was at Data61 & UNSW)
 * Luka Kerr, UNSW
@@ -31,7 +31,7 @@ repository (in alphabetical order).
 * Toby Murray, University of Melbourne (was at UNSW) & Data61 (was at NICTA)
 * Yutaka Nagashima, Data61 (was at NICTA)
 * Liam O'Connor, UNSW & Data61 (was at NICTA)
-* Christine Rizkallah, UNSW & Data61 (was at NICTA)
+* Christine Rizkallah, University of Melbourne
 * Amos Robinson, UNSW
 * Nick Robson, UNSW
 * Leonid Ryzhyk, NICTA & UNSW
