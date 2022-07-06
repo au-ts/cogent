@@ -39,7 +39,8 @@ all:
 	cogent -A -g -Od -ogenerated \
 		--infer-c-types="$(AHFILES)" \
 		--Wno-warn --infer-c-funcs="$(ACFILES)" \
-		--cpp-args="\$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
+		--cpp="$(CPP)" \
+		--cpp-args="-x c \$$CPPIN -o \$$CPPOUT -E -P $(CFLAGS)" \
 		--proof-input-c=$(PPINFER) \
 		--entry-funcs=entrypoints.cfg $(SRC)
 	cp generated.table main_pp_inferred.table

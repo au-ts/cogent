@@ -48,7 +48,7 @@ lemmas abbreviated_type_defs =
 definition
   wordarray_get_type :: " poly_type"
 where
-  "wordarray_get_type \<equiv> (0, [{E, S, D}], {}, TRecord [(''p1'', (TCon ''WordArray'' [TVarBang 0] (Boxed ReadOnly None), Present)), (''p2'', (WordArrayIndex, Present))] Unboxed, TVar 0)"
+  "wordarray_get_type \<equiv> (0, [{E, S, D}], {}, TRecord [(''p1'', (TCon ''WordArray'' [TVarBang 0] (Boxed ReadOnly None), Present)), (''p2'', (TPrim (Num U32), Present))] Unboxed, TVar 0)"
 
 definition
   wordarray_length_type :: " poly_type"
@@ -58,17 +58,17 @@ where
 definition
   wordarray_put2_type :: " poly_type"
 where
-  "wordarray_put2_type \<equiv> (0, [{E, S, D}], {}, WordArrayPutP, TCon ''WordArray'' [TVar 0] (Boxed Writable None))"
+  "wordarray_put2_type \<equiv> (0, [{E, S, D}], {}, TRecord [(''arr'', (TCon ''WordArray'' [TVar 0] (Boxed Writable None), Present)), (''idx'', (TPrim (Num U32), Present)), (''val'', (TVar 0, Present))] Unboxed, TCon ''WordArray'' [TVar 0] (Boxed Writable None))"
 
 definition
   wordarray_fold_no_break_type :: " poly_type"
 where
-  "wordarray_fold_no_break_type \<equiv> (0, [{E, S, D}, {}, {}], {}, WordArrayFoldNoBreakP, TVar 1)"
+  "wordarray_fold_no_break_type \<equiv> (0, [{E, S, D}, {}, {}], {}, TRecord [(''arr'', (TCon ''WordArray'' [TVarBang 0] (Boxed ReadOnly None), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun (TRecord [(''elem'', (TVar 0, Present)), (''acc'', (TVar 1, Present)), (''obsv'', (TVarBang 2, Present))] Unboxed) (TVar 1), Present)), (''acc'', (TVar 1, Present)), (''obsv'', (TVarBang 2, Present))] Unboxed, TVar 1)"
 
 definition
   wordarray_map_no_break_type :: " poly_type"
 where
-  "wordarray_map_no_break_type \<equiv> (0, [{E, S, D}, {}, {}], {}, WordArrayMapNoBreakP, TRecord [(''p1'', (TCon ''WordArray'' [TVar 0] (Boxed Writable None), Present)), (''p2'', (TVar 1, Present))] Unboxed)"
+  "wordarray_map_no_break_type \<equiv> (0, [{E, S, D}, {}, {}], {}, TRecord [(''arr'', (TCon ''WordArray'' [TVar 0] (Boxed Writable None), Present)), (''frm'', (TPrim (Num U32), Present)), (''to'', (TPrim (Num U32), Present)), (''f'', (TFun (TRecord [(''elem'', (TVar 0, Present)), (''acc'', (TVar 1, Present)), (''obsv'', (TVarBang 2, Present))] Unboxed) (TRecord [(''p1'', (TVar 0, Present)), (''p2'', (TVar 1, Present))] Unboxed), Present)), (''acc'', (TVar 1, Present)), (''obsv'', (TVar 2, Present))] Unboxed, TRecord [(''p1'', (TCon ''WordArray'' [TVar 0] (Boxed Writable None), Present)), (''p2'', (TVar 1, Present))] Unboxed)"
 
 definition
   wordarray_get_u32_type :: " poly_type"

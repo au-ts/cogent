@@ -8,10 +8,10 @@ imports "Generated_ShallowShared_Tuples"
 begin
 
 definition
-  wordarray_get_u32 :: "32 word WordArray \<times>  WordArrayIndex \<Rightarrow> 32 word"
+  wordarray_get_u32 :: "32 word WordArray \<times> 32 word \<Rightarrow> 32 word"
 where
   "wordarray_get_u32 ds\<^sub>0 \<equiv>
-    (wordarray_get :: 32 word WordArray \<times>  WordArrayIndex \<Rightarrow> 32 word) ds\<^sub>0"
+    (wordarray_get :: 32 word WordArray \<times> 32 word \<Rightarrow> 32 word) ds\<^sub>0"
 
 definition
   wordarray_length_u32 :: "32 word WordArray \<Rightarrow> 32 word"
@@ -20,13 +20,13 @@ where
     (wordarray_length :: 32 word WordArray \<Rightarrow> 32 word) ds\<^sub>0"
 
 definition
-  wordarray_put2_u32 :: "32 word WordArrayPutP\<^sub>T \<Rightarrow> 32 word WordArray"
+  wordarray_put2_u32 :: "(32 word WordArray, 32 word, 32 word) WordArrayPutP \<Rightarrow> 32 word WordArray"
 where
   "wordarray_put2_u32 ds\<^sub>0 \<equiv>
-    (wordarray_put2 :: 32 word WordArrayPutP\<^sub>T \<Rightarrow> 32 word WordArray) ds\<^sub>0"
+    (wordarray_put2 :: (32 word WordArray, 32 word, 32 word) WordArrayPutP \<Rightarrow> 32 word WordArray) ds\<^sub>0"
 
 definition
-  add :: "(32 word, 32 word, unit) ElemAO\<^sub>T \<Rightarrow> 32 word"
+  add :: "(32 word, 32 word, unit) ElemAO \<Rightarrow> 32 word"
 where
   "add ds\<^sub>0 \<equiv>
     let elem = ElemAO.elem\<^sub>f ds\<^sub>0;
@@ -44,10 +44,10 @@ where
           to\<^sub>f = e, f\<^sub>f = add,
           acc\<^sub>f = (0 :: 32 word),
           obsv\<^sub>f = () \<rparr>
-    in (wordarray_fold_no_break :: (32 word, 32 word, unit) WordArrayFoldNoBreakP\<^sub>T \<Rightarrow> 32 word) arg"
+    in (wordarray_fold_no_break :: (32 word WordArray, 32 word, 32 word, (32 word, 32 word, unit) ElemAO \<Rightarrow> 32 word, 32 word, unit) WordArrayMapNoBreakP \<Rightarrow> 32 word) arg"
 
 definition
-  dec :: "(32 word, unit, unit) ElemAO\<^sub>T \<Rightarrow> 32 word \<times> unit"
+  dec :: "(32 word, unit, unit) ElemAO \<Rightarrow> 32 word \<times> unit"
 where
   "dec ds\<^sub>0 \<equiv>
     let elem = ElemAO.elem\<^sub>f ds\<^sub>0;
@@ -67,10 +67,10 @@ where
           f\<^sub>f = dec,
           acc\<^sub>f = (),
           obsv\<^sub>f = () \<rparr>
-    in (wordarray_map_no_break :: (32 word, unit, unit) WordArrayMapNoBreakP\<^sub>T \<Rightarrow> 32 word WordArray \<times> unit) arg"
+    in (wordarray_map_no_break :: (32 word WordArray, 32 word, 32 word, (32 word, unit, unit) ElemAO \<Rightarrow> 32 word \<times> unit, unit, unit) WordArrayMapNoBreakP \<Rightarrow> 32 word WordArray \<times> unit) arg"
 
 definition
-  inc :: "(32 word, unit, unit) ElemAO\<^sub>T \<Rightarrow> 32 word \<times> unit"
+  inc :: "(32 word, unit, unit) ElemAO \<Rightarrow> 32 word \<times> unit"
 where
   "inc ds\<^sub>0 \<equiv>
     let elem = ElemAO.elem\<^sub>f ds\<^sub>0;
@@ -90,10 +90,10 @@ where
           f\<^sub>f = inc,
           acc\<^sub>f = (),
           obsv\<^sub>f = () \<rparr>
-    in (wordarray_map_no_break :: (32 word, unit, unit) WordArrayMapNoBreakP\<^sub>T \<Rightarrow> 32 word WordArray \<times> unit) arg"
+    in (wordarray_map_no_break :: (32 word WordArray, 32 word, 32 word, (32 word, unit, unit) ElemAO \<Rightarrow> 32 word \<times> unit, unit, unit) WordArrayMapNoBreakP \<Rightarrow> 32 word WordArray \<times> unit) arg"
 
 definition
-  mul :: "(32 word, 32 word, unit) ElemAO\<^sub>T \<Rightarrow> 32 word"
+  mul :: "(32 word, 32 word, unit) ElemAO \<Rightarrow> 32 word"
 where
   "mul ds\<^sub>0 \<equiv>
     let elem = ElemAO.elem\<^sub>f ds\<^sub>0;
@@ -111,6 +111,6 @@ where
           to\<^sub>f = e, f\<^sub>f = mul,
           acc\<^sub>f = (0 :: 32 word),
           obsv\<^sub>f = () \<rparr>
-    in (wordarray_fold_no_break :: (32 word, 32 word, unit) WordArrayFoldNoBreakP\<^sub>T \<Rightarrow> 32 word) arg"
+    in (wordarray_fold_no_break :: (32 word WordArray, 32 word, 32 word, (32 word, 32 word, unit) ElemAO \<Rightarrow> 32 word, 32 word, unit) WordArrayMapNoBreakP \<Rightarrow> 32 word) arg"
 
 end
