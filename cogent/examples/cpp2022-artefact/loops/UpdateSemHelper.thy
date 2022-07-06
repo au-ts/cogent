@@ -10,6 +10,7 @@ section "Value typing elimination rules"
 
 inductive_cases (in update_sem) u_t_tfunE: "\<Xi>, \<sigma> \<turnstile> u :u TFun a b \<langle>r, w\<rangle>"
 inductive_cases (in update_sem) u_t_tprimE: "\<Xi>, \<sigma> \<turnstile> u :u TPrim t \<langle>r, w\<rangle>"
+inductive_cases (in update_sem) u_t_tcustomE: "\<Xi>, \<sigma> \<turnstile> u :u TCustomNum n \<langle>r, w\<rangle>"
 inductive_cases (in update_sem) u_t_tconE: "\<Xi>, \<sigma> \<turnstile> u :u TCon n ts s \<langle>r, w\<rangle>"
 inductive_cases (in update_sem) u_t_tunitE: "\<Xi>, \<sigma> \<turnstile> u :u TUnit \<langle>r, w\<rangle>"
 inductive_cases (in update_sem) u_t_tsumE: "\<Xi>, \<sigma> \<turnstile> u :u TSum a \<langle>r, w\<rangle>"
@@ -28,11 +29,12 @@ qed (auto)
 lemma (in update_sem) uval_typing_record_alt1:
   "\<Xi>', \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle> \<Longrightarrow> 
       r \<inter> w = {} \<and> length fs = length ts \<and>
-      (\<exists>rs ws. r = \<Union>(set rs) \<and> w = \<Union>(set ws) \<and> length rs = length fs \<and> length ws = length fs \<and>
+      (\<exists>rs ws. r = \<Union>(set rs) \<and> w = \<Union>(set ws) \<and> 
+        length rs = length fs \<and> length ws = length fs \<and>
         distinct_sets ws \<and>
         (\<forall>i<length fs. 
           \<exists>x rp n t s. fs ! i = (x, rp) \<and> ts ! i = (n, t, s) \<and> type_repr t = rp \<and>
-            (s = Taken \<longrightarrow> [] \<turnstile> t wellformed \<and> uval_repr x = rp \<and> uval_repr_deep x = rp \<and> rs ! i = {} \<and> ws ! i = {}) \<and>
+            (s = Taken \<longrightarrow> 0, [], {} \<turnstile> t wellformed \<and> uval_repr x = rp \<and> uval_repr_deep x = rp \<and> rs ! i = {} \<and> ws ! i = {}) \<and>
             (s = Present \<longrightarrow> \<Xi>', \<sigma> \<turnstile> x :u t \<langle>rs ! i, ws ! i\<rangle>)))"
   apply (induct fs arbitrary: ts r w)
    apply clarsimp
@@ -69,7 +71,7 @@ lemma (in update_sem) uval_typing_record_alt2:
    distinct_sets ws \<and>
    (\<forall>i<length fs. 
       \<exists>x rp n t s. fs ! i = (x, rp) \<and> ts ! i = (n, t, s) \<and> type_repr t = rp \<and>
-          (s = Taken \<longrightarrow> [] \<turnstile> t wellformed \<and> uval_repr x = rp \<and> uval_repr_deep x = rp \<and> rs ! i = {} \<and> ws ! i = {}) \<and>
+          (s = Taken \<longrightarrow> 0, [], {} \<turnstile> t wellformed \<and> uval_repr x = rp \<and> uval_repr_deep x = rp \<and> rs ! i = {} \<and> ws ! i = {}) \<and>
           (s = Present \<longrightarrow> \<Xi>', \<sigma> \<turnstile> x :u t \<langle>rs ! i, ws ! i\<rangle>)))
     \<Longrightarrow> \<Xi>', \<sigma> \<turnstile>* fs :ur ts \<langle>r, w\<rangle>"
   apply (induct fs arbitrary: ts r w; clarsimp)
@@ -108,14 +110,14 @@ section "Function checking and extraction"
 
 fun is_uvalfun
   where
-"is_uvalfun (UFunction _ _) = True" |
-"is_uvalfun (UAFunction _ _) = True" |
+"is_uvalfun (UFunction _ _ _) = True" |
+"is_uvalfun (UAFunction _ _ _) = True" |
 "is_uvalfun _ = False"
 
 fun uvalfun_to_expr
   where
-"uvalfun_to_expr (UFunction f ts) = Fun f ts" |
-"uvalfun_to_expr (UAFunction f ts) = AFun f ts" |
+"uvalfun_to_expr (UFunction f ts ls) = Fun f ts ls" |
+"uvalfun_to_expr (UAFunction f ts ls) = AFun f ts ls" |
 "uvalfun_to_expr _ = undefined"
 
 lemma (in update_sem) uval_typing_uvalfun:
@@ -128,16 +130,18 @@ fun no_rfun
 "no_rfun (RPrim _) = True" |
 "no_rfun RUnit = True" |
 "no_rfun RFun = False" |
+"no_rfun (RCustomNum n) = True" |
 "no_rfun (RCon n rs) = (find (\<lambda>x. \<not>x) (map no_rfun rs) = option.None)" |
 "no_rfun (RProduct a b) = (if no_rfun a then no_rfun b else False)" |
 "no_rfun (RSum a) = (find (\<lambda>x. \<not>x) (map (no_rfun \<circ> prod.snd) a) = option.None)" |
-"no_rfun (RRecord a) = (find (\<lambda>x. \<not>x) (map no_rfun a) = option.None)" |
-"no_rfun (RPtr a) = no_rfun a"
+"no_rfun (RRecord a _) = (find (\<lambda>x. \<not>x) (map no_rfun a) = option.None)" |
+"no_rfun (RPtr a) = no_rfun a" 
+
 
 
 lemma no_tfun_no_rfun:
   "no_tvars t \<Longrightarrow> no_tfun t \<longleftrightarrow> no_rfun (type_repr t)"
-  apply (induct t; clarsimp simp: find_None_iff_nth list_eq_iff_nth_eq split: if_splits)
+  apply (induct t; clarsimp simp: find_None_iff_nth list_eq_iff_nth_eq split: if_splits; simp?)
     apply (rename_tac n ts s)
     apply (case_tac s; clarsimp simp: find_None_iff_nth)
    apply (rule iffI; clarsimp)
@@ -189,10 +193,11 @@ fun no_ufun
 "no_ufun UUnit  = True" |
 "no_ufun (USum a b r) = no_ufun b" |
 "no_ufun (UAbstract _) = True" |
-"no_ufun (UFunction _ _) = False" |
-"no_ufun (UAFunction _ _) = False" |
+"no_ufun (UCustomInt v va) = True" |
+"no_ufun (UFunction _ _ _) = False" |
+"no_ufun (UAFunction _ _ _) = False" |
 "no_ufun (UProduct a b) = (if no_ufun a then no_ufun b else False)" |
-"no_ufun (URecord xs) = (find (\<lambda>x. \<not>x) (map (no_ufun \<circ> prod.fst) xs) = option.None)" |
+"no_ufun (URecord xs _) = (find (\<lambda>x. \<not>x) (map (no_ufun \<circ> prod.fst) xs) = option.None)" |
 "no_ufun (UPtr _ r) = no_rfun r"
 
 
@@ -219,13 +224,14 @@ proof (induct t arbitrary: \<sigma> v r w)
     apply (erule_tac x = i in allE; clarsimp)+
     apply (clarsimp simp: no_tfun_no_rfun)
     done
-qed (fastforce simp: find_None_iff elim: u_t_tunitE u_t_tprimE u_t_tconE u_t_sumE u_t_tproductE)+
+qed (fastforce simp: find_None_iff 
+               elim: u_t_tunitE u_t_tprimE u_t_tcustomE u_t_tconE u_t_sumE u_t_tproductE)+
 
 section "Evaluation elimination rules"
 
 inductive_cases u_sem_appE: "\<xi>',\<gamma> \<turnstile> (\<sigma>,App x y)\<Down>! (\<sigma>',v)"
-inductive_cases u_sem_funE: "\<xi>',\<gamma> \<turnstile> (\<sigma>,Fun x y)\<Down>! (\<sigma>',v)"
-inductive_cases u_sem_afunE: "\<xi>',\<gamma> \<turnstile> (\<sigma>,AFun x y)\<Down>! (\<sigma>',v)"
+inductive_cases u_sem_funE: "\<xi>',\<gamma> \<turnstile> (\<sigma>,Fun x y ls)\<Down>! (\<sigma>',v)"
+inductive_cases u_sem_afunE: "\<xi>',\<gamma> \<turnstile> (\<sigma>,AFun x y ls)\<Down>! (\<sigma>',v)"
 inductive_cases u_sem_primE: "\<xi>',\<gamma> \<turnstile> (\<sigma>,Prim x y)\<Down>! (\<sigma>',v)"
 inductive_cases u_sem_consE: "\<xi>',\<gamma> \<turnstile>* (\<sigma>,xs)\<Down>! (\<sigma>',v)"
 inductive_cases u_sem_varE: "\<xi>', \<gamma> \<turnstile> (\<sigma>, Var x) \<Down>! (\<sigma>', r)"
@@ -234,8 +240,8 @@ inductive_cases u_sem_varE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Var i) \<
 inductive_cases u_sem_litE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Lit l) \<Down>! v'"
 inductive_cases u_sem_primE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Prim p as) \<Down>! v'"
 inductive_cases u_sem_castE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Cast \<tau> e) \<Down>! v'"
-inductive_cases u_sem_funE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Fun f ts) \<Down>! v'"
-inductive_cases u_sem_afunE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, AFun f ts) \<Down>! v'"
+inductive_cases u_sem_funE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Fun f ts ls) \<Down>! v'"
+inductive_cases u_sem_afunE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, AFun f ts ls) \<Down>! v'"
 inductive_cases u_sem_appE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, App x y) \<Down>! v'"
 inductive_cases u_sem_conE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Con ts t x) \<Down>! v'"
 inductive_cases u_sem_memberE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Member e f) \<Down>! v'"
@@ -278,16 +284,21 @@ next
     apply -
     apply (drule_tac x = \<xi>b in meta_spec; simp?)+
     by (rule u_sem_u_sem_all.u_sem_app; simp?)
+next
+  case (u_sem_custom_ucast \<xi> \<gamma> \<sigma> e \<sigma>' n v l')
+  then show ?case
+    by (fastforce intro!: u_sem_u_sem_all.intros)
 qed (auto intro: u_sem_u_sem_all.intros)
 
 lemma (in update_sem) rel_leq_matchesuD:
   "\<lbrakk>rel_leq \<xi>a \<xi>b; \<xi>b matches-u \<Xi>'\<rbrakk> \<Longrightarrow> \<xi>a matches-u \<Xi>'"
   unfolding proc_env_matches_ptrs_def
   apply clarsimp
-  apply (rename_tac f K a b \<sigma> \<sigma>' \<tau>s v v' r w)
+  apply (rename_tac f L K C a b \<sigma> \<sigma>' ls \<tau>s v v' r w)
   apply (erule_tac x = f in allE; clarsimp)
   apply (erule_tac x = \<sigma> in allE)
   apply (erule_tac x = \<sigma>' in allE)
+  apply (erule_tac x = ls in allE)
   apply (erule_tac x = \<tau>s in allE; clarsimp)
   apply (erule_tac x = v in allE)
   apply (erule_tac x = v' in allE)
@@ -308,15 +319,15 @@ proof (induct arbitrary: v' and vs' rule: u_sem_u_sem_all.inducts)
   then show ?case
     apply -
     apply (erule u_sem_appE')
-     apply (rename_tac s f' ts' s' a' s'' r')
-     apply (drule_tac x = "(s, UAFunction f' ts')" in meta_spec)
+     apply (rename_tac s f' ts' ls' s' a' s'' r')
+     apply (drule_tac x = "(s, UAFunction f' ts' ls')" in meta_spec)
      apply (elim meta_impE; assumption?)
      apply (subst (asm) prod.inject)
      apply (drule_tac x = "(s', a')" in meta_spec)
      apply clarsimp
     apply (drule (2) determD[rotated 1]; simp)
-    apply (rename_tac s f' ts' s' a')
-    apply (drule_tac x = "(s, UFunction f' ts')" in meta_spec)
+    apply (rename_tac s f' ts' ls' s' a')
+    apply (drule_tac x = "(s, UFunction f' ts' ls')" in meta_spec)
     apply (elim meta_impE; assumption?)
     apply (subst (asm) prod.inject; simp)
     done
@@ -325,12 +336,12 @@ next
   then show ?case
     apply -
     apply (erule u_sem_appE')
-     apply (rename_tac s f' ts' s' a' s'' r')
-     apply (drule_tac x = "(s, UAFunction f' ts')" in meta_spec)
+     apply (rename_tac s f' ts' ls' s' a' s'' r')
+     apply (drule_tac x = "(s, UAFunction f' ts' ls')" in meta_spec)
      apply (elim meta_impE; assumption?)
      apply (rule FalseE; clarsimp)
-    apply (rename_tac s f' ts' s' a')
-    apply (drule_tac x = "(s, UFunction f' ts')" in meta_spec)
+    apply (rename_tac s f' ts' ls' s' a')
+    apply (drule_tac x = "(s, UFunction f' ts' ls')" in meta_spec)
     apply (drule_tac x = "(s', a')" in meta_spec)
     apply clarsimp
     done
@@ -383,24 +394,24 @@ next
   then show ?case
     apply -
     apply (erule u_sem_takeE')
-     apply (rename_tac \<sigma>''' pa ra fsa)
+     apply (rename_tac \<sigma>''' pa ra fsa ptrl)
      apply (drule_tac x = "(\<sigma>''', UPtr pa ra)" in meta_spec)
      apply (drule_tac x = v' in meta_spec)
      apply (elim meta_impE; clarsimp)
     apply (rule FalseE)
     apply (rename_tac \<sigma>''' fsa)
-    apply (drule_tac x = "(\<sigma>''', URecord fsa)" in meta_spec)
+    apply (drule_tac x = "(\<sigma>''', URecord fsa None)" in meta_spec)
     by clarsimp
 next
   case (u_sem_take_ub \<xi> \<gamma> \<sigma> x \<sigma>' fs f e st)
   then show ?case
     apply -
     apply (erule u_sem_takeE')
-     apply (rename_tac \<sigma>''' p r fsa)
+     apply (rename_tac \<sigma>''' p r fsa ptrl)
      apply (rule FalseE)
      apply (drule_tac x = "(\<sigma>''', UPtr p r)" in meta_spec; clarsimp)
     apply (rename_tac \<sigma>''' fsa)
-    apply (drule_tac x = "(\<sigma>''', URecord fsa)" in meta_spec)
+    apply (drule_tac x = "(\<sigma>''', URecord fsa None)" in meta_spec)
     apply (drule_tac x = v' in meta_spec)
     by clarsimp
 next
@@ -408,12 +419,12 @@ next
   then show ?case
     apply -
     apply (erule u_sem_putE')
-     apply (rename_tac s pa ra fsa s' e'a)
+     apply (rename_tac s pa ra fsa ptrl s' e'a)
      apply (drule_tac x = "(s, UPtr pa ra)" in meta_spec)
      apply (drule_tac x = "(s', e'a)" in meta_spec)
      apply clarsimp
-    apply (rename_tac s fsa s' e'a)
-    by (drule_tac x = "(s, URecord fsa)" in meta_spec; clarsimp)
+    apply (rename_tac s fsa ptrl s' e'a)
+    apply (drule_tac x = "(s, URecord fsa None)" in meta_spec; clarsimp)
 next
   case (u_sem_put_ub \<xi> \<gamma> \<sigma> x \<sigma>' fs e \<sigma>'' e' f)
   then show ?case

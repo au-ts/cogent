@@ -72,7 +72,7 @@ lemmas abbreviated_type_defs =
 definition
   wordarray_get_type :: " poly_type"
 where
-  "wordarray_get_type \<equiv> (0, [{E, S, D}], {}, WordArrayGetP, TVar 0)"
+  "wordarray_get_type \<equiv> (0, [{E, S, D}], {}, TRecord [(''arr'', (TCon ''WordArray'' [TVarBang 0] (Boxed ReadOnly None), Present)), (''idx'', (TPrim (Num U32), Present)), (''val'', (TVar 0, Present))] Unboxed, TVar 0)"
 
 definition
   wordarray_length_type :: " poly_type"
@@ -82,17 +82,17 @@ where
 definition
   wordarray_put_type :: " poly_type"
 where
-  "wordarray_put_type \<equiv> (0, [{E, S, D}], {}, WordArrayPutP, TCon ''WordArray'' [TVar 0] (Boxed Writable None))"
+  "wordarray_put_type \<equiv> (0, [{E, S, D}], {}, TRecord [(''arr'', (TCon ''WordArray'' [TVar 0] (Boxed Writable None), Present)), (''idx'', (TPrim (Num U32), Present)), (''val'', (TVar 0, Present))] Unboxed, TCon ''WordArray'' [TVar 0] (Boxed Writable None))"
 
 definition
   repeat_type :: " poly_type"
 where
-  "repeat_type \<equiv> (0, [{}, {}], {}, RepParam, TVar 0)"
+  "repeat_type \<equiv> (0, [{}, {}], {}, TRecord [(''n'', (TPrim (Num U64), Present)), (''stop'', (TFun (TRecord [(''acc'', (TVarBang 0, Present)), (''obsv'', (TVarBang 1, Present))] Unboxed) (TPrim Bool), Present)), (''step'', (TFun (TRecord [(''acc'', (TVar 0, Present)), (''obsv'', (TVarBang 1, Present))] Unboxed) (TVar 0), Present)), (''acc'', (TVar 0, Present)), (''obsv'', (TVarBang 1, Present))] Unboxed, TVar 0)"
 
 definition
   wordarray_get_opt_type :: " poly_type"
 where
-  "wordarray_get_opt_type \<equiv> (0, [{E, S, D}], {}, WordArrayGetOP, Opt)"
+  "wordarray_get_opt_type \<equiv> (0, [{E, S, D}], {}, TRecord [(''arr'', (TCon ''WordArray'' [TVarBang 0] (Boxed ReadOnly None), Present)), (''idx'', (TPrim (Num U32), Present))] Unboxed, TSum [(''Nothing'', (TUnit, Unchecked)), (''Something'', (TVar 0, Unchecked))])"
 
 definition
   wordarray_put32_type :: " poly_type"

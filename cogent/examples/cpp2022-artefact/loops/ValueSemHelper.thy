@@ -12,6 +12,7 @@ inductive_cases (in value_sem) v_t_sumE        : "\<Xi> \<turnstile> (VSum a b) 
 inductive_cases (in value_sem) v_t_primE'     : "\<Xi> \<turnstile> VPrim l :v \<tau>"
 
 inductive_cases (in value_sem) v_t_tprimE     : "\<Xi> \<turnstile> v :v TPrim t"
+inductive_cases (in value_sem) v_t_tcustomE   : "\<Xi> \<turnstile> v :v TCustomNum n"
 inductive_cases (in value_sem) v_t_tfunE      : "\<Xi> \<turnstile> v :v TFun a b"
 inductive_cases (in value_sem) v_t_tunitE     : "\<Xi> \<turnstile> v :v TUnit"
 inductive_cases (in value_sem) v_t_tconE      : "\<Xi> \<turnstile> v :v TCon n ts s"
@@ -25,7 +26,7 @@ lemma (in value_sem) vval_typing_record_alt1:
       length fs = length ts \<and>
       (\<forall>i<length fs. 
         \<exists>x n t s. fs ! i = x \<and> ts ! i = (n, t, s) \<and>
-            (s = Taken \<longrightarrow> [] \<turnstile> t wellformed) \<and>
+            (s = Taken \<longrightarrow> 0, [], {} \<turnstile> t wellformed) \<and>
             (s = Present \<longrightarrow> \<Xi>' \<turnstile> x :v t))"
   apply (induct fs arbitrary: ts)
    apply clarsimp
@@ -50,7 +51,7 @@ lemma (in value_sem) vval_typing_record_alt2:
   "length fs = length ts \<and>
    (\<forall>i<length fs. 
       \<exists>x n t s. fs ! i = x \<and> ts ! i = (n, t, s) \<and>
-          (s = Taken \<longrightarrow> [] \<turnstile> t wellformed) \<and>
+          (s = Taken \<longrightarrow> 0, [], {} \<turnstile> t wellformed) \<and>
           (s = Present \<longrightarrow> \<Xi>' \<turnstile> x :v t))
     \<Longrightarrow> \<Xi>' \<turnstile>* fs :vr ts"
   apply (induct fs arbitrary: ts; clarsimp)
@@ -73,14 +74,14 @@ section "Function checking and extraction"
 
 fun is_vvalfun
   where
-"is_vvalfun (VFunction _ _) = True" |
-"is_vvalfun (VAFunction _ _) = True" |
+"is_vvalfun (VFunction _ _ _) = True" |
+"is_vvalfun (VAFunction _ _ _) = True" |
 "is_vvalfun _  = False"
 
 fun vvalfun_to_expr
   where
-"vvalfun_to_expr (VFunction f ts) = Fun f ts" |
-"vvalfun_to_expr (VAFunction f ts) = AFun f ts" |
+"vvalfun_to_expr (VFunction f ts ls) = Fun f ts ls" |
+"vvalfun_to_expr (VAFunction f ts ls) = AFun f ts ls" |
 "vvalfun_to_expr _ = undefined"
 
 fun no_vfuns
@@ -89,8 +90,9 @@ fun no_vfuns
 "no_vfuns VUnit  = True" |
 "no_vfuns (VSum a b) = no_vfuns b" |
 "no_vfuns (VAbstract _) = True" |
-"no_vfuns (VFunction _ _) = False" |
-"no_vfuns (VAFunction _ _) = False" |
+"no_vfuns (VCustomInt v va) = True" |
+"no_vfuns (VFunction _ _ _) = False" |
+"no_vfuns (VAFunction _ _ _) = False" |
 "no_vfuns (VProduct a b) = (if no_vfuns a then no_vfuns b else False)" |
 "no_vfuns (VRecord xs) = (find (\<lambda>x. \<not>x) (map no_vfuns xs) = option.None)"
 
@@ -112,7 +114,8 @@ proof (induct t arbitrary: v)
     apply (case_tac b; clarsimp)
     apply (drule (2) vval_typing_record_nth; simp?)
     done
-qed (fastforce simp: find_None_iff elim: v_t_tunitE v_t_tprimE v_t_tconE v_t_sumE v_t_tproductE)+
+qed (fastforce simp: find_None_iff 
+               elim: v_t_tunitE v_t_tprimE v_t_tcustomE v_t_tconE v_t_sumE v_t_tproductE)+
 
 lemma no_vfuns_monoval:
   "no_vfuns x \<longleftrightarrow> no_vfuns (monoval x)"
@@ -138,6 +141,8 @@ inductive_cases v_sem_splitE: "\<xi> , \<gamma> \<turnstile> Split x e \<Down> e
 inductive_cases v_sem_takeE: "\<xi> , \<gamma> \<turnstile> Take x f e \<Down> e'"
 inductive_cases v_sem_putE: "\<xi> , \<gamma> \<turnstile> Put x f e \<Down> e'"
 inductive_cases v_sem_castE: "\<xi> , \<gamma> \<turnstile> Cast \<tau> e \<Down> e'"
+inductive_cases v_sem_cucastE: "\<xi> , \<gamma> \<turnstile> CustomUCast \<tau>s e \<Down> e'"
+inductive_cases v_sem_cdcastE: "\<xi> , \<gamma> \<turnstile> CustomDCast \<tau>s e \<Down> e'"
 inductive_cases v_sem_structE: "\<xi> , \<gamma> \<turnstile> Struct ts xs \<Down> e'"
 inductive_cases v_sem_AppE: "\<xi> , \<gamma> \<turnstile> App f v \<Down> e'"
 inductive_cases v_sem_allE: "\<xi> , \<gamma> \<turnstile>* es \<Down> es'"
@@ -149,6 +154,7 @@ inductive_cases v_sem_promoteE: "\<xi>, \<gamma> \<turnstile> Promote \<tau> e \
 lemmas v_sem_elims = v_sem_letE v_sem_letBangE v_sem_litE v_sem_primE v_sem_memberE v_sem_tupleE
   v_sem_ifE v_sem_conE v_sem_esacE v_sem_caseE v_sem_splitE v_sem_takeE v_sem_putE v_sem_castE
   v_sem_structE v_sem_AppE v_sem_allE v_sem_all_NilE v_sem_all_ConsE v_sem_unitE v_sem_promoteE
+  v_sem_cdcastE v_sem_cucastE
 
 
 section "Properties on partially ordered abstract function specifications"
@@ -171,14 +177,19 @@ next
     apply -
     apply (drule_tac x = \<xi>b in meta_spec; simp?)+
     by (rule v_sem_v_sem_all.v_sem_app; simp?)
+next 
+  case (v_sem_custom_ucast  \<xi> \<gamma> e n v l')
+  then show ?case
+    by (fastforce intro!: v_sem_v_sem_all.intros) 
 qed (auto intro: v_sem_v_sem_all.intros)
 
 lemma (in value_sem) \<xi>vle_matches:
   "\<lbrakk>rel_leq \<xi>a \<xi>b; \<xi>b matches \<Xi>'\<rbrakk> \<Longrightarrow> \<xi>a matches \<Xi>'"
   unfolding proc_env_matches_def
-  apply clarsimp
-  apply (rename_tac f K a b \<tau>s v v')
+  apply clarsimp 
+  apply (rename_tac f L K C a b ls \<tau>s v v')
   apply (erule_tac x = f in allE; clarsimp)
+  apply (erule_tac x = ls in allE)
   apply (erule_tac x = \<tau>s in allE; clarsimp)
   apply (erule_tac x = v in allE; clarsimp)
   apply (erule_tac x = v' in allE; clarsimp)
@@ -197,24 +208,24 @@ proof (induct arbitrary: v' and vs' rule: v_sem_v_sem_all.inducts)
   then show ?case 
     apply -
     apply (erule v_sem_appE; simp?)    
-     apply (rename_tac f' ts' a')
-     apply (drule_tac x = "VAFunction f' ts'" in meta_spec; clarsimp)
+     apply (rename_tac f' ts' ls' a')
+     apply (drule_tac x = "VAFunction f' ts' ls'" in meta_spec; clarsimp)
      apply (drule_tac x = a' in meta_spec; clarsimp)
     apply (drule (2) determD[rotated 1]; simp)
-    apply (rename_tac f' ts' a')
-    apply (drule_tac x = "VFunction f' ts'" in meta_spec; clarsimp)
+    apply (rename_tac f' ts' ls' a')
+    apply (drule_tac x = "VFunction f' ts' ls'" in meta_spec; clarsimp)
     done
 next
-  case (v_sem_app \<xi> \<gamma> x e ts y a r)
+  case (v_sem_app \<xi> \<gamma> x e ts ls y a r)
   then show ?case
     apply -
     apply (erule v_sem_appE)
-     apply (rename_tac f' ts' a')
-     apply (drule_tac x = "VAFunction f' ts'" in meta_spec)
+     apply (rename_tac f' ts' ls' a')
+     apply (drule_tac x = "VAFunction f' ts' ls'" in meta_spec)
      apply (elim meta_impE; assumption?)
      apply blast
-    apply (rename_tac f' ts' a')
-    apply (drule_tac x = "VFunction f' ts'" in meta_spec)
+    apply (rename_tac f' ts' ls' a')
+    apply (drule_tac x = "VFunction f' ts' ls'" in meta_spec)
     apply (elim meta_impE; assumption?)
     apply (drule_tac x = a' in meta_spec; clarsimp)
     done
@@ -282,8 +293,12 @@ next
   case (v_sem_all_empty \<xi> \<gamma>)
   then show ?case by (metis v_sem_all_NilE)
 next
-case (v_sem_all_cons \<xi> \<gamma> x v xs vs)
+  case (v_sem_all_cons \<xi> \<gamma> x v xs vs)
   then show ?case by (metis v_sem_all_ConsE)
+next
+  case (v_sem_custom_ucast)
+  then show ?case apply - 
+
 qed (fastforce elim!: v_sem_elims)+
 
 lemma v_sem_v_sem_all_determ_not:

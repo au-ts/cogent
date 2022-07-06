@@ -51,22 +51,22 @@ type_synonym 'a WordArrayPutP\<^sub>T = "('a WordArray, 32 word, 'a) WordArrayGe
 
 type_synonym ('acc, 'obsv) StepParam\<^sub>T = "('acc, 'obsv) StepParam"
 
-type_synonym ('acc, 'obsv) StopF = "('acc, 'obsv) StepParam\<^sub>T \<Rightarrow> bool"
+type_synonym ('acc, 'obsv) StopF = "('acc, 'obsv) StepParam \<Rightarrow> bool"
 
-type_synonym ('acc, 'obsv) StepF = "('acc, 'obsv) StepParam\<^sub>T \<Rightarrow> 'acc"
+type_synonym ('acc, 'obsv) StepF = "('acc, 'obsv) StepParam \<Rightarrow> 'acc"
 
-type_synonym ('acc, 'obsv) RepParam\<^sub>T = "(64 word, ('acc, 'obsv) StopF, ('acc, 'obsv) StepF, 'acc, 'obsv) RepParam"
+type_synonym ('acc, 'obsv) RepParam\<^sub>T = "(64 word, ('acc, 'obsv) StepParam \<Rightarrow> bool, ('acc, 'obsv) StepParam \<Rightarrow> 'acc, 'acc, 'obsv) RepParam"
 
 type_synonym 'a Opt\<^sub>T = "(unit, 'a) Opt"
 
-consts wordarray_get :: "'a WordArrayGetP\<^sub>T \<Rightarrow> 'a"
+consts wordarray_get :: "('a WordArray, 32 word, 'a) WordArrayGetP \<Rightarrow> 'a"
 
 consts wordarray_length :: "'a WordArray \<Rightarrow> 32 word"
 
-consts wordarray_put :: "'a WordArrayPutP\<^sub>T \<Rightarrow> 'a WordArray"
+consts wordarray_put :: "('a WordArray, 32 word, 'a) WordArrayGetP \<Rightarrow> 'a WordArray"
 
-consts repeat :: "('acc, 'obsv) RepParam\<^sub>T \<Rightarrow> 'acc"
+consts repeat :: "(64 word, ('acc, 'obsv) StepParam \<Rightarrow> bool, ('acc, 'obsv) StepParam \<Rightarrow> 'acc, 'acc, 'obsv) RepParam \<Rightarrow> 'acc"
 
-consts wordarray_get_opt :: "'a WordArrayGetOP\<^sub>T \<Rightarrow> 'a Opt\<^sub>T"
+consts wordarray_get_opt :: "('a WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 'a) Opt"
 
 end

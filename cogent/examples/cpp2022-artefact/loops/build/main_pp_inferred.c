@@ -13,6 +13,186 @@ typedef struct unit_t {
 typedef struct bool_t {
             u8 boolean;
         } bool_t;
+typedef struct u1_t {
+            u8 uint;
+        } u1_t;
+typedef struct u2_t {
+            u8 uint;
+        } u2_t;
+typedef struct u3_t {
+            u8 uint;
+        } u3_t;
+typedef struct u4_t {
+            u8 uint;
+        } u4_t;
+typedef struct u5_t {
+            u8 uint;
+        } u5_t;
+typedef struct u6_t {
+            u8 uint;
+        } u6_t;
+typedef struct u7_t {
+            u8 uint;
+        } u7_t;
+typedef struct u9_t {
+            u16 uint;
+        } u9_t;
+typedef struct u10_t {
+            u16 uint;
+        } u10_t;
+typedef struct u11_t {
+            u16 uint;
+        } u11_t;
+typedef struct u12_t {
+            u16 uint;
+        } u12_t;
+typedef struct u13_t {
+            u16 uint;
+        } u13_t;
+typedef struct u14_t {
+            u16 uint;
+        } u14_t;
+typedef struct u15_t {
+            u16 uint;
+        } u15_t;
+typedef struct u17_t {
+            u32 uint;
+        } u17_t;
+typedef struct u18_t {
+            u32 uint;
+        } u18_t;
+typedef struct u19_t {
+            u32 uint;
+        } u19_t;
+typedef struct u20_t {
+            u32 uint;
+        } u20_t;
+typedef struct u21_t {
+            u32 uint;
+        } u21_t;
+typedef struct u22_t {
+            u32 uint;
+        } u22_t;
+typedef struct u23_t {
+            u32 uint;
+        } u23_t;
+typedef struct u24_t {
+            u32 uint;
+        } u24_t;
+typedef struct u25_t {
+            u32 uint;
+        } u25_t;
+typedef struct u26_t {
+            u32 uint;
+        } u26_t;
+typedef struct u27_t {
+            u32 uint;
+        } u27_t;
+typedef struct u28_t {
+            u32 uint;
+        } u28_t;
+typedef struct u29_t {
+            u32 uint;
+        } u29_t;
+typedef struct u30_t {
+            u32 uint;
+        } u30_t;
+typedef struct u31_t {
+            u32 uint;
+        } u31_t;
+typedef struct u33_t {
+            u64 uint;
+        } u33_t;
+typedef struct u34_t {
+            u64 uint;
+        } u34_t;
+typedef struct u35_t {
+            u64 uint;
+        } u35_t;
+typedef struct u36_t {
+            u64 uint;
+        } u36_t;
+typedef struct u37_t {
+            u64 uint;
+        } u37_t;
+typedef struct u38_t {
+            u64 uint;
+        } u38_t;
+typedef struct u39_t {
+            u64 uint;
+        } u39_t;
+typedef struct u40_t {
+            u64 uint;
+        } u40_t;
+typedef struct u41_t {
+            u64 uint;
+        } u41_t;
+typedef struct u42_t {
+            u64 uint;
+        } u42_t;
+typedef struct u43_t {
+            u64 uint;
+        } u43_t;
+typedef struct u44_t {
+            u64 uint;
+        } u44_t;
+typedef struct u45_t {
+            u64 uint;
+        } u45_t;
+typedef struct u46_t {
+            u64 uint;
+        } u46_t;
+typedef struct u47_t {
+            u64 uint;
+        } u47_t;
+typedef struct u48_t {
+            u64 uint;
+        } u48_t;
+typedef struct u49_t {
+            u64 uint;
+        } u49_t;
+typedef struct u50_t {
+            u64 uint;
+        } u50_t;
+typedef struct u51_t {
+            u64 uint;
+        } u51_t;
+typedef struct u52_t {
+            u64 uint;
+        } u52_t;
+typedef struct u53_t {
+            u64 uint;
+        } u53_t;
+typedef struct u54_t {
+            u64 uint;
+        } u54_t;
+typedef struct u55_t {
+            u64 uint;
+        } u55_t;
+typedef struct u56_t {
+            u64 uint;
+        } u56_t;
+typedef struct u57_t {
+            u64 uint;
+        } u57_t;
+typedef struct u58_t {
+            u64 uint;
+        } u58_t;
+typedef struct u59_t {
+            u64 uint;
+        } u59_t;
+typedef struct u60_t {
+            u64 uint;
+        } u60_t;
+typedef struct u61_t {
+            u64 uint;
+        } u61_t;
+typedef struct u62_t {
+            u64 uint;
+        } u62_t;
+typedef struct u63_t {
+            u64 uint;
+        } u63_t;
 static inline u16 swap_u16(u16 v)
 {
     return v << 8 | v >> 8;
