@@ -24,8 +24,8 @@ definition cwa_length
 lemma cwa_length_corres_base:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('a :: cogent_C_val) ptr)"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], TCon ''WordArray'' [t] (Boxed ReadOnly ptrl), TPrim (Num U32))"
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [], {}, TCon ''WordArray'' [t] (Boxed ReadOnly ptrl), TPrim (Num U32))"
   and     \<xi>name: "\<xi>' name = uwa_length"
   and     srel: "\<And>x y. (x, y) \<in> state_rel \<Longrightarrow> (\<forall>(p :: ('a :: cogent_C_val) ptr) uv. heap_rel_meta is_v h x y p)"
   and     trel: "type_rel (RCon ''WordArray'' [type_repr t]) TYPE('a)"
@@ -35,7 +35,7 @@ lemma cwa_length_corres_base:
                       len = (SCAST(32 signed \<rightarrow> 32)(l_c cv)) \<and> arr = ptr_val (v_c cv))"
   and     cfundef: "cfun = cwa_length is_v h l_c"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do x <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
 proof (rule absfun_corres[OF _ \<gamma>len valrel])
@@ -50,15 +50,15 @@ proof (rule absfun_corres[OF _ \<gamma>len valrel])
     apply (clarsimp simp: val_rel_word_def vrel is_signed_bit0_def word_bits_size word_bits_def)
     done
 next
-  show "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
+  show "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
     by (simp add: \<Gamma>i)
 qed
 
 lemma cwa_length_corres_base_all:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('a :: cogent_C_val) ptr)"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], TCon ''WordArray'' [t] (Boxed ReadOnly ptrl), TPrim (Num U32))"
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [], {}, TCon ''WordArray'' [t] (Boxed ReadOnly ptrl), TPrim (Num U32))"
   and     \<xi>name: "\<xi>' name = uwa_length"
   and     srel: "\<forall>x y. (x, y) \<in> state_rel \<longrightarrow> (\<forall>(p :: ('a :: cogent_C_val) ptr) uv. heap_rel_meta is_v h x y p)"
   and     trel: "type_rel (RCon ''WordArray'' [type_repr t]) TYPE('a)"
@@ -68,7 +68,7 @@ lemma cwa_length_corres_base_all:
                       len = (SCAST(32 signed \<rightarrow> 32)(l_c cv)) \<and> arr = ptr_val (v_c cv))"
   and     cfundef: "cfun = cwa_length is_v h l_c"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do x <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
   by (rule cwa_length_corres_base[OF \<gamma>len valrel _ _ _ _ trel _ cfundef]; (simp add: \<Gamma>i \<Xi>name \<xi>name srel vrel)?)
@@ -104,8 +104,8 @@ lemma ptr_val_add:
 lemma cwa_get_corres_base:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('b :: cogent_C_val))"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], TRecord [
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [], {}, TRecord [
                     (''arr'', TCon ''WordArray'' [t] (Boxed ReadOnly ptrl), Present),
                     (''idx'', TPrim (Num U32), Present),
                     (''val'', t, Present)] Unboxed, t)"
@@ -121,12 +121,12 @@ lemma cwa_get_corres_base:
                       len = (SCAST(32 signed \<rightarrow> 32)(l_c cv)) \<and> arr = ptr_val (vs_c cv))"
   and     vrelb: "\<And>uv (cv :: 'b). 
                   val_rel uv cv = 
-                    (\<exists>p i v. uv = URecord [p, i, v] \<and> val_rel (prod.fst p) (p_c cv) \<and>
+                    (\<exists>p i v. uv = URecord [p, i, v] None \<and> val_rel (prod.fst p) (p_c cv) \<and>
                       val_rel (prod.fst i) (i_c cv) \<and> val_rel (prod.fst v) (v_c cv))"
   and     sizet: "size_of_type t = of_nat (size_of TYPE('c))"
   and     cfundef: "cfun = cwa_get is_v h is_vw hw p_c i_c v_c l_c vs_c"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do x <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
 proof (rule absfun_corres[OF _ \<gamma>len valrel])
@@ -171,15 +171,15 @@ proof (rule absfun_corres[OF _ \<gamma>len valrel])
     apply (clarsimp simp: uwa_get_def sizet ptr_val_add)
     done
 next
-  show "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
+  show "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
     by (simp add: \<Gamma>i)
 qed
 
 lemma cwa_get_corres_base_all:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('b :: cogent_C_val))"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], TRecord [
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [], {}, TRecord [
                     (''arr'', TCon ''WordArray'' [t] (Boxed ReadOnly ptrl), Present),
                     (''idx'', TPrim (Num U32), Present),
                     (''val'', t, Present)] Unboxed, t)"
@@ -195,12 +195,12 @@ lemma cwa_get_corres_base_all:
                       len = (SCAST(32 signed \<rightarrow> 32)(l_c cv)) \<and> arr = ptr_val (vs_c cv))"
   and     vrelb: "\<forall>uv (cv :: 'b). 
                   val_rel uv cv = 
-                    (\<exists>p i v. uv = URecord [p, i, v] \<and> val_rel (prod.fst p) (p_c cv) \<and>
+                    (\<exists>p i v. uv = URecord [p, i, v] None \<and> val_rel (prod.fst p) (p_c cv) \<and>
                       val_rel (prod.fst i) (i_c cv) \<and> val_rel (prod.fst v) (v_c cv))"
   and     sizet: "size_of_type t = of_nat (size_of TYPE('c))"
   and     cfundef: "cfun = cwa_get is_v h is_vw hw p_c i_c v_c l_c vs_c"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do x <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
   by (rule cwa_get_corres_base[OF \<gamma>len valrel _ _ _ _ trela trelc _ _ sizet cfundef]; (simp add: \<Gamma>i \<Xi>name \<xi>name vrela vrelb srel)?)
@@ -229,8 +229,8 @@ find_theorems  heap_w32_update
 lemma cwa_put_corres_base:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('b :: cogent_C_val))"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], TRecord [
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [], {}, TRecord [
                     (''arr'', TCon ''WordArray'' [t] (Boxed Writable ptrl), Present),
                     (''idx'', TPrim (Num U32), Present),
                     (''val'', t, Present)] Unboxed,
@@ -247,7 +247,7 @@ lemma cwa_put_corres_base:
                       len = (SCAST(32 signed \<rightarrow> 32)(l_c cv)) \<and> arr = ptr_val (vs_c cv))"
   and     vrelb: "\<And>uv (cv :: 'b). 
                   val_rel uv cv = 
-                    (\<exists>p i v. uv = URecord [p, i, v] \<and> val_rel (prod.fst p) (p_c cv) \<and>
+                    (\<exists>p i v. uv = URecord [p, i, v] None \<and> val_rel (prod.fst p) (p_c cv) \<and>
                       val_rel (prod.fst i) (i_c cv) \<and> val_rel (prod.fst v) (v_c cv))"
   and     sizet: "size_of_type t = of_nat (size_of TYPE('c))"
   and     upd: "\<And>\<sigma> s (p :: ('c :: cogent_C_val) ptr) v (v' :: ('c :: cogent_C_val)).
@@ -258,7 +258,7 @@ lemma cwa_put_corres_base:
                    (\<sigma>(ptr_val p \<mapsto> v), hw_upd (\<lambda>x. x(p := v')) s) \<in> state_rel"
   and     cfundef: "cfun = cwa_put is_v h is_vw hw_upd p_c i_c v_c l_c vs_c"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do x <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
 proof (rule absfun_corres[OF _ \<gamma>len valrel])
@@ -308,15 +308,15 @@ proof (rule absfun_corres[OF _ \<gamma>len valrel])
     apply (rule upd; simp?)
     done
 next
-  show "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
+  show "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
     by (simp add: \<Gamma>i)
 qed
 
 lemma cwa_put_corres_base_all:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('b :: cogent_C_val))"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], TRecord [
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [], {}, TRecord [
                     (''arr'', TCon ''WordArray'' [t] (Boxed Writable ptrl), Present),
                     (''idx'', TPrim (Num U32), Present),
                     (''val'', t, Present)] Unboxed,
@@ -333,7 +333,7 @@ lemma cwa_put_corres_base_all:
                       len = (SCAST(32 signed \<rightarrow> 32)(l_c cv)) \<and> arr = ptr_val (vs_c cv))"
   and     vrelb: "\<forall>uv (cv :: 'b). 
                   val_rel uv cv = 
-                    (\<exists>p i v. uv = URecord [p, i, v] \<and> val_rel (prod.fst p) (p_c cv) \<and>
+                    (\<exists>p i v. uv = URecord [p, i, v] None \<and> val_rel (prod.fst p) (p_c cv) \<and>
                       val_rel (prod.fst i) (i_c cv) \<and> val_rel (prod.fst v) (v_c cv))"
   and     sizet: "size_of_type t = of_nat (size_of TYPE('c))"
   and     upd: "\<forall>\<sigma> s (p :: ('c :: cogent_C_val) ptr) v (v' :: ('c :: cogent_C_val)).
@@ -344,7 +344,7 @@ lemma cwa_put_corres_base_all:
                    (\<sigma>(ptr_val p \<mapsto> v), hw_upd (\<lambda>x. x(p := v')) s) \<in> state_rel"
   and     cfundef: "cfun = cwa_put is_v h is_vw hw_upd p_c i_c v_c l_c vs_c"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do x <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
   by (rule_tac hw = hw in cwa_put_corres_base[OF \<gamma>len valrel _ _ _ _ trela trelc _ _ sizet _ cfundef]; (simp add: \<Gamma>i \<Xi>name \<xi>name vrela vrelb srel upd)?)
@@ -369,8 +369,8 @@ definition cwa_get_opt
 lemma cwa_get_opt_corres_base:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('b :: cogent_C_val))"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], TRecord [
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [], {}, TRecord [
                     (''arr'', TCon ''WordArray'' [t] (Boxed ReadOnly ptrl), Present),
                     (''idx'', TPrim (Num U32), Present)] Unboxed,
                     TSum [(''Nothing'', TUnit, Unchecked), (''Something'', t, Unchecked)])"
@@ -386,7 +386,7 @@ lemma cwa_get_opt_corres_base:
                       len = (SCAST(32 signed \<rightarrow> 32)(l_c cv)) \<and> arr = ptr_val (vs_c cv))"
   and     vrelb: "\<And>uv (cv :: 'b). 
                   val_rel uv cv = 
-                    (\<exists>p i. uv = URecord [p, i] \<and> val_rel (prod.fst p) (p_c cv) \<and>
+                    (\<exists>p i. uv = URecord [p, i] None \<and> val_rel (prod.fst p) (p_c cv) \<and>
                       val_rel (prod.fst i) (i_c cv))"
   and     vrelr: "\<And>uv (cv :: 'd).
                     val_rel uv cv = (\<exists>repr tag uval.
@@ -399,7 +399,7 @@ lemma cwa_get_opt_corres_base:
   and     sizet: "size_of_type t = of_nat (size_of TYPE('c))"
   and     cfundef: "cfun = cwa_get_opt is_v h is_vw hw p_c i_c l_c vs_c tag_upd tag_n tag_s s_upd"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do (x :: ('d :: cogent_C_val)) <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
 proof (rule absfun_corres[OF _ \<gamma>len valrel])
@@ -443,15 +443,15 @@ proof (rule absfun_corres[OF _ \<gamma>len valrel])
     apply (clarsimp simp: uwa_get_opt_def sizet ptr_val_add vrelr tagC_tagU sC_sU tagC_sU)
     done
 next
-  show "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
+  show "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
     by (simp add: \<Gamma>i)
 qed
 
 lemma cwa_get_opt_corres_base_all:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('b :: cogent_C_val))"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], TRecord [
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [], {}, TRecord [
                     (''arr'', TCon ''WordArray'' [t] (Boxed ReadOnly ptrl), Present),
                     (''idx'', TPrim (Num U32), Present)] Unboxed,
                     TSum [(''Nothing'', TUnit, Unchecked), (''Something'', t, Unchecked)])"
@@ -467,7 +467,7 @@ lemma cwa_get_opt_corres_base_all:
                       len = (SCAST(32 signed \<rightarrow> 32)(l_c cv)) \<and> arr = ptr_val (vs_c cv))"
   and     vrelb: "\<forall>uv (cv :: 'b). 
                   val_rel uv cv = 
-                    (\<exists>p i. uv = URecord [p, i] \<and> val_rel (prod.fst p) (p_c cv) \<and>
+                    (\<exists>p i. uv = URecord [p, i] None \<and> val_rel (prod.fst p) (p_c cv) \<and>
                       val_rel (prod.fst i) (i_c cv))"
   and     vrelr: "\<forall>uv (cv :: 'd).
                     val_rel uv cv = (\<exists>repr tag uval.
@@ -480,7 +480,7 @@ lemma cwa_get_opt_corres_base_all:
   and     sizet: "size_of_type t = of_nat (size_of TYPE('c))"
   and     cfundef: "cfun = cwa_get_opt is_v h is_vw hw p_c i_c l_c vs_c tag_upd tag_n tag_s s_upd"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do (x :: ('d :: cogent_C_val)) <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
   apply (rule cwa_get_opt_corres_base[where tag_c = tag_c,

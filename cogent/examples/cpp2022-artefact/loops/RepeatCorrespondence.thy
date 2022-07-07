@@ -14,8 +14,8 @@ lemma uvrepeat_bod_monocorrespondence:
     ro \<inter> wa = {};
     urepeat_bod \<xi>u n f g \<sigma> \<sigma>' \<tau>a uacc \<tau>o uobsv uret;
     vrepeat_bod \<xi>v n f g vacc vobsv vret;
-    \<Xi>', [], [option.Some (TRecord [(''acc'', bang \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] \<turnstile> (App f (Var 0)) : TPrim Bool;
-    \<Xi>', [], [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] \<turnstile> (App g (Var 0)) : \<tau>a\<rbrakk>
+    \<Xi>', 0, [], {}, [option.Some (TRecord [(''acc'', bang \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] \<turnstile> (App f (Var 0)) : TPrim Bool;
+    \<Xi>', 0, [], {}, [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] \<turnstile> (App g (Var 0)) : \<tau>a\<rbrakk>
       \<Longrightarrow>\<exists>r' w'.  \<Xi>', \<sigma>' \<turnstile> uret \<sim> vret : \<tau>a \<langle>r', w'\<rangle> \<and> r' \<subseteq> (ra \<union> ro) \<and> frame \<sigma> wa \<sigma>' w'"
   apply (induct n arbitrary: \<sigma> uacc ra wa vacc)
    apply clarsimp
@@ -32,7 +32,8 @@ lemma uvrepeat_bod_monocorrespondence:
                   u_v_r_cons1[where w' = "{}", simplified]
                   u_v_r_cons1[where r' = "{}" and w' = "{}", simplified]
                   u_v_r_empty; simp?)
-    apply (rule upd_val_rel_bang(1); simp)
+     apply (rule upd_val_rel_bang(1); simp) 
+    apply (simp add:  u_v_matches.u_v_matches_empty)
    apply clarsimp
    apply (erule u_v_primE; clarsimp)
    apply (intro exI conjI; simp?)
@@ -45,18 +46,20 @@ lemma uvrepeat_bod_monocorrespondence:
                   u_v_r_cons1[where w' = "{}", simplified]
                   u_v_r_cons1[where r' = "{}" and w' = "{}", simplified]
                   u_v_r_empty; simp?)
-   apply (rule upd_val_rel_bang(1); simp)
+    apply (rule upd_val_rel_bang(1); simp)
+   apply (simp add:  u_v_matches.u_v_matches_empty)
   apply clarsimp
   apply (erule u_v_primE; clarsimp)
   apply (drule_tac r = "ra \<union> ro"  and w = wa and 
-      \<gamma> = "[URecord [(uacc, type_repr \<tau>a), (uobsv, type_repr \<tau>o)]]" in mono_correspondence(1)[rotated 3]; simp?)
+      \<gamma> = "[URecord [(uacc, type_repr \<tau>a), (uobsv, type_repr \<tau>o)] None]" in mono_correspondence(1)[rotated 3]; simp?)
    apply (intro u_v_matches_some[where r' = "{}" and w' = "{}", simplified]
                 u_v_matches_empty[where \<tau>s = "[]", simplified]
                 u_v_struct
                 u_v_r_cons1[where w' = "{}", simplified]
                 u_v_r_cons1[where r' = "{}" and w' = "{}", simplified]
                 u_v_r_empty; simp?)
-   apply blast
+    apply blast
+   apply (simp add:  u_v_matches.u_v_matches_empty)
   apply clarsimp
   apply (rename_tac r' w')
   apply (thin_tac "frame _ {} _ {}")
@@ -77,8 +80,8 @@ lemma uvrepeat_bod_upward_propagation:
     \<Xi>', \<sigma> \<turnstile> uobsv \<sim> vobsv : \<tau>o \<langle>ro, {}\<rangle>;
     ro \<inter> wa = {};
     urepeat_bod \<xi>u n f g \<sigma> \<sigma>' \<tau>a uacc \<tau>o uobsv uret;
-    \<Xi>', [], [option.Some (TRecord [(''acc'', bang \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] \<turnstile> (App f (Var 0)) : TPrim Bool;
-    \<Xi>', [], [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] \<turnstile> (App g (Var 0)) : \<tau>a\<rbrakk>
+    \<Xi>', 0, [], {}, [option.Some (TRecord [(''acc'', bang \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] \<turnstile> (App f (Var 0)) : TPrim Bool;
+    \<Xi>', 0, [], {}, [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] \<turnstile> (App g (Var 0)) : \<tau>a\<rbrakk>
       \<Longrightarrow> \<exists>vret. vrepeat_bod \<xi>v n f g vacc vobsv vret"
   apply (induct n arbitrary: \<sigma> uacc ra wa vacc)
    apply clarsimp
@@ -98,7 +101,8 @@ lemma uvrepeat_bod_upward_propagation:
                   u_v_r_cons1[where w' = "{}", simplified]
                   u_v_r_cons1[where r' = "{}" and w' = "{}", simplified]
                   u_v_r_empty; simp?)
-    apply (rule upd_val_rel_bang(1); simp)
+     apply (rule upd_val_rel_bang(1); simp)
+    apply (simp add:  u_v_matches.u_v_matches_empty)
    apply clarsimp
    apply (frule_tac r = "(ra \<union> wa) \<union> ro"  and w = "{}" in mono_correspondence(1)[rotated 3]; simp?)
     apply (intro u_v_matches_some[where r' = "{}" and w' = "{}", simplified]
@@ -107,7 +111,8 @@ lemma uvrepeat_bod_upward_propagation:
                   u_v_r_cons1[where w' = "{}", simplified]
                   u_v_r_cons1[where r' = "{}" and w' = "{}", simplified]
                   u_v_r_empty; simp?)
-    apply (rule upd_val_rel_bang(1); simp)
+     apply (rule upd_val_rel_bang(1); simp)
+    apply (simp add:  u_v_matches.u_v_matches_empty)
    apply clarsimp
    apply (erule u_v_uprimE; simp)
   apply (frule_tac r = "(ra \<union> wa) \<union> ro"  and w = "{}" and
@@ -118,7 +123,8 @@ lemma uvrepeat_bod_upward_propagation:
                   u_v_r_cons1[where w' = "{}", simplified]
                   u_v_r_cons1[where r' = "{}" and w' = "{}", simplified]
                   u_v_r_empty; simp?)
-   apply (rule upd_val_rel_bang(1); simp)
+    apply (rule upd_val_rel_bang(1); simp)
+   apply (simp add:  u_v_matches.u_v_matches_empty)
   apply clarsimp
   apply (frule_tac r = "(ra \<union> wa) \<union> ro"  and w = "{}" in mono_correspondence(1)[rotated 3]; simp?)
    apply (intro u_v_matches_some[where r' = "{}" and w' = "{}", simplified]
@@ -127,7 +133,8 @@ lemma uvrepeat_bod_upward_propagation:
                   u_v_r_cons1[where w' = "{}", simplified]
                   u_v_r_cons1[where r' = "{}" and w' = "{}", simplified]
                   u_v_r_empty; simp?)
-   apply (rule upd_val_rel_bang(1); simp)
+    apply (rule upd_val_rel_bang(1); simp)
+   apply (simp add:  u_v_matches.u_v_matches_empty)
   apply clarsimp
   apply (erule u_v_uprimE; clarsimp)
   apply (thin_tac "frame _ {} _ {}")
@@ -140,7 +147,8 @@ lemma uvrepeat_bod_upward_propagation:
                   u_v_r_cons1[where w' = "{}", simplified]
                   u_v_r_cons1[where r' = "{}" and w' = "{}", simplified]
                   u_v_r_empty; simp?)
-   apply blast
+     apply blast
+    apply (simp add:  u_v_matches.u_v_matches_empty)
   apply clarsimp
   apply (frule_tac r = "ra \<union> ro"  and w = wa and
       \<gamma>' = "[VRecord [vacc, vobsv]]" and
@@ -151,7 +159,8 @@ lemma uvrepeat_bod_upward_propagation:
                   u_v_r_cons1[where w' = "{}", simplified]
                   u_v_r_cons1[where r' = "{}" and w' = "{}", simplified]
                   u_v_r_empty; simp?)
-   apply blast
+    apply blast
+  apply (simp add:  u_v_matches.u_v_matches_empty)
   apply clarsimp
   apply (frule_tac u = uobsv and v = vobsv in upd_val_rel_frame(1)[rotated 3]; simp?; clarsimp?)
   apply (drule_tac v = uobsv and v' = vobsv in frame_noalias_upd_val_rel'(2)[rotated 1]; simp?)

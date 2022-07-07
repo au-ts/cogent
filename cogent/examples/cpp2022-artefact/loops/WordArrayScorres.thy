@@ -82,7 +82,8 @@ context WordArrayValue begin
 
 lemma wordarray_length_scorres:
   "\<xi> ''wordarray_length'' =  vwa_length 
-    \<Longrightarrow> scorres (wordarray_length :: ('a :: len8) word WordArray \<Rightarrow> 32 word) (AFun ''wordarray_length'' ts) \<gamma> \<xi>"
+    \<Longrightarrow> scorres (wordarray_length :: ('a :: len8) word WordArray \<Rightarrow> 32 word) 
+        (AFun ''wordarray_length'' ts []) \<gamma> \<xi>"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_afunE; clarsimp)
   apply (erule notE)
@@ -92,7 +93,9 @@ lemma wordarray_length_scorres:
 
 lemma wordarray_get_u8_scorres:
   "\<xi> ''wordarray_get'' =  vwa_get 
-    \<Longrightarrow> scorres (wordarray_get :: (8 word WordArray, 32 word, 8 word) WordArrayGetP \<Rightarrow> 8 word) (AFun ''wordarray_get'' ts) \<gamma> \<xi>"
+    \<Longrightarrow> scorres 
+       (wordarray_get :: (8 word WordArray, 32 word, 8 word) WordArrayGetP \<Rightarrow> 8 word) 
+       (AFun ''wordarray_get'' ts []) \<gamma> \<xi>"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_afunE; clarsimp)
   apply (erule notE)
@@ -102,7 +105,9 @@ lemma wordarray_get_u8_scorres:
 
 lemma wordarray_get_u16_scorres:
   "\<xi> ''wordarray_get'' =  vwa_get 
-    \<Longrightarrow> scorres (wordarray_get :: (16 word WordArray, 32 word, 16 word) WordArrayGetP \<Rightarrow> 16 word) (AFun ''wordarray_get'' ts) \<gamma> \<xi>"
+    \<Longrightarrow> scorres 
+        (wordarray_get :: (16 word WordArray, 32 word, 16 word) WordArrayGetP \<Rightarrow> 16 word) 
+        (AFun ''wordarray_get'' ts []) \<gamma> \<xi>"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_afunE; clarsimp)
   apply (erule notE)
@@ -112,7 +117,9 @@ lemma wordarray_get_u16_scorres:
 
 lemma wordarray_get_u32_scorres:
   "\<xi> ''wordarray_get'' =  vwa_get 
-    \<Longrightarrow> scorres (wordarray_get :: (32 word WordArray, 32 word, 32 word) WordArrayGetP \<Rightarrow> 32 word) (AFun ''wordarray_get'' ts) \<gamma> \<xi>"
+    \<Longrightarrow> scorres 
+        (wordarray_get :: (32 word WordArray, 32 word, 32 word) WordArrayGetP \<Rightarrow> 32 word) 
+        (AFun ''wordarray_get'' ts []) \<gamma> \<xi>"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_afunE; clarsimp)
   apply (erule notE)
@@ -122,7 +129,9 @@ lemma wordarray_get_u32_scorres:
 
 lemma wordarray_get_u64_scorres:
   "\<xi> ''wordarray_get'' =  vwa_get 
-    \<Longrightarrow> scorres (wordarray_get :: (64 word WordArray, 32 word, 64 word) WordArrayGetP \<Rightarrow> 64 word) (AFun ''wordarray_get'' ts) \<gamma> \<xi>"
+    \<Longrightarrow> scorres 
+        (wordarray_get :: (64 word WordArray, 32 word, 64 word) WordArrayGetP \<Rightarrow> 64 word) 
+        (AFun ''wordarray_get'' ts []) \<gamma> \<xi>"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_afunE; clarsimp)
   apply (erule notE)
@@ -132,7 +141,9 @@ lemma wordarray_get_u64_scorres:
 
 lemma wordarray_put_u8_scorres:
   "\<xi> ''wordarray_put'' =  vwa_put 
-    \<Longrightarrow> scorres (wordarray_put :: (8 word WordArray, 32 word, 8 word) WordArrayGetP \<Rightarrow> 8 word WordArray) (AFun ''wordarray_put'' ts) \<gamma> \<xi>"
+    \<Longrightarrow> scorres 
+        (wordarray_put :: (8 word WordArray, 32 word, 8 word) WordArrayGetP \<Rightarrow> 8 word WordArray) 
+        (AFun ''wordarray_put'' ts []) \<gamma> \<xi>"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_afunE; clarsimp)
   apply (erule notE)
@@ -142,7 +153,7 @@ lemma wordarray_put_u8_scorres:
 
 lemma wordarray_put_u16_scorres:
   "\<xi> ''wordarray_put'' =  vwa_put 
-    \<Longrightarrow> scorres (wordarray_put :: (16 word WordArray, 32 word, 16 word) WordArrayGetP \<Rightarrow> 16 word WordArray) (AFun ''wordarray_put'' ts) \<gamma> \<xi>"
+    \<Longrightarrow> scorres (wordarray_put :: (16 word WordArray, 32 word, 16 word) WordArrayGetP \<Rightarrow> 16 word WordArray) (AFun ''wordarray_put'' ts []) \<gamma> \<xi>"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_afunE; clarsimp)
   apply (erule notE)
@@ -152,7 +163,7 @@ lemma wordarray_put_u16_scorres:
 
 lemma wordarray_put_u32_scorres:
   "\<xi> ''wordarray_put'' =  vwa_put 
-    \<Longrightarrow> scorres (wordarray_put :: (32 word WordArray, 32 word, 32 word) WordArrayGetP \<Rightarrow> 32 word WordArray) (AFun ''wordarray_put'' ts) \<gamma> \<xi>"
+    \<Longrightarrow> scorres (wordarray_put :: (32 word WordArray, 32 word, 32 word) WordArrayGetP \<Rightarrow> 32 word WordArray) (AFun ''wordarray_put'' ts []) \<gamma> \<xi>"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_afunE; clarsimp)
   apply (erule notE)
@@ -162,7 +173,7 @@ lemma wordarray_put_u32_scorres:
 
 lemma wordarray_put_u64_scorres:
   "\<xi> ''wordarray_put'' =  vwa_put 
-    \<Longrightarrow> scorres (wordarray_put :: (64 word WordArray, 32 word, 64 word) WordArrayGetP \<Rightarrow> 64 word WordArray) (AFun ''wordarray_put'' ts) \<gamma> \<xi>"
+    \<Longrightarrow> scorres (wordarray_put :: (64 word WordArray, 32 word, 64 word) WordArrayGetP \<Rightarrow> 64 word WordArray) (AFun ''wordarray_put'' ts []) \<gamma> \<xi>"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_afunE; clarsimp)
   apply (erule notE)
@@ -173,7 +184,7 @@ lemma wordarray_put_u64_scorres:
 
 lemma wordarray_get_opt_u8_scorres:
   "\<xi> ''wordarray_get_opt'' =  vwa_get_opt 
-    \<Longrightarrow> scorres (wordarray_get_opt :: (8 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 8 word) Opt) (AFun ''wordarray_get_opt'' ts) \<gamma> \<xi>"
+    \<Longrightarrow> scorres (wordarray_get_opt :: (8 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 8 word) Opt) (AFun ''wordarray_get_opt'' ts []) \<gamma> \<xi>"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_afunE; clarsimp)
   apply (erule notE)
@@ -183,7 +194,7 @@ lemma wordarray_get_opt_u8_scorres:
 
 lemma wordarray_get_opt_u16_scorres:
   "\<xi> ''wordarray_get_opt'' =  vwa_get_opt 
-    \<Longrightarrow> scorres (wordarray_get_opt :: (16 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 16 word) Opt) (AFun ''wordarray_get_opt'' ts) \<gamma> \<xi>"
+    \<Longrightarrow> scorres (wordarray_get_opt :: (16 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 16 word) Opt) (AFun ''wordarray_get_opt'' ts []) \<gamma> \<xi>"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_afunE; clarsimp)
   apply (erule notE)
@@ -193,7 +204,7 @@ lemma wordarray_get_opt_u16_scorres:
 
 lemma wordarray_get_opt_u32_scorres:
   "\<xi> ''wordarray_get_opt'' =  vwa_get_opt 
-    \<Longrightarrow> scorres (wordarray_get_opt :: (32 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 32 word) Opt) (AFun ''wordarray_get_opt'' ts) \<gamma> \<xi>"
+    \<Longrightarrow> scorres (wordarray_get_opt :: (32 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 32 word) Opt) (AFun ''wordarray_get_opt'' ts []) \<gamma> \<xi>"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_afunE; clarsimp)
   apply (erule notE)
@@ -203,7 +214,7 @@ lemma wordarray_get_opt_u32_scorres:
 
 lemma wordarray_get_opt_u64_scorres:
   "\<xi> ''wordarray_get_opt'' =  vwa_get_opt 
-    \<Longrightarrow> scorres (wordarray_get_opt :: (64 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 64 word) Opt) (AFun ''wordarray_get_opt'' ts) \<gamma> \<xi>"
+    \<Longrightarrow> scorres (wordarray_get_opt :: (64 word WordArray, 32 word) WordArrayGetOP \<Rightarrow> (unit, 64 word) Opt) (AFun ''wordarray_get_opt'' ts []) \<gamma> \<xi>"
   apply (clarsimp simp: scorres_def)
   apply (erule v_sem_afunE; clarsimp)
   apply (erule notE)

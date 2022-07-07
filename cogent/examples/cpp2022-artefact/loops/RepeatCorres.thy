@@ -254,8 +254,8 @@ lemma stop_wp:
 lemma crepeat_corres_base:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('a :: cogent_C_val))"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], \<tau>, \<tau>a)"
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [],{}, \<tau>, \<tau>a)"
   and     \<tau>def: "\<tau> = TRecord [(''n'', TPrim (Num U64), Present),
                               (''stop'', TFun (bang \<tau>f) (TPrim Bool), Present),
                               (''step'', TFun \<tau>f \<tau>a, Present),
@@ -293,7 +293,7 @@ lemma crepeat_corres_base:
   and     o1C_a1U: "\<And>x y. o1C (a1U y x) = o1C x"
   and     cfundef: "cfun = crepeat nC stopC stepC a0C o0C a1C a1U o1U d0 d1"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do x <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>'' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
 proof (rule absfun_corres[OF _ \<gamma>len valrel])
@@ -301,7 +301,7 @@ proof (rule absfun_corres[OF _ \<gamma>len valrel])
     apply (subst abs_fun_rel_def')
     apply (clarsimp simp: \<Xi>name \<tau>def \<xi>''name cfundef urepeat_def bang\<tau>o \<gamma>i fsteptype[simplified \<tau>fdef])
     apply (insert fstoptype; simp add: \<tau>fdef bang\<tau>o)
-    apply (thin_tac "_, _, _ \<turnstile> _ : _")
+    apply (thin_tac "_, _, _, _, _ \<turnstile> _ : _")
     apply (erule u_t_recE; clarsimp)
     apply (erule u_t_r_consE; simp)+
     apply (erule conjE)+
@@ -342,7 +342,7 @@ proof (rule absfun_corres[OF _ \<gamma>len valrel])
     apply (clarsimp simp: repeat_inv_def o1C_o1U a1C_o1U a1C_a1U)
     done
 next
-  show "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
+  show "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
     using \<Gamma>i by simp
 qed
 
@@ -351,8 +351,8 @@ section "Corres rules which are easier to use"
 lemma crepeat_corres:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('a :: cogent_C_val))"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], \<tau>, \<tau>a)"
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [], {}, \<tau>, \<tau>a)"
   and     \<tau>def: "\<tau> = TRecord [(''n'', TPrim (Num U64), Present),
                               (''stop'', TFun (bang \<tau>f) (TPrim Bool), Present),
                               (''step'', TFun \<tau>f \<tau>a, Present),
@@ -387,7 +387,7 @@ lemma crepeat_corres:
   and     o1C_a1U: "\<And>x y. o1C (a1U y x) = o1C x"
   and     cfundef: "cfun = crepeat nC stopC stepC a0C o0C a1C a1U o1U d0 d1"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do x <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>'' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
   apply (insert \<gamma>i valrel; clarsimp simp: valrela val_rel_word corres_def)
@@ -421,8 +421,8 @@ shows
 lemma crepeat_corres_rel_leq:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('a :: cogent_C_val))"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], \<tau>, \<tau>a)"
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd  (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [], {}, \<tau>, \<tau>a)"
   and     \<tau>def: "\<tau> = TRecord [(''n'', TPrim (Num U64), Present),
                               (''stop'', TFun (bang \<tau>f) (TPrim Bool), Present),
                               (''step'', TFun \<tau>f \<tau>a, Present),
@@ -457,7 +457,7 @@ lemma crepeat_corres_rel_leq:
   and     o1C_a1U: "\<And>x y. o1C (a1U y x) = o1C x"
   and     cfundef: "cfun = crepeat nC stopC stepC a0C o0C a1C a1U o1U d0 d1"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do x <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>'' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
   apply (clarsimp simp: corres_def)
@@ -479,8 +479,8 @@ shows
 lemma crepeat_corres_bang:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('a :: cogent_C_val))"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], \<tau>, \<tau>a)"
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [], {}, \<tau>, \<tau>a)"
   and     \<tau>def: "\<tau> = TRecord [(''n'', TPrim (Num U64), Present),
                               (''stop'', TFun \<tau>f (TPrim Bool), Present),
                               (''step'', TFun \<tau>f \<tau>a, Present),
@@ -516,7 +516,7 @@ lemma crepeat_corres_bang:
   and     o1C_a1U: "\<And>x y. o1C (a1U y x) = o1C x"
   and     cfundef: "cfun = crepeat nC stopC stepC a0C o0C a1C a1U o1U d0 d1"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do x <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>'' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
   apply (rule_tac state_rel = state_rel and \<sigma> = \<sigma> and s = s in 
@@ -535,29 +535,29 @@ shows
   done
 
 lemmas crepeat_corres_bang_fun_fun = crepeat_corres_bang
-  [where fstop = "UFunction _ _" and fstep = "UFunction _ _", simplified,
+  [where fstop = "UFunction _ _ _" and fstep = "UFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_fun typing_mono_app_cogent_fun]
 lemmas crepeat_corres_bang_fun_afun = crepeat_corres_bang
-  [where fstop = "UFunction _ _" and fstep = "UAFunction _ _", simplified,
+  [where fstop = "UFunction _ _ _" and fstep = "UAFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_fun typing_mono_app_cogent_absfun]
 lemmas crepeat_corres_bang_afun_fun = crepeat_corres_bang
-  [where fstop = "UAFunction _ _" and fstep = "UFunction _ _", simplified,
+  [where fstop = "UAFunction _ _ _" and fstep = "UFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_absfun typing_mono_app_cogent_fun]
 lemmas crepeat_corres_bang_afun_afun = crepeat_corres_bang
-  [where fstop = "UAFunction _ _" and fstep = "UAFunction _ _", simplified,
+  [where fstop = "UAFunction _ _ _" and fstep = "UAFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_absfun typing_mono_app_cogent_absfun]
 
 lemmas crepeat_corres_fun_fun = crepeat_corres_rel_leq
-  [where fstop = "UFunction _ _" and fstep = "UFunction _ _", simplified,
+  [where fstop = "UFunction _ _ _" and fstep = "UFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _  typing_mono_app_cogent_fun typing_mono_app_cogent_fun]
 lemmas crepeat_corres_fun_afun = crepeat_corres_rel_leq
-  [where fstop = "UFunction _ _" and fstep = "UAFunction _ _", simplified,
+  [where fstop = "UFunction _ _ _" and fstep = "UAFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_fun typing_mono_app_cogent_absfun]
 lemmas crepeat_corres_afun_fun = crepeat_corres_rel_leq
-  [where fstop = "UAFunction _ _" and fstep = "UFunction _ _", simplified,
+  [where fstop = "UAFunction _ _ _" and fstep = "UFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_absfun typing_mono_app_cogent_fun]
 lemmas crepeat_corres_afun_afun = crepeat_corres_rel_leq
-  [where fstop = "UAFunction _ _" and fstep = "UAFunction _ _", simplified,
+  [where fstop = "UAFunction _ _ _" and fstep = "UAFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_absfun typing_mono_app_cogent_absfun]
 
 
@@ -566,8 +566,8 @@ section "Alternate corres rules"
 lemma crepeat_corres_base_all:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('a :: cogent_C_val))"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], \<tau>, \<tau>a)"
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [], {}, \<tau>, \<tau>a)"
   and     \<tau>def: "\<tau> = TRecord [(''n'', TPrim (Num U64), Present),
                               (''stop'', TFun (bang \<tau>f) (TPrim Bool), Present),
                               (''step'', TFun \<tau>f \<tau>a, Present),
@@ -602,7 +602,7 @@ lemma crepeat_corres_base_all:
   and     o1C_a1U: "\<forall>x y. o1C (a1U y x) = o1C x"
   and     cfundef: "cfun = crepeat nC stopC stepC a0C o0C a1C a1U o1U d0 d1"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do x <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>'' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
   apply (rule crepeat_corres_base[where o1C = o1C, 
@@ -613,8 +613,8 @@ shows
 lemma crepeat_corres_all:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('a :: cogent_C_val))"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], \<tau>, \<tau>a)"
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [], {}, \<tau>, \<tau>a)"
   and     \<tau>def: "\<tau> = TRecord [(''n'', TPrim (Num U64), Present),
                               (''stop'', TFun (bang \<tau>f) (TPrim Bool), Present),
                               (''step'', TFun \<tau>f \<tau>a, Present),
@@ -649,7 +649,7 @@ lemma crepeat_corres_all:
   and     o1C_a1U: "\<forall>x y. o1C (a1U y x) = o1C x"
   and     cfundef: "cfun = crepeat nC stopC stepC a0C o0C a1C a1U o1U d0 d1"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do x <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>'' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
   apply (rule crepeat_corres[where o1C = o1C, 
@@ -660,8 +660,8 @@ shows
 lemma crepeat_corres_rel_leq_all:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('a :: cogent_C_val))"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], \<tau>, \<tau>a)"
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [], {}, \<tau>, \<tau>a)"
   and     \<tau>def: "\<tau> = TRecord [(''n'', TPrim (Num U64), Present),
                               (''stop'', TFun (bang \<tau>f) (TPrim Bool), Present),
                               (''step'', TFun \<tau>f \<tau>a, Present),
@@ -696,7 +696,7 @@ lemma crepeat_corres_rel_leq_all:
   and     o1C_a1U: "\<forall>x y. o1C (a1U y x) = o1C x"
   and     cfundef: "cfun = crepeat nC stopC stepC a0C o0C a1C a1U o1U d0 d1"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do x <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>'' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
   apply (rule crepeat_corres_rel_leq[where o1C = o1C, 
@@ -707,8 +707,8 @@ shows
 lemma crepeat_corres_bang_all:
   assumes \<gamma>len: "i < length \<gamma>"
   and     valrel: "val_rel (\<gamma> ! i) (v' :: ('a :: cogent_C_val))"
-  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (\<Xi>' name)))"
-  and     \<Xi>name: "\<Xi>' name = ([], \<tau>, \<tau>a)"
+  and     \<Gamma>i: "\<Gamma> ! i = Some (fst (snd (snd (snd (\<Xi>' name)))))"
+  and     \<Xi>name: "\<Xi>' name = (0, [], {}, \<tau>, \<tau>a)"
   and     \<tau>def: "\<tau> = TRecord [(''n'', TPrim (Num U64), Present),
                               (''stop'', TFun \<tau>f (TPrim Bool), Present),
                               (''step'', TFun \<tau>f \<tau>a, Present),
@@ -744,7 +744,7 @@ lemma crepeat_corres_bang_all:
   and     o1C_a1U: "\<forall>x y. o1C (a1U y x) = o1C x"
   and     cfundef: "cfun = crepeat nC stopC stepC a0C o0C a1C a1U o1U d0 d1"
 shows
-  "corres state_rel (App (AFun name []) (Var i))
+  "corres state_rel (App (AFun name [] []) (Var i))
     (do x <- cfun v'; gets (\<lambda>s. x) od)
      \<xi>'' \<gamma> \<Xi>' \<Gamma> \<sigma> s"
   apply (rule crepeat_corres_bang[where o1C = o1C, 
@@ -753,29 +753,29 @@ shows
   done
 
 lemmas crepeat_corres_bang_fun_funall = crepeat_corres_bang_all
-  [where fstop = "UFunction _ _" and fstep = "UFunction _ _", simplified,
+  [where fstop = "UFunction _ _ _" and fstep = "UFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_fun typing_mono_app_cogent_fun]
 lemmas crepeat_corres_bang_fun_afun_all = crepeat_corres_bang_all
-  [where fstop = "UFunction _ _" and fstep = "UAFunction _ _", simplified,
+  [where fstop = "UFunction _ _ _" and fstep = "UAFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_fun typing_mono_app_cogent_absfun]
 lemmas crepeat_corres_bang_afun_fun_all = crepeat_corres_bang_all
-  [where fstop = "UAFunction _ _" and fstep = "UFunction _ _", simplified,
+  [where fstop = "UAFunction _ _ _" and fstep = "UFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_absfun typing_mono_app_cogent_fun]
 lemmas crepeat_corres_bang_afun_afun_all = crepeat_corres_bang_all
-  [where fstop = "UAFunction _ _" and fstep = "UAFunction _ _", simplified,
+  [where fstop = "UAFunction _ _ _" and fstep = "UAFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_absfun typing_mono_app_cogent_absfun]
 
 lemmas crepeat_corres_fun_fun_all = crepeat_corres_rel_leq_all
-  [where fstop = "UFunction _ _" and fstep = "UFunction _ _", simplified,
+  [where fstop = "UFunction _ _ _" and fstep = "UFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _  typing_mono_app_cogent_fun typing_mono_app_cogent_fun]
 lemmas crepeat_corres_fun_afun_all = crepeat_corres_rel_leq_all
-  [where fstop = "UFunction _ _" and fstep = "UAFunction _ _", simplified,
+  [where fstop = "UFunction _ _ _" and fstep = "UAFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_fun typing_mono_app_cogent_absfun]
 lemmas crepeat_corres_afun_fun_all = crepeat_corres_rel_leq_all
-  [where fstop = "UAFunction _ _" and fstep = "UFunction _ _", simplified,
+  [where fstop = "UAFunction _ _ _" and fstep = "UFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_absfun typing_mono_app_cogent_fun]
 lemmas crepeat_corres_afun_afun_all = crepeat_corres_rel_leq_all
-  [where fstop = "UAFunction _ _" and fstep = "UAFunction _ _", simplified,
+  [where fstop = "UAFunction _ _ _" and fstep = "UAFunction _ _ _", simplified,
    OF _ _ _ _ _ _ _ _ _ _ _ typing_mono_app_cogent_absfun typing_mono_app_cogent_absfun]
 
 end (* of context *)

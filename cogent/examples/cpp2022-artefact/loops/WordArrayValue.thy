@@ -69,8 +69,9 @@ proof (induct t arbitrary: v)
 case (TRecord x1a x2a)
   then show ?case 
     apply (clarsimp simp: find_None_iff_nth)
-    apply (erule v_t_trecordE; clarsimp intro!: l0.vval_typing_vval_typing_record.intros)
-    apply (drule vval_typing_record_alt1)
+    apply (erule v_t_trecordE; clarsimp)
+    apply (rule l0.vval_typing_vval_typing_record.intros; simp?)
+    apply (drule vval_typing_record_alt1) 
     apply (rule l0.vval_typing_record_alt2)
     apply clarsimp
     apply (rename_tac i)
@@ -79,7 +80,7 @@ case (TRecord x1a x2a)
     apply (elim meta_allE meta_impE; simp?)
     apply (intro exI conjI; simp?)
     done
-qed (fastforce elim!: v_t_tfunE v_t_tprimE v_t_tsumE v_t_tproductE v_t_tunitE
+qed (fastforce elim!: v_t_tfunE v_t_tprimE v_t_tsumE v_t_tproductE v_t_tunitE v_t_tcustomE
               intro!: l0.vval_typing_vval_typing_record.intros
                 simp: find_None_iff)+
 

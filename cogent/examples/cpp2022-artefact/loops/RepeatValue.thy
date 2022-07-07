@@ -48,9 +48,9 @@ definition vrepeat
     is_vvalfun g \<and>
     (\<Xi>' \<turnstile> acc :v \<tau>a) \<and>
     (\<Xi>' \<turnstile> obsv :v \<tau>o) \<and>
-    (\<Xi>', [], [option.Some (TRecord [(''acc'', bang \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)]
+    (\<Xi>', 0, [], {}, [option.Some (TRecord [(''acc'', bang \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)]
       \<turnstile> (App (vvalfun_to_expr f) (Var 0)) : TPrim Bool) \<and>
-    (\<Xi>', [], [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)]
+    (\<Xi>', 0, [], {}, [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)]
       \<turnstile> (App (vvalfun_to_expr g) (Var 0)) : \<tau>a) \<and>
     vrepeat_bod \<xi>' (unat n) (vvalfun_to_expr f) (vvalfun_to_expr g) acc obsv ret)"
 
@@ -62,7 +62,7 @@ lemma vrepeat_bod_preservation:
     \<Xi>' \<turnstile> acc :v \<tau>a;
     \<Xi>' \<turnstile> obsv :v \<tau>o;
     vrepeat_bod \<xi>' n f g acc obsv ret;
-    \<Xi>', [], [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] \<turnstile> (App g (Var 0)) : \<tau>a\<rbrakk>
+    \<Xi>', 0, [], {}, [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] \<turnstile> (App g (Var 0)) : \<tau>a\<rbrakk>
       \<Longrightarrow> \<Xi>' \<turnstile> ret :v \<tau>a"
   apply (induct arbitrary: rule: vrepeat_bod.induct[of _ \<xi>' n f g acc obsv ret])
    apply clarsimp
@@ -72,7 +72,8 @@ lemma vrepeat_bod_preservation:
   apply (case_tac b; clarsimp)
   apply (drule_tac x = b in meta_spec; clarsimp)
   apply (drule_tac x = acc' in meta_spec; clarsimp)
-  apply (drule_tac \<gamma> = "[VRecord [acc, obsv]]" and v = acc' in preservation(1)[of "[]" "[]", simplified]; simp?)
+  apply (drule_tac \<gamma> = "[VRecord [acc, obsv]]" and v = acc' in 
+      preservation(1)[of "[]" "[]" 0 "[]" "{}", OF subst_wellformed_nothing]; simp?)
    apply (clarsimp simp: matches_def)
    apply (rule v_t_record; simp?)
    apply (rule v_t_r_cons1; simp?)+

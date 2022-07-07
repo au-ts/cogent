@@ -39,9 +39,9 @@ lemma vrepeat_bod_monoexpr_correct:
     vrepeat_bod \<xi>' n (vvalfun_to_expr (rename_val rename' (monoval f))) 
       (vvalfun_to_expr (rename_val rename' (monoval g))) (rename_val rename' (monoval acc))
       (rename_val rename' (monoval obsv)) ret;
-        \<Xi>', [], [option.Some (TRecord [(''acc'', bang \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] 
+        \<Xi>', 0, [], {}, [option.Some (TRecord [(''acc'', bang \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] 
       \<turnstile> (App (vvalfun_to_expr (rename_val rename' (monoval f))) (Var 0)) : TPrim Bool;
-    \<Xi>', [], [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] 
+    \<Xi>', 0, [], {}, [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] 
       \<turnstile> (App (vvalfun_to_expr (rename_val rename' (monoval g))) (Var 0)) : \<tau>a\<rbrakk>
   \<Longrightarrow> is_vvalfun f \<and> is_vvalfun g \<and> (\<exists>ret'. ret = rename_val rename' (monoval ret') \<and>
          vrepeat_bod \<xi>'' n (vvalfun_to_expr f) (vvalfun_to_expr g) acc obsv ret')"
@@ -93,7 +93,9 @@ lemma vrepeat_bod_monoexpr_correct:
   apply (drule_tac
       e = "App (vvalfun_to_expr (rename_val rename' (monoval g))) (Var 0)" and
       ?\<Gamma>.0 = "[Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)]"
-      in preservation(1)[where \<tau>s = "[]" and  K = "[]" , simplified, rotated -2]; (simp add: matches_def)?)
+      in preservation(1)[where \<tau>s = "[]" and  K = "[]" , OF subst_wellformed_nothing,
+         simplified, rotated -2]; 
+     (simp add: matches_def)?)
    apply (intro v_t_record v_t_r_cons1 v_t_r_empty; simp?)
   apply (elim meta_allE meta_impE; assumption?)
   apply clarsimp

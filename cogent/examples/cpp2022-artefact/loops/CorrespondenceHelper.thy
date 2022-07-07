@@ -9,11 +9,11 @@ section "Value relation rules"
 
 context correspondence begin
 
-inductive_cases u_v_urecE      [elim] : "\<Xi>', \<sigma> \<turnstile> URecord fs \<sim> v : \<tau> \<langle>r, w\<rangle>"
+inductive_cases u_v_urecE      [elim] : "\<Xi>', \<sigma> \<turnstile> URecord fs ls \<sim> v : \<tau> \<langle>r, w\<rangle>"
 inductive_cases u_v_uprimE     [elim] : "\<Xi>', \<sigma> \<turnstile> UPrim l \<sim> v : TPrim \<tau> \<langle>r, w\<rangle>"
 inductive_cases u_v_r_uemptyE  [elim] : "\<Xi>', \<sigma> \<turnstile>* [] \<sim> vs :r \<tau>s \<langle>r, w\<rangle>"
-inductive_cases u_v_ufunctionE [elim] : "\<Xi>', \<sigma> \<turnstile> UFunction f ts \<sim> v : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
-inductive_cases u_v_uafunE     [elim] : "\<Xi>', \<sigma> \<turnstile> UAFunction f ts \<sim> v : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
+inductive_cases u_v_ufunctionE [elim] : "\<Xi>', \<sigma> \<turnstile> UFunction f ts ls \<sim> v : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
+inductive_cases u_v_uafunE     [elim] : "\<Xi>', \<sigma> \<turnstile> UAFunction f ts ls \<sim> v : TFun \<tau> \<rho> \<langle>r, w\<rangle>"
 inductive_cases u_v_uptrE      [elim] : "\<Xi>', \<sigma> \<turnstile> UPtr p rp \<sim> v : \<tau> \<langle>r, w\<rangle>"
 inductive_cases u_v_uvprimE     [elim] : "\<Xi>', \<sigma> \<turnstile> UPrim l \<sim> VPrim l' : \<tau> \<langle>r, w\<rangle>"
 
@@ -47,7 +47,7 @@ lemma upd_val_rel_record_alt1:
         distinct_sets ws \<and>
         (\<forall>i<length fs. 
           \<exists>x rp x' n t s. fs ! i = (x, rp) \<and> fs' ! i = x' \<and> ts ! i = (n, t, s) \<and> type_repr t = rp \<and>
-            (s = Taken \<longrightarrow> [] \<turnstile> t wellformed \<and> upd.uval_repr x = rp \<and> upd.uval_repr_deep x = rp \<and> rs ! i = {} \<and> ws ! i = {}) \<and>
+            (s = Taken \<longrightarrow> 0, [], {} \<turnstile> t wellformed \<and> upd.uval_repr x = rp \<and> upd.uval_repr_deep x = rp \<and> rs ! i = {} \<and> ws ! i = {}) \<and>
             (s = Present \<longrightarrow> \<Xi>', \<sigma> \<turnstile> x \<sim> x' : t \<langle>rs ! i, ws ! i\<rangle>)))"
   apply (induct fs arbitrary: fs' ts r w)
    apply clarsimp
@@ -82,11 +82,12 @@ lemma upd_val_rel_record_alt1:
 
 lemma upd_val_rel_record_alt2:
   "r \<inter> w = {} \<and> length fs = length ts \<and> length fs = length fs' \<and>
-   (\<exists>rs ws. r = \<Union>(set rs) \<and> w = \<Union>(set ws) \<and> length rs = length fs \<and> length ws = length fs \<and>
+   (\<exists>rs ws. r = \<Union>(set rs) \<and> w = \<Union>(set ws) \<and> 
+   length rs = length fs \<and> length ws = length fs \<and>
    distinct_sets ws \<and>
    (\<forall>i<length fs. 
       \<exists>x rp x' n t s. fs ! i = (x, rp) \<and> fs' ! i = x' \<and> ts ! i = (n, t, s) \<and> type_repr t = rp \<and>
-          (s = Taken \<longrightarrow> [] \<turnstile> t wellformed \<and> upd.uval_repr x = rp \<and> upd.uval_repr_deep x = rp \<and> rs ! i = {} \<and> ws ! i = {}) \<and>
+          (s = Taken \<longrightarrow> 0, [], {} \<turnstile> t wellformed \<and> upd.uval_repr x = rp \<and> upd.uval_repr_deep x = rp \<and> rs ! i = {} \<and> ws ! i = {}) \<and>
           (s = Present \<longrightarrow> \<Xi>', \<sigma> \<turnstile> x \<sim> x' : t \<langle>rs ! i, ws ! i\<rangle>)))
     \<Longrightarrow> \<Xi>', \<sigma> \<turnstile>* fs \<sim> fs' :r ts \<langle>r, w\<rangle>"
   apply (induct fs arbitrary: fs' ts r w; clarsimp)
@@ -127,15 +128,16 @@ section "Heap footprint properties"
 
 lemma u_v_discardable_or_shareable_not_writable:
 assumes "D \<in> k \<or> S \<in> k"
-shows "\<lbrakk> \<Xi>', \<sigma> \<turnstile>  u \<sim> v  : \<tau>  \<langle> r , w \<rangle>; K' \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
-and   "\<lbrakk> \<Xi>', \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle> r , w \<rangle>; K' \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
+shows "\<lbrakk> \<Xi>', \<sigma> \<turnstile>  u \<sim> v  : \<tau>  \<langle> r , w \<rangle>; 0, K', {} \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
+and   "\<lbrakk> \<Xi>', \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle> r , w \<rangle>; 0, K', {} \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
   using assms
   by (fastforce dest!:  upd_val_rel_to_uval_typing upd.discardable_or_shareable_not_writable[OF assms])+
 
 lemma u_v_discardable_or_shareable_not_writable':
-shows "\<lbrakk> k = kinding_fn K' \<tau>; D \<in> k \<or> S \<in> k; \<Xi>', \<sigma> \<turnstile>  u  \<sim> v  :  \<tau>  \<langle> r , w \<rangle>; K' \<turnstile>  \<tau>  :\<kappa> k \<rbrakk> \<Longrightarrow> w = {}"
+  shows "\<lbrakk> k = kinding_fn K' \<tau>; D \<in> k \<or> S \<in> k; 
+         \<Xi>', \<sigma> \<turnstile>  u  \<sim> v  :  \<tau>  \<langle> r , w \<rangle>; 0, K', {} \<turnstile>  \<tau>  :\<kappa> k \<rbrakk> \<Longrightarrow> w = {}"
 and   "\<lbrakk> k = (\<Inter>(_,t,b)\<in>set \<tau>s. (case b of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K' t));
-         D \<in> k \<or> S \<in> k; \<Xi>', \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle> r , w \<rangle>; K' \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
+         D \<in> k \<or> S \<in> k; \<Xi>', \<sigma> \<turnstile>* fs \<sim> fs' :r \<tau>s \<langle> r , w \<rangle>; 0, K', {} \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
   by (meson u_v_discardable_or_shareable_not_writable)+
 
 lemma u_v_bang_not_writable:
@@ -169,10 +171,11 @@ lemma \<xi>ule_matchesuv:
   "\<lbrakk>rel_leq \<xi>ua \<xi>ub; \<xi>ub \<sim> \<xi>v matches-u-v \<Xi>'\<rbrakk> \<Longrightarrow> \<xi>ua \<sim> \<xi>v matches-u-v \<Xi>'"
   unfolding proc_env_u_v_matches_def
   apply clarsimp
-  apply (rename_tac f K a b \<sigma> \<sigma>' \<tau>s aa a' v v' r w)
+  apply (rename_tac f L K C a b \<sigma> \<sigma>' ls \<tau>s aa a' v v' r w)
   apply (erule_tac x = f in allE; clarsimp)
   apply (erule_tac x = \<sigma> in allE)
   apply (erule_tac x = \<sigma>' in allE)
+  apply (erule_tac x = ls in allE)
   apply (erule_tac x = \<tau>s in allE; clarsimp)
   apply (erule_tac x = aa in allE)
   apply (erule_tac x = a' in allE)
@@ -186,19 +189,18 @@ lemma \<xi>ule_matchesuv:
 section "Alternate definition of @{term proc_env_u_v_matches}"
 
 definition proc_env_u_v_matches_alt :: "(('f, 'au, 'l) uabsfuns)
-
                                   \<Rightarrow> (('f, 'av)    vabsfuns)
                                   \<Rightarrow> ('f \<Rightarrow> poly_type)
                                   \<Rightarrow> bool"
            ("_ \<sim> _ altmatches-u-v _" [30,20] 60) where
   "\<xi>u \<sim> \<xi>v altmatches-u-v \<Xi>'
-          \<equiv> (\<forall> f. let (K, \<tau>i, \<tau>o) = \<Xi>' f
-                  in (\<forall> \<sigma> \<sigma>' \<tau>s a a' v r w.
-                         list_all2 (kinding []) \<tau>s K
-                      \<longrightarrow> (\<Xi>' , \<sigma> \<turnstile> a \<sim> a' : instantiate \<tau>s \<tau>i \<langle>r, w\<rangle>)
+          \<equiv> (\<forall> f. let (L, K, C, \<tau>i, \<tau>o) = \<Xi>' f
+                  in (\<forall> \<sigma> \<sigma>' ls \<tau>s a a' v r w.
+                         0, [], {} \<turnstile> ls, \<tau>s :s L, K, C
+                      \<longrightarrow> (\<Xi>' , \<sigma> \<turnstile> a \<sim> a' : instantiate ls \<tau>s \<tau>i \<langle>r, w\<rangle>)
                       \<longrightarrow> \<xi>u f (\<sigma>, a) (\<sigma>', v)
                       \<longrightarrow> (\<exists>v'. \<xi>v f a' v' \<and> 
-                            (\<exists>r' w'. (\<Xi>' , \<sigma>' \<turnstile> v \<sim> v' : instantiate \<tau>s \<tau>o \<langle>r', w'\<rangle>)
+                            (\<exists>r' w'. (\<Xi>' , \<sigma>' \<turnstile> v \<sim> v' : instantiate ls \<tau>s \<tau>o \<langle>r', w'\<rangle>)
                                     \<and> r' \<subseteq> r \<and> frame \<sigma> w \<sigma>' w'))))"
 
 lemma proc_env_u_v_matches_imp_alt:
@@ -206,10 +208,12 @@ lemma proc_env_u_v_matches_imp_alt:
   unfolding proc_env_u_v_matches_def proc_env_u_v_matches_alt_def
   apply (clarsimp split: prod.splits)
   apply (elim allE, erule impE, assumption)
-  apply (rename_tac f x1 a b \<sigma> \<sigma>' \<tau>s aa a' v r w)
+  apply (rename_tac f L K C a b \<sigma> \<sigma>' ls \<tau>s aa a' v r w)
   apply (erule_tac x = \<sigma> in allE)
   apply (erule_tac x = \<sigma>' in allE)
-  apply (elim allE, erule impE, assumption)
+  apply (erule_tac x = ls in allE)
+  apply (erule_tac x = \<tau>s in allE)
+  apply ( erule impE, assumption) 
   apply (erule allE, erule_tac x = a' in allE, elim allE, erule impE, assumption)
   apply (subst (asm) all_comm)
   apply (erule_tac x = r in allE)

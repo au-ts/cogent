@@ -98,7 +98,8 @@ lemma vrepeat_bod_scorres:
   done
 
 lemma repeat_scorres: 
-  "\<lbrakk>rel_leq \<xi>' \<xi>''; \<xi>'' ''repeat'' = prepeat \<xi>'\<rbrakk> \<Longrightarrow> scorres repeat (AFun ''repeat'' ts) \<gamma> \<xi>''"
+  "\<lbrakk>rel_leq \<xi>' \<xi>''; \<xi>'' ''repeat'' = prepeat \<xi>'\<rbrakk> \<Longrightarrow> 
+     scorres repeat (AFun ''repeat'' ts []) \<gamma> \<xi>''"
   unfolding scorres_def
   apply clarsimp
   apply (erule v_sem_afunE; clarsimp)

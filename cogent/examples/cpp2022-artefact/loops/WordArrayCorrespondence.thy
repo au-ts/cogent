@@ -196,7 +196,7 @@ case (TRecord x1a x2a)
     apply (elim meta_allE meta_impE; simp?)
     apply (intro exI conjI; simp?)
     done
-qed (fastforce elim!: u_v_tfunE u_v_tprimE u_v_tsumE u_v_tproductE u_v_tunitE
+qed (fastforce elim!: u_v_tfunE u_v_tprimE u_v_tsumE u_v_tproductE u_v_tunitE u_v_tcnumE
               intro!: l0.upd_val_rel_upd_val_rel_record.intros
                 simp: find_None_iff)+
 
