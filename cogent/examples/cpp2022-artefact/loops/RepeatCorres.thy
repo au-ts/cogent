@@ -85,7 +85,7 @@ definition repeat_pre_step
     val_rel obsv cobsv \<and> i < cn \<and> i = j \<and> 
     (\<exists>\<sigma>' y. urepeat_bod \<xi>' (unat i) (uvalfun_to_expr fstop) (uvalfun_to_expr fstep) \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv y \<and>
             (\<sigma>', s) \<in> srel \<and> val_rel y cacc \<and>
-            (\<xi>', [URecord [(y, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)]]
+            (\<xi>', [URecord [(y, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)] None]
                 \<turnstile> (\<sigma>', App (uvalfun_to_expr fstop) (Var 0)) \<Down>! (\<sigma>', UPrim (LBool False))))"
 
 lemma step_wp:
@@ -93,9 +93,9 @@ lemma step_wp:
   and     \<xi>'matchesu: "\<xi>' matches-u \<Xi>'"
   and     determ: "determ \<xi>'"
   and     \<tau>fdef: "\<tau>f = TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed"
-  and     fsteptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
+  and     fsteptype: "\<Xi>', 0, [], {}, [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
   and     valrelc:  "\<And>x x'. val_rel x (x' :: ('c :: cogent_C_val)) \<equiv>
-                              \<exists>acc obsv. x = URecord [acc, obsv] \<and> val_rel (fst acc) (a1C x') \<and>
+                              \<exists>acc obsv. x = URecord [acc, obsv] None \<and> val_rel (fst acc) (a1C x') \<and>
                                 val_rel (fst obsv) (o1C x')"
   and     d1corres: "\<And>x x' \<sigma> s. val_rel x (x' :: ('c :: cogent_C_val)) \<Longrightarrow>
                                   corres state_rel (App (uvalfun_to_expr fstep) (Var 0))
@@ -121,7 +121,7 @@ lemma step_wp:
   apply (clarsimp simp: repeat_pre_step_def repeat_inv_def repeat_measure_def)
   apply (rename_tac s \<sigma>' y)
   apply (insert d1corres)
-  apply (drule_tac x = "URecord [(y, type_repr \<tau>a), (obsv, type_repr \<tau>o)]" and
+  apply (drule_tac x = "URecord [(y, type_repr \<tau>a), (obsv, type_repr \<tau>o)] None" and
                    y = arg in meta_spec2)
   apply (drule_tac x = \<sigma>' and y = s in meta_spec2)
   apply (erule meta_impE)
@@ -142,8 +142,9 @@ lemma step_wp:
                 u_t_r_cons1[where w' = "{}", simplified]
                 u_t_r_cons1[where r' = "{}" and w' = "{}", simplified]
                 u_t_r_empty; simp?)
-    apply (erule uval_typing_frame(1); simp add: obsvtyp disjoint[simplified Int_commute])
-   apply (drule frame_noalias_uval_typing'(2)[OF _ obsvtyp disjoint[simplified Int_commute]]; blast)
+     apply (erule uval_typing_frame(1); simp add: obsvtyp disjoint[simplified Int_commute])
+    apply (drule frame_noalias_uval_typing'(2)[OF _ obsvtyp disjoint[simplified Int_commute]]; blast)
+   apply (simp add:matches_ptrs.matches_ptrs_empty)
   apply clarsimp
   apply (rename_tac a b)
   apply (elim allE impE, assumption)
@@ -158,10 +159,10 @@ lemma stop_wp:
   and     \<xi>'matchesu: "\<xi>' matches-u \<Xi>'"
   and     determ: "determ \<xi>'"
   and     \<tau>fdef: "\<tau>f = TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed"
-  and     fstoptype: "\<Xi>', [], [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
-  and     fsteptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
+  and     fstoptype: "\<Xi>', 0, [], {}, [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
+  and     fsteptype: "\<Xi>', 0, [], {}, [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
   and     valrelc:  "\<And>x x'. val_rel x (x' :: ('c :: cogent_C_val)) \<equiv>
-                              \<exists>acc obsv. x = URecord [acc, obsv] \<and> val_rel (fst acc) (a1C x') \<and>
+                              \<exists>acc obsv. x = URecord [acc, obsv] None \<and> val_rel (fst acc) (a1C x') \<and>
                                 val_rel (fst obsv) (o1C x')"
   and     d0corres: "\<And>x x' \<sigma> s. val_rel x (x' :: ('c :: cogent_C_val)) \<Longrightarrow>
                                   corres state_rel (App (uvalfun_to_expr fstop) (Var 0))
@@ -178,10 +179,10 @@ lemma stop_wp:
             j = j' \<and>  j < nC v' \<and>
             urepeat_bod \<xi>' n (uvalfun_to_expr fstop) (uvalfun_to_expr fstep) \<sigma> \<sigma>'
               \<tau>a acc \<tau>o obsv y \<and>
-            ((\<xi>' , [URecord [(y, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)]]
+            ((\<xi>' , [URecord [(y, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)] None]
                 \<turnstile> (\<sigma>', App (uvalfun_to_expr fstop) (Var 0)) \<Down>! (\<sigma>', UPrim (LBool True)))
               \<longrightarrow> n \<ge> unat j \<and> n < unat (nC v')) \<and>
-            ((\<xi>' , [URecord [(y, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)]]
+            ((\<xi>' , [URecord [(y, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)] None]
                 \<turnstile> (\<sigma>', App (uvalfun_to_expr fstop) (Var 0)) \<Down>! (\<sigma>', UPrim (LBool False)))
               \<longrightarrow> n = unat j))\<rbrace>
             d0 (stopC v') arg 
@@ -197,7 +198,7 @@ lemma stop_wp:
   apply (clarsimp simp: repeat_pre_step_def)
   apply (rename_tac s \<sigma>' y n)
   apply (insert d0corres)
-  apply (drule_tac x = "URecord [(y, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)]" and
+  apply (drule_tac x = "URecord [(y, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)] None" and
                    y = arg in meta_spec2)
   apply (drule_tac x = \<sigma>' and y = s in meta_spec2)
   apply (erule meta_impE)
@@ -216,17 +217,19 @@ lemma stop_wp:
                 u_t_r_cons1[where w' = "{}", simplified]
                 u_t_r_cons1[where r' = "{}" and w' = "{}", simplified]
                 u_t_r_empty; simp?)
-     apply (rule uval_typing_bang(1); simp)
-    apply (rule uval_typing_bang(1)[where w = "{}" ,simplified])
-    apply (erule uval_typing_frame(1); simp add: obsvtyp disjoint[simplified Int_commute])
-   apply (rule wellformed_imp_bang_type_repr[OF uval_typing_to_wellformed(1)[OF obsvtyp]])
+      apply (rule uval_typing_bang(1); simp)
+     apply (rule uval_typing_bang(1)[where w = "{}" ,simplified])
+     apply (erule uval_typing_frame(1); simp add: obsvtyp disjoint[simplified Int_commute])
+    apply (rule wellformed_imp_bang_type_repr[OF uval_typing_to_wellformed(1)[OF obsvtyp]])
+   apply (simp add:matches_ptrs.matches_ptrs_empty)
   apply clarsimp
   apply (rename_tac a b)
   apply (elim allE, erule impE, assumption)
-  apply clarsimp
+  apply clarsimp 
   apply (frule_tac r = "(r' \<union> w') \<union> ro" and w = "{}" 
       in preservation(1)[where K = "[]" and \<tau>s = "[]", simplified,
-                         OF \<Xi>wellformed _ \<xi>'matchesu _ fstoptype, rotated 1])
+                         OF subst_wellformed_nothing \<Xi>wellformed _ 
+                            \<xi>'matchesu _ fstoptype, simplified, rotated 1])
    apply (clarsimp simp: \<tau>fdef)
    apply (intro matches_ptrs_some[where r' = "{}" and w' = "{}", simplified]
                 matches_ptrs_empty[where \<tau>s = "[]", simplified]
@@ -234,10 +237,11 @@ lemma stop_wp:
                 u_t_r_cons1[where w' = "{}", simplified]
                 u_t_r_cons1[where r' = "{}" and w' = "{}", simplified]
                 u_t_r_empty; simp?)
-     apply (rule uval_typing_bang(1); simp)
-    apply (rule uval_typing_bang(1)[where w = "{}" ,simplified])
-    apply (erule uval_typing_frame(1); simp add: obsvtyp disjoint[simplified Int_commute])
-   apply (rule wellformed_imp_bang_type_repr[OF uval_typing_to_wellformed(1)[OF obsvtyp]])
+      apply (rule uval_typing_bang(1); simp)
+     apply (rule uval_typing_bang(1)[where w = "{}" ,simplified])
+     apply (erule uval_typing_frame(1); simp add: obsvtyp disjoint[simplified Int_commute])
+    apply (rule wellformed_imp_bang_type_repr[OF uval_typing_to_wellformed(1)[OF obsvtyp]])
+   apply (simp add:matches_ptrs.matches_ptrs_empty)
   apply (clarsimp simp: val_rel_bool_t_C_def)
   apply (erule u_t_primE; clarsimp)
   apply (drule frame_empty; clarsimp)
@@ -261,9 +265,12 @@ lemma crepeat_corres_base:
   and     \<xi>''name: "\<xi>'' name = urepeat \<Xi>' \<xi>' \<tau>a \<tau>o"
   and     \<xi>'matchesu: "\<xi>' matches-u \<Xi>'"
   and     determ: "determ \<xi>'"
-  and     \<gamma>i: "\<gamma> ! i = URecord [(UPrim (LU64 n), RPrim (Num U64)), (fstop, RFun), (fstep, RFun), (acc, type_repr \<tau>a), (obsv, type_repr \<tau>o)]"
-  and     fstoptype: "\<Xi>', [], [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
-  and     fsteptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
+  and     \<gamma>i: "\<gamma> ! i = 
+               URecord [(UPrim (LU64 n), RPrim (Num U64)), 
+                        (fstop, RFun), (fstep, RFun), 
+                        (acc, type_repr \<tau>a), (obsv, type_repr \<tau>o)] None"
+  and     fstoptype: "\<Xi>', 0, [], {}, [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
+  and     fsteptype: "\<Xi>', 0, [], {}, [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
   and     d0corres: "\<And>x x' \<sigma> s. val_rel x (x' :: ('c :: cogent_C_val)) \<Longrightarrow>
                                   corres state_rel (App (uvalfun_to_expr fstop) (Var 0))
                                     (do ret <- d0 (stopC v') x'; gets (\<lambda>s. ret) od)
@@ -273,12 +280,12 @@ lemma crepeat_corres_base:
                                     (do ret <- d1 (stepC v') x'; gets (\<lambda>s. ret) od)
                                     \<xi>' [x] \<Xi>' [option.Some \<tau>f] \<sigma> s"
   and     valrela:  "\<And>x x'. val_rel x (x' :: 'a) \<equiv>
-                              \<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] \<and>
+                              \<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] None \<and>
                                 val_rel (fst n) (nC x') \<and> val_rel (fst f) (stopC x') \<and>
                                 val_rel (fst g) (stepC x') \<and> val_rel (fst acc) (a0C x') \<and>
                                 val_rel (fst obsv) (o0C x')"
   and     valrelc:  "\<And>x x'. val_rel x (x' :: 'c) \<equiv>
-                              \<exists>acc obsv. x = URecord [acc, obsv] \<and> val_rel (fst acc) (a1C x') \<and>
+                              \<exists>acc obsv. x = URecord [acc, obsv] None \<and> val_rel (fst acc) (a1C x') \<and>
                                 val_rel (fst obsv) (o1C x')"
   and     a1C_a1U: "\<And>x y. a1C (a1U (\<lambda>_. y) x) = y"
   and     a1C_o1U: "\<And>x y. a1C (o1U y x) = a1C x"
@@ -355,9 +362,9 @@ lemma crepeat_corres:
   and     \<xi>''name: "\<xi>'' name = urepeat \<Xi>' \<xi>' \<tau>a \<tau>o"
   and     \<xi>'matchesu: "\<xi>' matches-u \<Xi>'"
   and     determ: "determ \<xi>'"
-  and     \<gamma>i: "\<exists>n acc obsv a b. \<gamma> ! i = URecord [n, (fstop, a), (fstep, b), acc, obsv]"
-  and     fstoptype: "\<Xi>', [], [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
-  and     fsteptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
+  and     \<gamma>i: "\<exists>n acc obsv a b. \<gamma> ! i = URecord [n, (fstop, a), (fstep, b), acc, obsv] None"
+  and     fstoptype: "\<Xi>', 0, [], {}, [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
+  and     fsteptype: "\<Xi>', 0, [], {}, [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
   and     d0corres: "\<And>x x' \<sigma> s. val_rel x (x' :: ('c :: cogent_C_val)) \<Longrightarrow>
                                   corres state_rel (App (uvalfun_to_expr fstop) (Var 0))
                                     (do ret <- d0 (stopC v') x'; gets (\<lambda>s. ret) od)
@@ -367,12 +374,12 @@ lemma crepeat_corres:
                                     (do ret <- d1 (stepC v') x'; gets (\<lambda>s. ret) od)
                                     \<xi>' [x] \<Xi>' [option.Some \<tau>f] \<sigma> s"
   and     valrela:  "\<And>x x'. val_rel x (x' :: 'a) \<equiv>
-                              \<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] \<and>
+                              \<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] None \<and>
                                 val_rel (fst n) (nC x') \<and> val_rel (fst f) (stopC x') \<and>
                                 val_rel (fst g) (stepC x') \<and> val_rel (fst acc) (a0C x') \<and>
                                 val_rel (fst obsv) (o0C x')"
   and     valrelc:  "\<And>x x'. val_rel x (x' :: 'c) \<equiv>
-                              \<exists>acc obsv. x = URecord [acc, obsv] \<and> val_rel (fst acc) (a1C x') \<and>
+                              \<exists>acc obsv. x = URecord [acc, obsv] None \<and> val_rel (fst acc) (a1C x') \<and>
                                 val_rel (fst obsv) (o1C x')"
   and     a1C_a1U: "\<And>x y. a1C (a1U (\<lambda>_. y) x) = y"
   and     a1C_o1U: "\<And>x y. a1C (o1U y x) = a1C x"
@@ -425,9 +432,9 @@ lemma crepeat_corres_rel_leq:
   and     \<xi>''name: "\<xi>'' name = urepeat \<Xi>' \<xi>' \<tau>a \<tau>o"
   and     leq: "rel_leq \<xi>' \<xi>''"
   and     determ: "determ \<xi>''"
-  and     \<gamma>i: "\<exists>n acc obsv a b. \<gamma> ! i = URecord [n, (fstop, a), (fstep, b), acc, obsv]"
-  and     fstoptype: "\<Xi>', [], [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
-  and     fsteptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
+  and     \<gamma>i: "\<exists>n acc obsv a b. \<gamma> ! i = URecord [n, (fstop, a), (fstep, b), acc, obsv] None"
+  and     fstoptype: "\<Xi>', 0, [], {}, [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
+  and     fsteptype: "\<Xi>', 0, [], {}, [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
   and     d0corres: "\<And>x x' \<sigma> s. val_rel x (x' :: ('c :: cogent_C_val)) \<Longrightarrow>
                                   corres state_rel (App (uvalfun_to_expr fstop) (Var 0))
                                     (do ret <- d0 (stopC v') x'; gets (\<lambda>s. ret) od)
@@ -437,12 +444,12 @@ lemma crepeat_corres_rel_leq:
                                     (do ret <- d1 (stepC v') x'; gets (\<lambda>s. ret) od)
                                     \<xi>' [x] \<Xi>' [option.Some \<tau>f] \<sigma> s"
   and     valrela:  "\<And>x x'. val_rel x (x' :: 'a) \<equiv>
-                              \<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] \<and>
+                              \<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] None \<and>
                                 val_rel (fst n) (nC x') \<and> val_rel (fst f) (stopC x') \<and>
                                 val_rel (fst g) (stepC x') \<and> val_rel (fst acc) (a0C x') \<and>
                                 val_rel (fst obsv) (o0C x')"
   and     valrelc:  "\<And>x x'. val_rel x (x' :: 'c) \<equiv>
-                              \<exists>acc obsv. x = URecord [acc, obsv] \<and> val_rel (fst acc) (a1C x') \<and>
+                              \<exists>acc obsv. x = URecord [acc, obsv] None \<and> val_rel (fst acc) (a1C x') \<and>
                                 val_rel (fst obsv) (o1C x')"
   and     a1C_a1U: "\<And>x y. a1C (a1U (\<lambda>_. y) x) = y"
   and     a1C_o1U: "\<And>x y. a1C (o1U y x) = a1C x"
@@ -484,9 +491,9 @@ lemma crepeat_corres_bang:
   and     \<xi>''name: "\<xi>'' name = urepeat \<Xi>' \<xi>' \<tau>a \<tau>o"
   and     leq: "rel_leq \<xi>' \<xi>''"
   and     determ: "determ \<xi>''"
-  and     \<gamma>i: "\<exists>n acc obsv a b. \<gamma> ! i = URecord [n, (fstop, a), (fstep, b), acc, obsv]"
-  and     fstoptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
-  and     fsteptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
+  and     \<gamma>i: "\<exists>n acc obsv a b. \<gamma> ! i = URecord [n, (fstop, a), (fstep, b), acc, obsv] None"
+  and     fstoptype: "\<Xi>', 0, [], {}, [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
+  and     fsteptype: "\<Xi>', 0, [], {}, [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
   and     d0corres: "\<And>x x' \<sigma> s. val_rel x (x' :: ('c :: cogent_C_val)) \<Longrightarrow>
                                   corres state_rel (App (uvalfun_to_expr fstop) (Var 0))
                                     (do ret <- d0 (stopC v') x'; gets (\<lambda>s. ret) od)
@@ -496,12 +503,12 @@ lemma crepeat_corres_bang:
                                     (do ret <- d1 (stepC v') x'; gets (\<lambda>s. ret) od)
                                     \<xi>' [x] \<Xi>' [option.Some \<tau>f] \<sigma> s"
   and     valrela:  "\<And>x x'. val_rel x (x' :: 'a) \<equiv>
-                              \<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] \<and>
+                              \<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] None \<and>
                                 val_rel (fst n) (nC x') \<and> val_rel (fst f) (stopC x') \<and>
                                 val_rel (fst g) (stepC x') \<and> val_rel (fst acc) (a0C x') \<and>
                                 val_rel (fst obsv) (o0C x')"
   and     valrelc:  "\<And>x x'. val_rel x (x' :: 'c) \<equiv>
-                              \<exists>acc obsv. x = URecord [acc, obsv] \<and> val_rel (fst acc) (a1C x') \<and>
+                              \<exists>acc obsv. x = URecord [acc, obsv] None \<and> val_rel (fst acc) (a1C x') \<and>
                                 val_rel (fst obsv) (o1C x')"
   and     a1C_a1U: "\<And>x y. a1C (a1U (\<lambda>_. y) x) = y"
   and     a1C_o1U: "\<And>x y. a1C (o1U y x) = a1C x"
@@ -570,16 +577,16 @@ lemma crepeat_corres_base_all:
   and     \<xi>''name: "\<xi>'' name = urepeat \<Xi>' \<xi>' \<tau>a \<tau>o"
   and     \<xi>'matchesu: "\<xi>' matches-u \<Xi>'"
   and     determ: "determ \<xi>'"
-  and     \<gamma>i: "\<gamma> ! i = URecord [(UPrim (LU64 n), RPrim (Num U64)), (fstop, RFun), (fstep, RFun), (acc, type_repr \<tau>a), (obsv, type_repr \<tau>o)]"
-  and     fstoptype: "\<Xi>', [], [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
-  and     fsteptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
+  and     \<gamma>i: "\<gamma> ! i = URecord [(UPrim (LU64 n), RPrim (Num U64)), (fstop, RFun), (fstep, RFun), (acc, type_repr \<tau>a), (obsv, type_repr \<tau>o)] None"
+  and     fstoptype: "\<Xi>', 0, [], {}, [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
+  and     fsteptype: "\<Xi>', 0, [], {}, [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
   and     valrela:  "\<forall>x (x' :: ('a :: cogent_C_val)). val_rel x x' =
-                              (\<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] \<and>
+                              (\<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] None\<and>
                                 val_rel (fst n) (nC x') \<and> val_rel (fst f) (stopC x') \<and>
                                 val_rel (fst g) (stepC x') \<and> val_rel (fst acc) (a0C x') \<and>
                                 val_rel (fst obsv) (o0C x'))"
   and     valrelc:  "\<forall>x (x' :: ('c :: cogent_C_val)). val_rel x x' =
-                              (\<exists>acc obsv. x = URecord [acc, obsv] \<and> val_rel (fst acc) (a1C x') \<and>
+                              (\<exists>acc obsv. x = URecord [acc, obsv] None \<and> val_rel (fst acc) (a1C x') \<and>
                                 val_rel (fst obsv) (o1C x'))"
   and     d0corres: "\<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow>
                                   corres state_rel (App (uvalfun_to_expr fstop) (Var 0))
@@ -617,16 +624,16 @@ lemma crepeat_corres_all:
   and     \<xi>''name: "\<xi>'' name = urepeat \<Xi>' \<xi>' \<tau>a \<tau>o"
   and     \<xi>'matchesu: "\<xi>' matches-u \<Xi>'"
   and     determ: "determ \<xi>'"
-  and     \<gamma>i: "\<exists>n acc obsv a b. \<gamma> ! i = URecord [n, (fstop, a), (fstep, b), acc, obsv]"
-  and     fstoptype: "\<Xi>', [], [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
-  and     fsteptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
+  and     \<gamma>i: "\<exists>n acc obsv a b. \<gamma> ! i = URecord [n, (fstop, a), (fstep, b), acc, obsv] None"
+  and     fstoptype: "\<Xi>', 0, [], {}, [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
+  and     fsteptype: "\<Xi>', 0, [], {}, [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
   and     valrela:  "\<forall>x (x' :: ('a :: cogent_C_val)). val_rel x x' =
-                              (\<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] \<and>
+                              (\<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] None \<and>
                                 val_rel (fst n) (nC x') \<and> val_rel (fst f) (stopC x') \<and>
                                 val_rel (fst g) (stepC x') \<and> val_rel (fst acc) (a0C x') \<and>
                                 val_rel (fst obsv) (o0C x'))"
   and     valrelc:  "\<forall>x (x' :: ('c :: cogent_C_val)). val_rel x x' =
-                              (\<exists>acc obsv. x = URecord [acc, obsv] \<and> val_rel (fst acc) (a1C x') \<and>
+                              (\<exists>acc obsv. x = URecord [acc, obsv] None \<and> val_rel (fst acc) (a1C x') \<and>
                                 val_rel (fst obsv) (o1C x'))"
   and     d0corres: "\<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow>
                                   corres state_rel (App (uvalfun_to_expr fstop) (Var 0))
@@ -664,16 +671,16 @@ lemma crepeat_corres_rel_leq_all:
   and     \<xi>''name: "\<xi>'' name = urepeat \<Xi>' \<xi>' \<tau>a \<tau>o"
   and     leq: "rel_leq \<xi>' \<xi>''"
   and     determ: "determ \<xi>''"
-  and     \<gamma>i: "\<exists>n acc obsv a b. \<gamma> ! i = URecord [n, (fstop, a), (fstep, b), acc, obsv]"
-  and     fstoptype: "\<Xi>', [], [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
-  and     fsteptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
+  and     \<gamma>i: "\<exists>n acc obsv a b. \<gamma> ! i = URecord [n, (fstop, a), (fstep, b), acc, obsv] None"
+  and     fstoptype: "\<Xi>', 0, [], {}, [Some (bang \<tau>f)] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
+  and     fsteptype: "\<Xi>', 0, [], {}, [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
   and     valrela:  "\<forall>x (x' :: ('a :: cogent_C_val)). val_rel x x' =
-                              (\<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] \<and>
+                              (\<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] None \<and>
                                 val_rel (fst n) (nC x') \<and> val_rel (fst f) (stopC x') \<and>
                                 val_rel (fst g) (stepC x') \<and> val_rel (fst acc) (a0C x') \<and>
                                 val_rel (fst obsv) (o0C x'))"
   and     valrelc:  "\<forall>x (x' :: ('c :: cogent_C_val)). val_rel x x' =
-                              (\<exists>acc obsv. x = URecord [acc, obsv] \<and> val_rel (fst acc) (a1C x') \<and>
+                              (\<exists>acc obsv. x = URecord [acc, obsv] None \<and> val_rel (fst acc) (a1C x') \<and>
                                 val_rel (fst obsv) (o1C x'))"
   and     d0corres: "\<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow>
                                   corres state_rel (App (uvalfun_to_expr fstop) (Var 0))
@@ -712,16 +719,16 @@ lemma crepeat_corres_bang_all:
   and     \<xi>''name: "\<xi>'' name = urepeat \<Xi>' \<xi>' \<tau>a \<tau>o"
   and     leq: "rel_leq \<xi>' \<xi>''"
   and     determ: "determ \<xi>''"
-  and     \<gamma>i: "\<exists>n acc obsv a b. \<gamma> ! i = URecord [n, (fstop, a), (fstep, b), acc, obsv]"
-  and     fstoptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
-  and     fsteptype: "\<Xi>', [], [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
+  and     \<gamma>i: "\<exists>n acc obsv a b. \<gamma> ! i = URecord [n, (fstop, a), (fstep, b), acc, obsv] None"
+  and     fstoptype: "\<Xi>', 0, [], {}, [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstop) (Var 0) : TPrim Bool"
+  and     fsteptype: "\<Xi>', 0, [], {}, [Some \<tau>f] \<turnstile> App (uvalfun_to_expr fstep) (Var 0) : \<tau>a"
   and     valrela:  "\<forall>x (x' :: ('a :: cogent_C_val)). val_rel x x' =
-                              (\<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] \<and>
+                              (\<exists>n f g acc obsv. x = URecord [n, f, g, acc, obsv] None \<and>
                                 val_rel (fst n) (nC x') \<and> val_rel (fst f) (stopC x') \<and>
                                 val_rel (fst g) (stepC x') \<and> val_rel (fst acc) (a0C x') \<and>
                                 val_rel (fst obsv) (o0C x'))"
   and     valrelc:  "\<forall>x (x' :: ('c :: cogent_C_val)). val_rel x x' =
-                              (\<exists>acc obsv. x = URecord [acc, obsv] \<and> val_rel (fst acc) (a1C x') \<and>
+                              (\<exists>acc obsv. x = URecord [acc, obsv] None \<and> val_rel (fst acc) (a1C x') \<and>
                                 val_rel (fst obsv) (o1C x'))"
   and     d0corres: "\<forall>x x' \<sigma> s. val_rel x x' \<longrightarrow>
                                   corres state_rel (App (uvalfun_to_expr fstop) (Var 0))

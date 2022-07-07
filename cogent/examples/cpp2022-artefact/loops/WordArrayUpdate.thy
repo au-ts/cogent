@@ -163,7 +163,7 @@ sublocale WordArrayUpdate \<subseteq> update_sem wa_abs_typing_u wa_abs_repr
     apply (case_tac s; clarsimp; rename_tac perm; case_tac perm; clarsimp)
      apply (elim allE impE, assumption, elim exE conjE, intro exI, assumption)
     apply (elim allE impE, assumption, elim exE conjE, intro exI, assumption)
-   apply (case_tac s; clarsimp; case_tac s'; clarsimp)
+  (* apply (case_tac s; clarsimp; case_tac s'; clarsimp)*)
   apply (erule allE, erule  impE, assumption)
   apply clarsimp
   apply (frule l0.uval_typing_frame; simp?)
@@ -238,7 +238,7 @@ case (TRecord x1a x2a)
     apply (elim meta_allE meta_impE; simp?)
     apply (intro exI conjI; simp?)
     done
-qed (fastforce elim!: u_t_tfunE u_t_tprimE u_t_tsumE u_t_tproductE u_t_tunitE
+qed (fastforce elim!: u_t_tfunE u_t_tprimE u_t_tsumE u_t_tproductE u_t_tunitE u_t_tcustomE
               intro!: l0.uval_typing_uval_typing_record.intros
                 simp: find_None_iff)+
   
@@ -276,7 +276,7 @@ definition uwa_get :: "(funtyp, abstyp, ptrtyp) ufundef"
 "uwa_get x y = 
   (\<exists>\<sigma> p t len arr i v. 
     x = (\<sigma>, URecord [(UPtr p (RCon ''WordArray'' [type_repr t]), RPtr (RCon ''WordArray'' [type_repr t])),
-                     (UPrim (LU32 i), RPrim (Num U32)), (v, type_repr t)]) \<and>
+                     (UPrim (LU32 i), RPrim (Num U32)), (v, type_repr t)] None) \<and>
     \<sigma> p = option.Some (UAbstract (UWA t len arr)) \<and>
     (if i < len then \<exists>v'. \<sigma> (arr + size_of_type t * i) = option.Some v' \<and> y = (\<sigma>, v') else y = (\<sigma>, v)))"
 
@@ -332,7 +332,7 @@ definition uwa_put :: "(funtyp, abstyp, ptrtyp) ufundef"
 "uwa_put x y = 
   (\<exists>\<sigma> parr p t len arr i v. 
     x = (\<sigma>, URecord [(parr, RPtr (RCon ''WordArray'' [type_repr t])),
-                     (UPrim (LU32 i), RPrim (Num U32)), (v, type_repr t)]) \<and>
+                     (UPrim (LU32 i), RPrim (Num U32)), (v, type_repr t)] None) \<and>
     parr = UPtr p (RCon ''WordArray'' [type_repr t]) \<and>
     \<sigma> p = option.Some (UAbstract (UWA t len arr)) \<and> 
     (if i < len then y = (\<sigma>(arr + size_of_type t * i \<mapsto> v), parr) else y = (\<sigma>, parr)))"
@@ -396,7 +396,7 @@ definition uwa_get_opt :: "(funtyp, abstyp, ptrtyp) ufundef"
 "uwa_get_opt x y = 
   (\<exists>\<sigma> p t len arr i. 
     x = (\<sigma>, URecord [(UPtr p (RCon ''WordArray'' [type_repr t]), RPtr (RCon ''WordArray'' [type_repr t])),
-                     (UPrim (LU32 i), RPrim (Num U32))]) \<and>
+                     (UPrim (LU32 i), RPrim (Num U32))] None) \<and>
     \<sigma> p = option.Some (UAbstract (UWA t len arr)) \<and>
     (if i < len 
       then \<exists>v'. \<sigma> (arr + size_of_type t * i) = option.Some v' \<and> 

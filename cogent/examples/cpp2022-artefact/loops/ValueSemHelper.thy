@@ -143,6 +143,7 @@ inductive_cases v_sem_putE: "\<xi> , \<gamma> \<turnstile> Put x f e \<Down> e'"
 inductive_cases v_sem_castE: "\<xi> , \<gamma> \<turnstile> Cast \<tau> e \<Down> e'"
 inductive_cases v_sem_cucastE: "\<xi> , \<gamma> \<turnstile> CustomUCast \<tau>s e \<Down> e'"
 inductive_cases v_sem_cdcastE: "\<xi> , \<gamma> \<turnstile> CustomDCast \<tau>s e \<Down> e'"
+inductive_cases v_sem_cintE: "\<xi>, \<gamma> \<turnstile> CustomInt n v \<Down> v'"
 inductive_cases v_sem_structE: "\<xi> , \<gamma> \<turnstile> Struct ts xs \<Down> e'"
 inductive_cases v_sem_AppE: "\<xi> , \<gamma> \<turnstile> App f v \<Down> e'"
 inductive_cases v_sem_allE: "\<xi> , \<gamma> \<turnstile>* es \<Down> es'"
@@ -154,7 +155,7 @@ inductive_cases v_sem_promoteE: "\<xi>, \<gamma> \<turnstile> Promote \<tau> e \
 lemmas v_sem_elims = v_sem_letE v_sem_letBangE v_sem_litE v_sem_primE v_sem_memberE v_sem_tupleE
   v_sem_ifE v_sem_conE v_sem_esacE v_sem_caseE v_sem_splitE v_sem_takeE v_sem_putE v_sem_castE
   v_sem_structE v_sem_AppE v_sem_allE v_sem_all_NilE v_sem_all_ConsE v_sem_unitE v_sem_promoteE
-  v_sem_cdcastE v_sem_cucastE
+  v_sem_cdcastE v_sem_cucastE v_sem_cintE
 
 
 section "Properties on partially ordered abstract function specifications"
@@ -294,11 +295,7 @@ next
   then show ?case by (metis v_sem_all_NilE)
 next
   case (v_sem_all_cons \<xi> \<gamma> x v xs vs)
-  then show ?case by (metis v_sem_all_ConsE)
-next
-  case (v_sem_custom_ucast)
-  then show ?case apply - 
-
+  then show ?case by (metis v_sem_all_ConsE) 
 qed (fastforce elim!: v_sem_elims)+
 
 lemma v_sem_v_sem_all_determ_not:

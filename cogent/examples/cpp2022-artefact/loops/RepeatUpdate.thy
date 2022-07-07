@@ -28,10 +28,10 @@ fun urepeat_bod
   where
 "urepeat_bod _ 0 _ _ \<sigma> \<sigma>' _ acc _ _ ret = (\<sigma> = \<sigma>' \<and> acc = ret)" |
 "urepeat_bod \<xi>' (Suc n) f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret =
-  (\<exists>b. (\<xi>' , [URecord [(acc, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)]] 
+  (\<exists>b. (\<xi>' , [URecord [(acc, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)] None] 
       \<turnstile> (\<sigma>, App f (Var 0)) \<Down>! (\<sigma>, UPrim (LBool b))) \<and>
     (if b then \<sigma> = \<sigma>' \<and> acc = ret
-     else (\<exists>\<sigma>'' acc'. (\<xi>' , [URecord [(acc, type_repr \<tau>a), (obsv, type_repr \<tau>o)]] 
+     else (\<exists>\<sigma>'' acc'. (\<xi>' , [URecord [(acc, type_repr \<tau>a), (obsv, type_repr \<tau>o)] None] 
         \<turnstile> (\<sigma>, App g (Var 0)) \<Down>! (\<sigma>'', acc')) \<and>
       urepeat_bod \<xi>' n f g \<sigma>'' \<sigma>' \<tau>a acc' \<tau>o obsv ret)))"
 
@@ -48,14 +48,16 @@ definition urepeat
 "urepeat \<Xi>' \<xi>' \<tau>a \<tau>o x y =
   (\<exists>\<sigma> \<sigma>' n f g acc obsv ret.
     x = (\<sigma>, URecord [(UPrim (LU64 n), RPrim (Num U64)), (f, RFun), (g, RFun),
-      (acc, type_repr \<tau>a), (obsv, type_repr \<tau>o)]) \<and>
+      (acc, type_repr \<tau>a), (obsv, type_repr \<tau>o)] None) \<and>
     y = (\<sigma>', ret) \<and>
     is_uvalfun f \<and>
     is_uvalfun g \<and>
     bang \<tau>o = \<tau>o \<and>
-    (\<Xi>', [], [option.Some (TRecord [(''acc'', bang \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)]
+    (\<Xi>', 0, [], {}, 
+      [option.Some (TRecord [(''acc'', bang \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)]
       \<turnstile> (App (uvalfun_to_expr f) (Var 0)) : TPrim Bool) \<and>
-    (\<Xi>', [], [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)]
+    (\<Xi>', 0, [], {}, 
+      [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)]
       \<turnstile> (App (uvalfun_to_expr g) (Var 0)) : \<tau>a) \<and>
     urepeat_bod \<xi>' (unat n) (uvalfun_to_expr f) (uvalfun_to_expr g) \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret)"
 
@@ -72,7 +74,8 @@ lemma urepeat_bod_preservation:
     \<Xi>', \<sigma> \<turnstile> obsv :u \<tau>o \<langle>ro, {}\<rangle>;
     ro \<inter> wa = {};
     urepeat_bod \<xi>' n f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret;
-    \<Xi>', [], [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] \<turnstile> (App g (Var 0)) : \<tau>a\<rbrakk>
+    \<Xi>', 0, [], {}, 
+    [option.Some (TRecord [(''acc'', \<tau>a, Present), (''obsv'', \<tau>o, Present)] Unboxed)] \<turnstile> (App g (Var 0)) : \<tau>a\<rbrakk>
       \<Longrightarrow> \<exists>r' w'. \<Xi>', \<sigma>' \<turnstile> ret :u \<tau>a \<langle>r', w'\<rangle> \<and> r' \<subseteq> (ra \<union> ro) \<and> frame \<sigma> wa \<sigma>' w'"
   apply (induct arbitrary: ra wa rule: urepeat_bod.induct[of _ \<xi>' n f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret])
    apply (rename_tac \<xi>' f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret ra wa)
@@ -86,14 +89,15 @@ lemma urepeat_bod_preservation:
   apply (drule_tac x = False in meta_spec; clarsimp)
   apply (drule_tac x = \<sigma>'' and y = acc' in meta_spec2)
   apply clarsimp
-  apply (drule_tac \<gamma> = "[URecord [(acc, type_repr \<tau>a), (obsv, type_repr \<tau>o)]]" and
+  apply (drule_tac \<gamma> = "[URecord [(acc, type_repr \<tau>a), (obsv, type_repr \<tau>o)] None]" and
       \<sigma>' = \<sigma>'' and v = acc' and r = "ra \<union> ro" and w = wa in preservation_mono(1)[rotated -1]; simp?)
    apply (intro matches_ptrs_some[where r' = "{}" and w' = "{}", simplified]
       matches_ptrs_empty[where \<tau>s = "[]", simplified])
-   apply (rule u_t_struct; simp?) 
-   apply (intro u_t_r_cons1[where  r' = ro and w' = "{}", simplified]
+    apply (rule u_t_struct; simp?) 
+    apply (intro u_t_r_cons1[where  r' = ro and w' = "{}", simplified]
       u_t_r_cons1[where  r' = "{}" and w' = "{}", simplified] u_t_r_empty; simp?)
-   apply blast
+    apply blast 
+   apply (simp add: matches_ptrs.matches_ptrs_empty)
   apply clarsimp
   apply (rename_tac r' w')
   apply (drule_tac x = r' and y = w' in meta_spec2; simp)
@@ -146,7 +150,7 @@ subsection "Early termination and step lemmas"
 
 lemma urepeat_bod_early_termination:
   "\<lbrakk>urepeat_bod \<xi>' i f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret; i < n;
-    \<xi>', [URecord [(ret, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)]]  \<turnstile> (\<sigma>', App f (Var 0)) \<Down>! (\<sigma>', UPrim (LBool True))\<rbrakk>
+    \<xi>', [URecord [(ret, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)] None]  \<turnstile> (\<sigma>', App f (Var 0)) \<Down>! (\<sigma>', UPrim (LBool True))\<rbrakk>
     \<Longrightarrow> urepeat_bod \<xi>' n f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret"
   apply (induct arbitrary: i rule: urepeat_bod.induct[of _ \<xi>' n f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret])
    apply clarsimp
@@ -165,9 +169,9 @@ lemma urepeat_bod_early_termination:
 
 declare urepeat_bod.simps[simp del]
 lemma urepeat_bod_step:
-  "\<lbrakk>\<xi>', [URecord [(ret, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)]] \<turnstile> (\<sigma>', App f (Var 0)) \<Down>! (\<sigma>', UPrim (LBool False));
-    \<not>(\<xi>', [URecord [(ret, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)]] \<turnstile> (\<sigma>', App f (Var 0)) \<Down>! (\<sigma>', UPrim (LBool True)));
-    \<xi>', [URecord [(ret, type_repr \<tau>a), (obsv, type_repr \<tau>o)]] \<turnstile> (\<sigma>', App g (Var 0)) \<Down>! (\<sigma>'', ret');
+  "\<lbrakk>\<xi>', [URecord [(ret, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)] None] \<turnstile> (\<sigma>', App f (Var 0)) \<Down>! (\<sigma>', UPrim (LBool False));
+    \<not>(\<xi>', [URecord [(ret, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)] None] \<turnstile> (\<sigma>', App f (Var 0)) \<Down>! (\<sigma>', UPrim (LBool True)));
+    \<xi>', [URecord [(ret, type_repr \<tau>a), (obsv, type_repr \<tau>o)] None] \<turnstile> (\<sigma>', App g (Var 0)) \<Down>! (\<sigma>'', ret');
     urepeat_bod \<xi>' n f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret\<rbrakk> 
     \<Longrightarrow> urepeat_bod \<xi>' (Suc n) f g \<sigma> \<sigma>'' \<tau>a acc \<tau>o obsv ret'"
   apply (induct arbitrary: \<sigma>'' ret' rule: urepeat_bod.induct[of _ \<xi>' n f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret])
@@ -212,8 +216,8 @@ lemma urepeat_deterministic:
   done
 
 lemma urepeat_bod_step_determ:
-  "\<lbrakk>\<xi>', [URecord [(ret, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)]] \<turnstile> (\<sigma>', App f (Var 0)) \<Down>! (\<sigma>', UPrim (LBool False));
-    \<xi>', [URecord [(ret, type_repr \<tau>a), (obsv, type_repr \<tau>o)]] \<turnstile> (\<sigma>', App g (Var 0)) \<Down>! (\<sigma>'', ret');
+  "\<lbrakk>\<xi>', [URecord [(ret, type_repr (bang \<tau>a)), (obsv, type_repr \<tau>o)] None] \<turnstile> (\<sigma>', App f (Var 0)) \<Down>! (\<sigma>', UPrim (LBool False));
+    \<xi>', [URecord [(ret, type_repr \<tau>a), (obsv, type_repr \<tau>o)] None] \<turnstile> (\<sigma>', App g (Var 0)) \<Down>! (\<sigma>'', ret');
     urepeat_bod \<xi>' n f g \<sigma> \<sigma>' \<tau>a acc \<tau>o obsv ret;
     determ \<xi>'\<rbrakk> 
     \<Longrightarrow> urepeat_bod \<xi>' (Suc n) f g \<sigma> \<sigma>'' \<tau>a acc \<tau>o obsv ret'"

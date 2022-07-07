@@ -225,7 +225,7 @@ proof (induct t arbitrary: \<sigma> v r w)
     apply (clarsimp simp: no_tfun_no_rfun)
     done
 qed (fastforce simp: find_None_iff 
-               elim: u_t_tunitE u_t_tprimE u_t_tcustomE u_t_tconE u_t_sumE u_t_tproductE)+
+               elim: u_t_tunitE u_t_tprimE u_t_tcustomE u_t_tconE u_t_tproductE)+
 
 section "Evaluation elimination rules"
 
@@ -240,6 +240,9 @@ inductive_cases u_sem_varE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Var i) \<
 inductive_cases u_sem_litE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Lit l) \<Down>! v'"
 inductive_cases u_sem_primE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Prim p as) \<Down>! v'"
 inductive_cases u_sem_castE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Cast \<tau> e) \<Down>! v'"
+inductive_cases u_sem_cucastE': "\<xi> , \<gamma> \<turnstile> (\<sigma>, CustomUCast \<tau> e) \<Down>! p'"
+inductive_cases u_sem_cdcastE': "\<xi> , \<gamma> \<turnstile> (\<sigma>, CustomDCast \<tau> e) \<Down>! p'"
+inductive_cases u_sem_cintE': "\<xi>, \<gamma> \<turnstile> (\<sigma>, CustomInt n v) \<Down>! v'"
 inductive_cases u_sem_funE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, Fun f ts ls) \<Down>! v'"
 inductive_cases u_sem_afunE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, AFun f ts ls) \<Down>! v'"
 inductive_cases u_sem_appE': "\<xi>', \<gamma> \<turnstile> (\<sigma>, App x y) \<Down>! v'"
@@ -263,6 +266,7 @@ inductive_cases u_sem_all_consE': "\<xi>' , \<gamma> \<turnstile>* (\<sigma>, x 
 lemmas u_sem_u_sem_all_elims = u_sem_varE' u_sem_litE' u_sem_primE' u_sem_castE' u_sem_funE'
   u_sem_afunE' u_sem_conE' u_sem_unitE' u_sem_tupleE' u_sem_esacE' u_sem_splitE' u_sem_promoteE'
   u_sem_letE' u_sem_letbangE' u_sem_ifE' u_sem_structE' u_sem_all_emptyE' u_sem_all_consE'
+  u_sem_cucastE' u_sem_cdcastE' u_sem_cintE'
 
 section "Properties of partially ordered abstract function specifications"
 
@@ -424,17 +428,19 @@ next
      apply (drule_tac x = "(s', e'a)" in meta_spec)
      apply clarsimp
     apply (rename_tac s fsa ptrl s' e'a)
-    apply (drule_tac x = "(s, URecord fsa None)" in meta_spec; clarsimp)
+    apply (drule_tac x = "(s, URecord fsa None)" in meta_spec)  
+    by (fastforce dest!: u_sem_put.hyps(2))
 next
   case (u_sem_put_ub \<xi> \<gamma> \<sigma> x \<sigma>' fs e \<sigma>'' e' f)
   then show ?case
     apply -
     apply (erule u_sem_putE')
-     apply (rename_tac s p r fsa s' e'a)
+     apply (rename_tac s p r fsa ptrl s' e'a)
      apply (drule_tac x = "(s, UPtr p r)" in meta_spec; clarsimp)
-    apply (rename_tac s fsa s' e'a)
-    apply (drule_tac x = "(s, URecord fsa)" in meta_spec)
-    by (drule_tac x = "(s', e'a)" in meta_spec; clarsimp)
+    apply (rename_tac s fsa ptrl s' e'a)
+    apply (drule_tac x = "(s, URecord fsa None)" in meta_spec)
+    apply (drule_tac x = "(s', e'a)" in meta_spec; clarsimp)
+    by (fastforce dest!: u_sem_put_ub.hyps(2))
 next
   case (u_sem_prim \<xi> \<gamma> \<sigma> as \<sigma>' as' p)
   then show ?case by (fastforce elim!: u_sem_u_sem_all_elims)
@@ -483,13 +489,8 @@ next
 next
   case (u_sem_promote \<xi> \<gamma> \<sigma> e e' t')
   then show ?case by (fastforce elim!: u_sem_u_sem_all_elims)
-next
-  case (u_sem_all_empty \<xi> \<gamma> \<sigma>)
-  then show ?case by (fastforce elim!: u_sem_u_sem_all_elims)
-next
-  case (u_sem_all_cons \<xi> \<gamma> \<sigma> x \<sigma>' v xs \<sigma>'' vs)
-  then show ?case by (fastforce elim!: u_sem_u_sem_all_elims)
-qed
+
+qed (fastforce elim!: u_sem_u_sem_all_elims)+
 
 lemma u_sem_u_sem_all_determ_not:
   assumes "determ \<xi>a"
@@ -529,17 +530,17 @@ lemma frame_single_update_expand:
 
 lemma discardable_or_shareable_not_writable:
 assumes "D \<in> k \<or> S \<in> k"
-shows "\<lbrakk> \<Xi>', \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle>; K' \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
-and   "\<lbrakk> \<Xi>', \<sigma> \<turnstile>* fs :ur \<tau>s \<langle> r , w \<rangle>; K' \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
+shows "\<lbrakk> \<Xi>', \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle>; 0, K', {} \<turnstile>  \<tau>  :\<kappa>  k \<rbrakk> \<Longrightarrow> w = {}"
+and   "\<lbrakk> \<Xi>', \<sigma> \<turnstile>* fs :ur \<tau>s \<langle> r , w \<rangle>; 0, K', {} \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
   using assms
   by (induct rule: uval_typing_uval_typing_record.inducts)
     (force simp add: kinding_simps kinding_record_simps kinding_variant_set
       dest: abs_typing_readonly[where s = Unboxed,simplified])+
 
 lemma discardable_or_shareable_not_writable':
-shows "\<lbrakk> k = kinding_fn K' \<tau>; D \<in> k \<or> S \<in> k; \<Xi>', \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle>; K' \<turnstile>  \<tau>  :\<kappa> k \<rbrakk> \<Longrightarrow> w = {}"
-and   "\<lbrakk> k = (\<Inter>(_,t,b)\<in>set \<tau>s. (case b of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K' t));
-         D \<in> k \<or> S \<in> k; \<Xi>', \<sigma> \<turnstile>* fs :ur \<tau>s \<langle> r , w \<rangle>; K' \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
+  shows "\<lbrakk> k = kinding_fn K' \<tau>; D \<in> k \<or> S \<in> k; \<Xi>', \<sigma> \<turnstile>  v  :u  \<tau>  \<langle> r , w \<rangle>; 0, K', {} \<turnstile>  \<tau>  :\<kappa> k \<rbrakk> \<Longrightarrow> w = {}"
+  and   "\<lbrakk> k = (\<Inter>(_,t,b)\<in>set \<tau>s. (case b of Taken \<Rightarrow> UNIV | Present \<Rightarrow> kinding_fn K' t));
+         D \<in> k \<or> S \<in> k; \<Xi>', \<sigma> \<turnstile>* fs :ur \<tau>s \<langle> r , w \<rangle>; 0, K', {} \<turnstile>* \<tau>s :\<kappa>r k \<rbrakk> \<Longrightarrow> w = {}"
   by (meson discardable_or_shareable_not_writable)+
 
 lemma bang_not_writable:
