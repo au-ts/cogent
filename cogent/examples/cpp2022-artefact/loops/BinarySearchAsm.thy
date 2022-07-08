@@ -38,16 +38,16 @@ lemma \<Xi>_simps:
   done
 
 abbreviation 
-"acctyp \<Xi>' name \<equiv> (\<lambda>(a,b,c). c) (\<Xi>' name)"
+"acctyp \<Xi>' name \<equiv> (\<lambda>(_,a,_,b,c). c) (\<Xi>' name)"
 
 abbreviation
-"obsvtyp \<Xi>' name \<equiv> (\<lambda>(a,b,c). case b of TRecord [a, b, c, d, (n, t, p)] Unboxed \<Rightarrow> t | _ \<Rightarrow> undefined) (\<Xi>' name)"
+"obsvtyp \<Xi>' name \<equiv> (\<lambda>(L,a,C,b,c). case b of TRecord [a, b, c, d, (n, t, p)] Unboxed \<Rightarrow> t | _ \<Rightarrow> undefined) (\<Xi>' name)"
 
 abbreviation
-"stoptyp \<Xi>' name \<equiv> (\<lambda>(a,b,c). case b of TRecord [a, (n, TFun t t', p), b, c, d] Unboxed \<Rightarrow> t | _ \<Rightarrow> undefined) (\<Xi>' name)"
+"stoptyp \<Xi>' name \<equiv> (\<lambda>(L,a,C,b,c). case b of TRecord [a, (n, TFun t t', p), b, c, d] Unboxed \<Rightarrow> t | _ \<Rightarrow> undefined) (\<Xi>' name)"
 
 abbreviation
-"steptyp \<Xi>' name \<equiv> (\<lambda>(a,b,c). case b of TRecord [a, b, (n, TFun t t', p), c, d] Unboxed \<Rightarrow> t | _ \<Rightarrow> undefined) (\<Xi>' name)"
+"steptyp \<Xi>' name \<equiv> (\<lambda>(L,a,C,b,c). case b of TRecord [a, b, (n, TFun t t', p), c, d] Unboxed \<Rightarrow> t | _ \<Rightarrow> undefined) (\<Xi>' name)"
 
 section "Abstract functions specification for the update semantics"
 
@@ -317,9 +317,10 @@ lemma repeat_0'_simp:
 
 lemma mylog2_repeat_corres:
   "\<And>v' i \<gamma> \<Gamma> \<sigma> s.
-    \<lbrakk>t6_C.stop_C v' = FUN_ENUM_log2stop; t6_C.step_C v' = FUN_ENUM_log2step; i < length \<gamma>; val_rel (\<gamma> ! i) v';
-     \<Gamma> ! i = Some (fst (snd repeat_0_type))\<rbrakk>
-    \<Longrightarrow> corres state_rel (App (AFun ''repeat_0'' []) (Var i)) (do x <- repeat_0' v';
+    \<lbrakk>t6_C.stop_C v' = FUN_ENUM_log2stop; t6_C.step_C v' = FUN_ENUM_log2step; 
+     i < length \<gamma>; val_rel (\<gamma> ! i) v';
+     \<Gamma> ! i = Some (fst (snd (snd (snd repeat_0_type))))\<rbrakk>
+    \<Longrightarrow> corres state_rel (App (AFun ''repeat_0'' [] []) (Var i)) (do x <- repeat_0' v';
  gets (\<lambda>s. x)
                                                                od)
          \<xi>_1 \<gamma> \<Xi> \<Gamma> \<sigma> s"
@@ -357,8 +358,8 @@ lemma repeat_1'_simp:
 lemma myexp_repeat_corres:
   "\<And>v' i \<gamma> \<Gamma> \<sigma> s.
     \<lbrakk>t16_C.stop_C v' = FUN_ENUM_expstop; t16_C.step_C v' = FUN_ENUM_expstep; i < length \<gamma>; val_rel (\<gamma> ! i) v';
-     \<Gamma> ! i = Some (fst (snd repeat_1_type))\<rbrakk>
-    \<Longrightarrow> corres state_rel (App (AFun ''repeat_1'' []) (Var i)) (do x <- repeat_1' v';
+     \<Gamma> ! i = Some (fst (snd (snd (snd repeat_1_type))))\<rbrakk>
+    \<Longrightarrow> corres state_rel (App (AFun ''repeat_1'' [] []) (Var i)) (do x <- repeat_1' v';
  gets (\<lambda>s. x)
                                                                od)
          \<xi>_1 \<gamma> \<Xi> \<Gamma> \<sigma> s"
@@ -400,8 +401,8 @@ context WordArrayUpdate begin
 lemma wordarray_length_0_corres:
   "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
     \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v';
-     \<Gamma>' ! i = Some (fst (snd (\<Xi> ''wordarray_length_0'')))\<rbrakk>
-    \<Longrightarrow> corres state_rel (App (AFun ''wordarray_length_0'' []) (Var i)) (do x <- wordarray_length_0' v';
+     \<Gamma>' ! i = Some (fst (snd (snd (snd (\<Xi> ''wordarray_length_0'')))))\<rbrakk>
+    \<Longrightarrow> corres state_rel (App (AFun ''wordarray_length_0'' [] []) (Var i)) (do x <- wordarray_length_0' v';
         gets (\<lambda>s. x)
      od)
          \<xi>_0 \<gamma> \<Xi> \<Gamma>' \<sigma> st"
@@ -420,8 +421,8 @@ lemma wordarray_get_0'_simp:
 lemma wordarray_get_0_corres:
   "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
     \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v';
-     \<Gamma>' ! i = Some (fst (snd (\<Xi> ''wordarray_get_0'')))\<rbrakk>
-    \<Longrightarrow> corres state_rel (App (AFun ''wordarray_get_0'' []) (Var i)) (do x <- wordarray_get_0' v';
+     \<Gamma>' ! i = Some (fst (snd (snd (snd (\<Xi> ''wordarray_get_0'')))))\<rbrakk>
+    \<Longrightarrow> corres state_rel (App (AFun ''wordarray_get_0'' [] []) (Var i)) (do x <- wordarray_get_0' v';
         gets (\<lambda>s. x)
      od)
          \<xi>_0 \<gamma> \<Xi> \<Gamma>' \<sigma> st"
@@ -440,8 +441,8 @@ lemma repeat_2'_simp:
 lemma binarySearch_repeat_corres:
   "\<And>v' i \<gamma> \<Gamma> \<sigma> s.
     \<lbrakk>t12_C.stop_C v' = FUN_ENUM_searchStop; t12_C.step_C v' = FUN_ENUM_searchNext; i < length \<gamma>; val_rel (\<gamma> ! i) v';
-     \<Gamma> ! i = Some (fst (snd repeat_2_type))\<rbrakk>
-    \<Longrightarrow> corres state_rel (App (AFun ''repeat_2'' []) (Var i)) (do x <- repeat_2' v';
+     \<Gamma> ! i = Some (fst (snd (snd (snd repeat_2_type))))\<rbrakk>
+    \<Longrightarrow> corres state_rel (App (AFun ''repeat_2'' [] []) (Var i)) (do x <- repeat_2' v';
  gets (\<lambda>s. x)
                                                                od)
          \<xi>_1 \<gamma> \<Xi> \<Gamma> \<sigma> s"
@@ -480,9 +481,9 @@ lemma wordarray_get_opt_0_simp:
 lemma wordarray_get_opt_0_corres:
   "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
         \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v';
-         \<Gamma>' ! i = Some (fst (snd wordarray_get_opt_0_type))\<rbrakk>
+         \<Gamma>' ! i = Some (fst (snd (snd (snd wordarray_get_opt_0_type))))\<rbrakk>
         \<Longrightarrow> corres state_rel
-             (App (AFun ''wordarray_get_opt_0'' []) (Var i)) (do x <- wordarray_get_opt_0' v';
+             (App (AFun ''wordarray_get_opt_0'' [] []) (Var i)) (do x <- wordarray_get_opt_0' v';
                                                                  gets (\<lambda>s. x)
                                                               od)
              \<xi>_0 \<gamma> \<Xi> \<Gamma>' \<sigma> st"
@@ -501,9 +502,9 @@ lemma wordarray_put_0_simp:
 lemma wordarray_put_0_corres:
   "\<And>i \<gamma> v' \<Gamma>' \<sigma> st.
         \<lbrakk>i < length \<gamma>; val_rel (\<gamma> ! i) v';
-         \<Gamma>' ! i = Some (fst (snd wordarray_put_0_type))\<rbrakk>
+         \<Gamma>' ! i = Some (fst (snd (snd (snd wordarray_put_0_type))))\<rbrakk>
         \<Longrightarrow> corres state_rel
-             (App (AFun ''wordarray_put_0'' []) (Var i)) (do x <- wordarray_put_0' v';
+             (App (AFun ''wordarray_put_0'' [] []) (Var i)) (do x <- wordarray_put_0' v';
                                                                  gets (\<lambda>s. x)
                                                               od)
              \<xi>_0 \<gamma> \<Xi> \<Gamma>' \<sigma> st"
@@ -523,7 +524,6 @@ end (* of context *)
 section "Correspondence between abstract functions in the update and value semantics"
 sublocale WordArray \<subseteq> correspondence_init upd.wa_abs_repr val.wa_abs_typing_v upd.wa_abs_typing_u wa_abs_upd_val
   by (unfold_locales)
-term \<xi>m0
 
 context WordArray begin
 
@@ -545,17 +545,14 @@ lemma \<xi>_0_\<xi>m0_matchesuv_\<Xi>:
 
 lemma \<xi>_1_\<xi>m1_matchesuv_\<Xi>:
   "proc_env_u_v_matches \<xi>_1 val.\<xi>m1 \<Xi>"
-  unfolding proc_env_u_v_matches_def \<xi>1_def val.\<xi>m1_def
-  apply clarsimp
-  apply (intro conjI impI; clarsimp)
-    apply (subst (asm) \<Xi>_def;
-           clarsimp simp: Generated_TypeProof.repeat_1_type_def Generated_TypeProof.repeat_0_type_def Generated_TypeProof.repeat_2_type_def;
-           rule uvrepeat_monocorrespond_upward_propagation[OF proc_ctx_wellformed_\<Xi> \<xi>_0_\<xi>m0_matchesuv_\<Xi>];
-           (simp add: Generated_TypeProof.abbreviated_type_defs)?)+
+  unfolding proc_env_u_v_matches_def \<xi>1_def val.\<xi>m1_def   
+  apply (clarsimp)
   apply (cut_tac \<xi>_0_\<xi>m0_matchesuv_\<Xi>[unfolded proc_env_u_v_matches_def, simplified])
-  apply (clarsimp split: prod.splits)
-  apply (elim allE impE conjE; assumption?)
-  apply blast
+  apply (intro conjI impI; clarsimp simp: subst_wellformed_def \<Xi>_simps)
+     apply (clarsimp simp: repeat_1_type_def repeat_0_type_def repeat_2_type_def;
+           rule uvrepeat_monocorrespond_upward_propagation[OF proc_ctx_wellformed_\<Xi> \<xi>_0_\<xi>m0_matchesuv_\<Xi>]; 
+           (simp add: Generated_TypeProof.abbreviated_type_defs)?)+
+  apply (fastforce split: prod.splits)
   done
 
 end (* of context *)
@@ -601,11 +598,11 @@ sublocale WordArrayValue \<subseteq> shallow wa_abs_typing_v
   by (unfold_locales)
 
 lemma (in WordArrayValue) scorres_repeat:
-  "scorres repeat (AFun ''repeat'' ts) \<gamma> \<xi>p1"
+  "scorres repeat (AFun ''repeat'' ts []) \<gamma> \<xi>p1"
   by (rule repeat_scorres[OF \<xi>p0_le_\<xi>p1]; simp add: \<xi>p1_def fun_eq_iff)
 
 lemma (in WordArrayValue) scorres_wordarray_get32:
-  "scorres (wordarray_get :: (32 word WordArray, 32 word, 32 word ) WordArrayGetP \<Rightarrow> 32 word)(AFun ''wordarray_get'' ts) \<gamma> \<xi>p0"
+  "scorres (wordarray_get :: (32 word WordArray, 32 word, 32 word ) WordArrayGetP \<Rightarrow> 32 word)(AFun ''wordarray_get'' ts []) \<gamma> \<xi>p0"
   by (rule wordarray_get_u32_scorres; simp add: \<xi>p0_def fun_eq_iff)
 
 section "All refine"

@@ -21,6 +21,7 @@ inductive_cases u_v_tfunE      : "\<Xi>', \<sigma> \<turnstile> u \<sim> v : TFu
 inductive_cases u_v_tprimE     : "\<Xi>', \<sigma> \<turnstile> u \<sim> v : TPrim t \<langle>r, w\<rangle>"
 inductive_cases u_v_tconE      : "\<Xi>', \<sigma> \<turnstile> u \<sim> v : TCon a b c \<langle>r, w\<rangle>"
 inductive_cases u_v_tunitE     : "\<Xi>', \<sigma> \<turnstile> u \<sim> v : TUnit \<langle>r, w\<rangle>"
+inductive_cases u_v_tcnumE     : "\<Xi>', \<sigma> \<turnstile> u \<sim> v : TCustomNum n \<langle>r, w\<rangle>"
 inductive_cases u_v_tsumE      : "\<Xi>', \<sigma> \<turnstile> u \<sim> v : TSum a \<langle>r, w\<rangle>"
 inductive_cases u_v_tproductE  : "\<Xi>', \<sigma> \<turnstile> u \<sim> v : TProduct a b \<langle>r, w\<rangle>"
 inductive_cases u_v_trecordE   : "\<Xi>', \<sigma> \<turnstile> u \<sim> v : TRecord t s \<langle>r, w\<rangle>"

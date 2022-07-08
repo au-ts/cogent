@@ -463,7 +463,7 @@ where
          p = t8_C.p1_C x;
          v = t8_C.p2_C x;
              rp = RCon ''WordArray'' [RPrim (Num U32)]
-    in (URecord [(UPtr (ptr_val p) rp, RPtr rp), (UPrim (LU32 v), RPrim (Num U32))],
+    in (URecord [(UPtr (ptr_val p) rp, RPtr rp), (UPrim (LU32 v), RPrim (Num U32))] None,
         VRecord [VAbstract (arr\<^sub>m (s, p)), VPrim (LU32 v)],
         VRecord [VAbstract (arr\<^sub>p (s, p)), VPrim (LU32 v)],
         \<lparr>T1.p1\<^sub>f = arr\<^sub>s (s, p), p2\<^sub>f = v\<rparr>))"
@@ -510,7 +510,7 @@ lemma inputs_uv_matches:
   "\<lbrakk>valid_array s p; \<sigma> (ptr_val p) = option.Some (UAbstract (arr\<^sub>u (s, p)));
     \<forall>p \<in> set (arrptrs s p). \<sigma> p = option.Some (UPrim (LU32 (heap_w32 s (PTR(32 word)p))))\<rbrakk> \<Longrightarrow>
    u_v_matches \<Xi> \<sigma> [uv\<^sub>m (s, t8_C p v)] [vv\<^sub>m (s, t8_C p v)]
-      [Some (fst (snd Generated_TypeProof.binarySearch_type))]
+      [Some (fst (snd (snd (snd Generated_TypeProof.binarySearch_type))))]
       (insert (ptr_val p) (set (arrptrs s p))) {}"
   apply (clarsimp simp: inputs_def
                         array_def
@@ -523,7 +523,7 @@ lemma inputs_uv_matches:
                u_v_r_cons1[where r' = "{}" and w' = "{}", simplified]
                u_v_p_abs_ro[where a = "arr\<^sub>u (s, p)" and ts = "[TPrim (Num U32)]", simplified]
                u_v_prim'
-               u_v_r_empty; (simp add: array_def Let_def)?)
+               u_v_r_empty; (simp add: array_def Let_def u_v_matches.intros(1))?)
   apply (clarsimp simp: wa_abs_upd_val_def)
   apply (rule conjI)
    apply (clarsimp simp: upd.wa_abs_typing_u_def valid_array_def Let_def)
@@ -609,8 +609,8 @@ lemma inputs_staterel_valrel:
    apply (erule_tac x = "of_nat j" in allE)+
    apply (clarsimp simp: word_less_nat_alt)
    apply (cut_tac y = j and z = "(SCAST(32 signed \<rightarrow> 32) (len_C (heap s p)))" in le_unat_uoi; simp?)
-    apply (clarsimp simp: array_def Let_def)+
-  apply (rule_tac x = "fst (snd Generated_TypeProof.binarySearch_type)" in exI)
+    apply (clarsimp simp: array_def Let_def u_v_matches.intros(1))+
+  (*apply (rule_tac x = "fst (snd Generated_TypeProof.binarySearch_type)" in exI)*)
   apply (drule_tac i = 0 in  u_v_matches_proj_single'; simp?)
   apply clarsimp
   apply (clarsimp simp: inputs_def array_def Let_def)
@@ -623,7 +623,8 @@ lemma inputs_rename_monoval:
   done
 
 lemma inputs_val_matches:
-  "val.matches \<Xi> [vv\<^sub>m (s, t8_C p v)] [Some (fst (snd Generated_TypeProof.binarySearch_type))]"
+  "val.matches \<Xi> [vv\<^sub>m (s, t8_C p v)] 
+      [Some (fst (snd (snd (snd Generated_TypeProof.binarySearch_type))))]"
   apply (clarsimp simp: val.matches_def
                         inputs_def
                         Let_def
@@ -654,7 +655,7 @@ corollary binary_search_C_correct:
   apply (frule_tac v = v in inputs_staterel_valrel; clarsimp)
   apply (frule_tac s = s in 
       corres_shallow_C_binarySearch_concrete[rotated 1,
-                                             OF _ inputs_val_matches[where s = s and p = p and v = v]];
+             OF _ inputs_val_matches[where s = s and p = p and v = v]];
       (simp add: inputs_rename_monoval[simplified])?)
   apply (clarsimp simp: corres_shallow_C_def proc_ctx_wellformed_\<Xi> \<xi>_1_\<xi>m1_matchesuv_\<Xi> upd.\<xi>_1_matchesu_\<Xi>)
   apply (erule impE)
@@ -669,11 +670,10 @@ corollary binary_search_C_correct:
    apply (thin_tac "_ \<in> upd.state_rel")
    apply (frule_tac v = v in inputs_uv_matches; simp?)
    apply (drule u_v_matches_to_matches_ptrs)
-   apply (drule (1) upd.preservation(1)[where \<tau>s = "[]" and K = "[]", simplified, 
-                                        OF proc_ctx_wellformed_\<Xi> _ 
-                                        upd.\<xi>_1_matchesu_\<Xi> _ 
-                                        binarySearch_typecorrect',
-                                        rotated 1])
+
+   apply (drule (1) upd.preservation(1)[where  \<tau>s = "[]" and K = "[]", simplified, 
+          OF subst_wellformed_nothing proc_ctx_wellformed_\<Xi>  _ 
+             upd.\<xi>_1_matchesu_\<Xi> _ binarySearch_typecorrect', simplified, rotated 1])
    apply (clarsimp simp: Generated_TypeProof.binarySearch_type_def)
    apply (frule upd.tprim_no_pointers(1))
    apply (drule upd.tprim_no_pointers(2))
@@ -682,7 +682,7 @@ corollary binary_search_C_correct:
    apply (clarsimp simp: valid_array_def same_array_def)
    apply (clarsimp simp: Let_def upd.state_rel_def upd.heap_rel_def upd.heap_rel_ptr_meta)
    apply (erule_tac x = p in allE)
-   apply (clarsimp simp: upd.heap_rel_meta_def array_def Let_def upd.type_rel_simps upd.wa_abs_repr_def upd.val_rel_simps)
+   apply (clarsimp simp: upd.heap_rel_meta_def array_def Let_def type_rel_simps upd.wa_abs_repr_def val_rel_simps)
    apply (rule conjI)
     apply clarsimp
     apply (rename_tac i)
@@ -690,7 +690,7 @@ corollary binary_search_C_correct:
      apply (subgoal_tac "(PTR(32 word) (ptr_val (values_C (heap s p)) + 4 * i)) = (values_C (heap s p) +\<^sub>p uint i)")
       apply simp
       apply (erule_tac x = "values_C (heap s' p) +\<^sub>p uint i" in allE)
-      apply (clarsimp simp: upd.heap_rel_meta_def array_def Let_def upd.type_rel_simps upd.wa_abs_repr_def upd.val_rel_simps)
+      apply (clarsimp simp: upd.heap_rel_meta_def array_def Let_def type_rel_simps upd.wa_abs_repr_def val_rel_simps)
      apply (simp add: ptr_add_def)
     apply (clarsimp simp: word_less_nat_alt)
    apply (rule conjI)
@@ -701,11 +701,11 @@ corollary binary_search_C_correct:
      apply (subgoal_tac "(PTR(32 word) (ptr_val (values_C (heap s p)) + 4 * i)) = (values_C (heap s p) +\<^sub>p uint i)")
       apply simp
       apply (erule_tac x = "values_C (heap s' p) +\<^sub>p uint i" in allE)
-      apply (clarsimp simp: upd.heap_rel_meta_def array_def Let_def upd.type_rel_simps upd.wa_abs_repr_def upd.val_rel_simps)
+      apply (clarsimp simp: upd.heap_rel_meta_def array_def Let_def type_rel_simps upd.wa_abs_repr_def val_rel_simps)
      apply (simp add: ptr_add_def)
     apply (clarsimp simp: word_less_nat_alt)
   apply (rotate_tac -1; subst (asm) val_rel_shallow_C_def)
-  apply (clarsimp simp: upd.val_rel_simps valRel_records)
+  apply (clarsimp simp: val_rel_simps valRel_records)
   apply (erule u_v_uvprimE)
   apply (drule_tac i = "unat r" and v = v  in binary_search_correct; simp?)
    apply (clarsimp simp: inputs_def array_def Let_def unat_le_helper)+
