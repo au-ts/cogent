@@ -404,8 +404,8 @@ class Test:
 
 # a collection of configurations
 class Configurations:
-    def __init__(self, path):
-        self.files = [f.resolve() for f in path.rglob(CONFIG_FILE_NAME)]
+    def __init__(self, paths):
+        self.files = [f.resolve() for path in paths for f in path.rglob(CONFIG_FILE_NAME)]
         self.configs = []
         self.errConfigs = []
         for f in self.files:
@@ -454,6 +454,12 @@ def main():
     ap.add_argument("--only", "-o", dest="only_test",
                     help="only run specified tests", 
                     metavar="TEST_NAME",
+                    nargs='*')
+    ap.add_argument("--include-dir", "-d", dest="include_dirs",
+                    help="only search for tests in this directory",
+                    metavar="DIR",
+                    action='store',
+                    default=[],
                     nargs='*')
     ap.add_argument("--verbose", "-v", 
                     dest="verbose",
@@ -518,7 +524,8 @@ def main():
     context = TestContext(repo, cogent, TEST_DIST_DIR, TEST_SCRIPT_DIR, phases, args.ignore_phases)
 
     # find all config files
-    configs = Configurations(Path("."))
+    search_paths = ['./'] if not args.include_dirs else args.include_dirs
+    configs = Configurations(Path(p) for p in search_paths)
 
     # Validate all config files
     if args.validate:
