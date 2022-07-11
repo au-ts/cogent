@@ -158,7 +158,7 @@ validateType' t = do
           return (c <> ci, Just y)
         _  -> return (Unsat $ OtherTypeError "taking more than one element from arrays not supported", Nothing)
       let cl' = Arith (SE (T bool) (PrimOp ">=" [l'', SE (T u32) (IntLit 0)]))
-              --  <> Arith (SE (T bool) (PrimOp "==" [toTCSExpr l', x]))
+             <> toTCSExpr l' :==: x
       traceTc "gen" (text "cg for array length" <+> pretty l' L.<$>
                      text "generate constraint" <+> prettyC (cl <> cl'))
       (cs, s') <- cgSigil s
