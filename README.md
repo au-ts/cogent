@@ -6,7 +6,7 @@
 ## Project homepage
 
 For general context of this project, motivation, an overview, and published papers, see
-our [project homepage](https://ts.data61.csiro.au/projects/TS/filesystems.pml.html).
+our [project homepage](https://trustworthy.systems/projects/TS/cogent.pml).
 
 ## Online documentation
 
