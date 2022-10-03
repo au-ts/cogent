@@ -1,0 +1,29 @@
+- test_name: pass-array
+  files:
+    - pass_array-1.cogent
+    - pass_array-2.cogent
+    - pass_array-3.cogent
+    - pass_array-bang.cogent
+    - pass_array-copy-linear.cogent
+    - pass_array-copy-unboxed.cogent
+    - pass_array-copy.cogent
+    - pass_array-letbang.cogent
+    - pass_array-underflow-u32-index.cogent
+    - pass_herp-1.cogent
+    - pass_lit-index.cogent
+  expected_result: wip-pass
+  flags:
+    - -g
+
+- test_name: fail-array
+  files:
+    - fail_array-0-sized-lit.cogent
+    - fail_array-0-sized-type.cogent
+    - fail_array-empty-parray.cogent
+    - fail_array-eq-no-result.cogent
+    - fail_array-index-out-of-bound.cogent
+    - fail_array-indexing-nonlinear.cogent
+    - fail_array-negative-index.cogent
+  expected_result: wip-fail
+  flags:
+    - -g
