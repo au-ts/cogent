@@ -1,3 +1,0 @@
-id : rec t {l : <End Unit|Rest {a : U8,b : rec t}>}
-     -> rec t {l : <End Unit|Rest {a : U8,b : rec t}>};
-id a = a : rec t {l : <End Unit|Rest {a : U8,b : rec t}>};

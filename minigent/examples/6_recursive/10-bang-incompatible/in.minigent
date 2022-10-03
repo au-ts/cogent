@@ -1,3 +1,0 @@
-bad: rec k { f: < Some U8 | Chain k! > } 
-    -> rec k { f: < Some U8 | Chain k > };
-bad x = x;

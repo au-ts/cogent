@@ -1,8 +1,0 @@
-foo : <A U8|B U8> -> U8;
-foo v = case v : <A U8|B U8> of
-          A n -> n : U8
-        | r -> case r : <A U8|B U8> of
-                 A n -> n : U8
-               | r -> case r : <A U8 take|B U8> of   B n -> n : U8 end : U8
-               end : U8
-        end : U8;

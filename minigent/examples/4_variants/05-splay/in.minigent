@@ -1,7 +1,0 @@
-foo : { one : < Con U8 | Con2 U8 take >, two : < Con U8 | Con2 U8 > }# -> U8;
-
-test : Unit -> U8;
-test u = let v = Con (3 : U8)
-          in foo { one = v , two = v }
-         end;
-

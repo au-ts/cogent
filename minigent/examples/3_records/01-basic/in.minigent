@@ -1,8 +1,0 @@
-simple : { foo : { bar : U8 , foo : U8 }#, baz : U8 } 
-      -> { foo : { bar : U8 , foo : U8 }# take, baz : U8};
-simple r = take s { foo = x } = r 
-             in take t { baz = b } = s 
-                  in put t.baz := x.bar + x.foo + b end
-                 end
-            end;
-                  

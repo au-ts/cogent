@@ -1,8 +1,0 @@
-Typecheck failed in function notExhaustive
- •  Exhausted <A U8 take|B U8>
-Typecheck failed in function wrong
- •  <A U8|B Buf|C {x : U8 take}> :< <A U8 take|B Buf take|C {x : U8} take>
-Typecheck failed in function wrongConstructors
- •  <A U8 take> :< <X U8|𝛂1...>
- •  <X U8 take|𝛂1...> :< <Y U8|𝛄1...>
- •  Exhausted <B U8|Y U8 take|𝛄1...>

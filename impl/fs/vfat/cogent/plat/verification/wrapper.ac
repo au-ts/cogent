@@ -1,9 +1,0 @@
-typedef void* SysState;
-typedef void* ErrPtr;
-
-typedef void* VfsInode;
-typedef void* VfsDentry;
-typedef void* Superblock;
-
-
-#include "vfat.c"

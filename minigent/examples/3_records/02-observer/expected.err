@@ -1,5 +1,0 @@
-Typecheck failed in function wrong
- •  Share {x : U8,y : U8 take}
- •  Drop {x : U8 take,y : U8 take}
-Typecheck failed in function wrong2
- •  Drop {x : U8 take,y : U8 take}

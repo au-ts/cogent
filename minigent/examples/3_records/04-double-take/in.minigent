@@ -1,7 +1,0 @@
-foo : { x : Foo }# -> { x : Foo, y : Foo }#;
-foo r = take r2 { x = v } = r 
-          in take r3 { x = v2 } = r2
-             in { x = v , y = v2 } 
-             end
-         end;
-

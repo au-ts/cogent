@@ -1,7 +1,0 @@
-flip : [x, y]. < A x | B y > -> <P y | Q x>;
-flip v = case v of 
-           A x -> Q x
-         | v2 -> case v2 of 
-                   B y -> P y
-                 end
-         end;

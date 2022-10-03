@@ -1,8 +1,0 @@
-size : Buf! -> U8;
-test : {x : Buf,y : U8 take} -> {x : Buf,y : U8};
-test r = let! (r) n = (size[] : Buf! -> U8) ((r : {x : Buf!
-                                                  ,y : U8 take}!).x : Buf!) : U8
-         in put r : {x : Buf,y : U8 take}.y := n : U8 end : {x : Buf,y : U8}
-         end : {x : Buf,y : U8};
-wrong : {x : U8,y : U8 take} -> {x : U8,y : U8};
-wrong2 : {x : U8 take,y : U8 take} -> Unit;

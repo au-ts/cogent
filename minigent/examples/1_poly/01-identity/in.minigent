@@ -1,8 +1,0 @@
-id : [x]. x -> x;
-id x = x;
-
-test : U8 -> U8;
-test x = id x;
-
-main : Unit -> U8;
-main x = test 3;

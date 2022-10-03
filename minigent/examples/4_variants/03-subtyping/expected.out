@@ -1,5 +1,0 @@
-notExhaustive : <A U8|B U8> -> U8;
-simple : <A U8 take|B Buf take|C {x : U8} take> -> <A U8|B Buf|C {x : U8 take}>;
-simple x = x : <A U8|B Buf|C {x : U8 take}>;
-wrong : <A U8|B Buf|C {x : U8 take}> -> <A U8 take|B Buf take|C {x : U8} take>;
-wrongConstructors : <A U8|B U8> -> U8;

@@ -1,7 +1,0 @@
-pack : [a] . a -> Box a;
-test : [a] . a -> a;
-test x = (unpack[a] : Box a -> a) ((unpack[Box a] : Box (Box a)
-                                                    -> Box a) ((pack[ Box a ] : Box a
-                                                                                -> Box (Box a)) ((pack[ a ] : a
-                                                                                                              -> Box a) (x : a) : Box a) : Box (Box a)) : Box a) : a;
-unpack : [a] . Box a -> a;

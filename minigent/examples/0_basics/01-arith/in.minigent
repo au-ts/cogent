@@ -1,5 +1,0 @@
-increment : U8 -> U8;
-increment x = x + 1;
-
-sumTo : U32 -> U32;
-sumTo n = n * (n - 1) / 2;

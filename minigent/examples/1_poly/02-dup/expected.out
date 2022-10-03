@@ -1,6 +1,0 @@
-badDup : [x] . x -> {p1 : x,p2 : x}#;
-badTest : [a] . a -> {p1 : a,p2 : a}#;
-dup : [x] Share x. x -> {p1 : x,p2 : x}#;
-dup x = {p1 = x : x,p2 = x : x} : {p1 : x,p2 : x}#;
-test : U8 -> {p1 : U8,p2 : U8}#;
-test x = (dup[U8] : U8 -> {p1 : U8,p2 : U8}#) (x : U8) : {p1 : U8,p2 : U8}#;

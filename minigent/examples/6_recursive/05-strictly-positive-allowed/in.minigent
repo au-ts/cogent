@@ -1,2 +1,0 @@
-id : rec t { l : < End Unit | Rest { a : U8, b : t } > } -> rec t { l : < End Unit | Rest { a : U8, b : t } > };
-id a = a;

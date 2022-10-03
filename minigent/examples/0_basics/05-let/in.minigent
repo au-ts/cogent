@@ -1,5 +1,0 @@
-testLet : U8 -> U8;
-testLet x = let y = x + 1 in y - 1 end;
-
-testLetNested : U8 -> U8;
-testLetNested x = let z = let y = x + 1 in y - 1 end in let q = z + 1 in q + z end end;

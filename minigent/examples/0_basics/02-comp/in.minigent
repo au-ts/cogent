@@ -1,2 +1,0 @@
-foo : U8 -> Bool;
-foo x = x + 200 > 3 - 1;

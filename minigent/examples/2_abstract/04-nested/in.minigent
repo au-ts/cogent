@@ -1,5 +1,0 @@
-pack : [a]. a -> Box a;
-unpack : [a]. Box a -> a;
-
-test : [a]. a -> a;
-test x = unpack (unpack (pack (pack x)));

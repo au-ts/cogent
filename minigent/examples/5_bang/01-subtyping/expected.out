@@ -1,8 +1,0 @@
-foo : {f1 : U32,f2 : U8} -> Unit;
-foo a = let! (a) x = (a : {f1 : U32,f2 : U8}!).f1 : U32
-        in let! (a) y = (a : {f1 : U32,f2 : U8}!).f2 : U8
-           in (myfree[] : {f1 : U32 take,f2 : U8 take}
-                          -> Unit) (a : {f1 : U32 take,f2 : U8 take}) : Unit
-           end : Unit
-        end : Unit;
-myfree : {f1 : U32 take,f2 : U8 take} -> Unit;

@@ -1,6 +1,0 @@
-testIf : U16 -> U16;
-testIf x = if x > 255 then x / 2 else x end;
-testIfNested : U16 -> U16;
-testIfNested x = if x == 3 then if True then x / 2 else x end else if x == 1 || x > 5 then x + 2 else x -1 end end;
-testIfLet : U16 -> U16;
-testIfLet x = let y = if True then x / 2 else x end in if y == 1 || x > 5 then x + 2 else x -1 end end;

@@ -1,6 +1,0 @@
-bad : U8 -> U16;
-bad2 : U8 -> U8;
-call : U8 -> U16;
-call x = ((upcast[] : U8 -> U16) (x : U8) : U16) + ((upcast[] : U8
-                                                                -> U16) (x : U8) : U16) : U16;
-upcast : U8 -> U16;

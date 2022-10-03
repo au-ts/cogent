@@ -1,6 +1,0 @@
-id : [x] . x -> x;
-id x = x : x;
-main : Unit -> U8;
-main x = (test[] : U8 -> U8) (3 : U8) : U8;
-test : U8 -> U8;
-test x = (id[U8] : U8 -> U8) (x : U8) : U8;

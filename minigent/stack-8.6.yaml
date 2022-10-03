@@ -1,6 +1,0 @@
-resolver: lts-14.22             # ghc-8.6.5; 2020-01-25
-packages: ['.']
-
-extra-package-dbs: []
-extra-deps:
-  - system-posix-redirect-1.1.0.1

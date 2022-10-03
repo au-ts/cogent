@@ -1,7 +1,0 @@
-Typecheck failed in function incompatible
- •  rec t {f : <Leaf Unit
-               |Node {data : U64
-                     ,left : rec t
-                     ,right : rec t}#>} :< rec t {l : <Cons {data : U64
-                                                            ,rest : rec t}#
-                                                      |Nil Unit>}

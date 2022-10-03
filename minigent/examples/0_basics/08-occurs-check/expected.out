@@ -1,4 +1,0 @@
-ambiguous : [a] . a -> a;
-bad : [a] . a -> a;
-func : [x] . x -> x;
-func x = x : x;

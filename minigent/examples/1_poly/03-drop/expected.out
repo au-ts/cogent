@@ -1,5 +1,0 @@
-badTest : [x] . x -> Unit;
-drop : [x] Drop x. x -> Unit;
-drop x = Unit : Unit;
-test : Bool -> Unit;
-test x = (drop[Bool] : Bool -> Unit) (x : Bool) : Unit;

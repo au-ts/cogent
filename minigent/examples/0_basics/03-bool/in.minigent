@@ -1,2 +1,0 @@
-operators : U8 -> Bool;
-operators x = x > x - 1 || True && (False || ~(~False));

@@ -1,2 +1,0 @@
-listop : Unit -> rec t { f : (t -> U8) };
-listop a = { f = End Unit };

@@ -1,8 +1,0 @@
-Typecheck failed in function bigU16
- •  65536 :<=: U16
-Typecheck failed in function bigU32
- •  4294967296 :<=: U32
-Typecheck failed in function bigU64
- •  18446744073709551616 :<=: U64
-Typecheck failed in function bigU8
- •  256 :<=: U8

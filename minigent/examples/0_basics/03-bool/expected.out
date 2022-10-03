@@ -1,2 +1,0 @@
-operators : U8 -> Bool;
-operators x = (((x : U8) > ((x : U8) - (1 : U8) : U8) : Bool) || (True : Bool) : Bool) && ((False : Bool) || (~ (~ (False : Bool) : Bool) : Bool) : Bool) : Bool;

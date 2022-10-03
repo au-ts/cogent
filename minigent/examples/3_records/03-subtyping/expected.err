@@ -1,6 +1,0 @@
-Typecheck failed in function bad
- •  Drop x
-Typecheck failed in function simpleWrong
- •  {baz : U8 take,foo : {bar : U8 take,foo : U8 take}#}# :< {baz : U8
-                                                             ,foo : {bar : U8
-                                                                    ,foo : U8}#}#

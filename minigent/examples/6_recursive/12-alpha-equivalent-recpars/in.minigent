@@ -1,2 +1,0 @@
-f : rec t { l: < Zero Unit | Succ t > } -> rec k { l: < Zero Unit | Succ k > };
-f peano = peano;
