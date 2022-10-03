@@ -159,12 +159,11 @@ genSumLayout maxBitIndex maxSize alloc =
     genAlts _ m n alloc | m == n = return (M.empty, alloc)
 
     genAlts maxSize tagValue maxTagValue alloc = do
-      sourcePos <- arbitrary
       altSize <- if 1 <= maxSize then choose (1, maxSize) else return 0
       (remainingAlts, remainingAlloc) <- genAlts (maxSize - altSize) (tagValue + 1) maxTagValue alloc
       let altName = "Con" ++ show tagValue
       (altLayout, altAlloc) <- genDataLayout' maxBitIndex altSize alloc
-      let altAlloc' = fmap (InAlt altName sourcePos) altAlloc
+      let altAlloc' = fmap (InAlt altName noPos) altAlloc
       return (M.insert altName (tagValue, altLayout) remainingAlts, altAlloc' \/ remainingAlloc)
       {-
     genAlts

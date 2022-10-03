@@ -56,18 +56,6 @@ genDataLayoutExpr size = oneof
           fieldName <- arbitrary
           fieldDataLayoutExpr <- genDataLayoutExpr fieldSize
           return $ (fieldName, noPos, fieldDataLayoutExpr) : otherFields
--}
-genFields :: Int -> Int -> Gen [(FieldName, SourcePos, DataLayoutExpr)]
-genFields nth size = do
-  fieldSize <- choose (0, size)
-  if fieldSize == 0
-    then return []
-    else do
-      otherFields <- genFields (nth + 1)(size - fieldSize)
-      fieldName <- return ("field" ++ show nth) -- arbitrary
-      fieldDataLayoutExpr <- genDataLayoutExpr fieldSize
-      sourcePos <- arbitrary
-      return $ (fieldName, sourcePos, fieldDataLayoutExpr) : otherFields
 
     genVariant :: Size -> Gen DataLayoutExpr
     genVariant size = do
@@ -87,19 +75,6 @@ genFields nth size = do
           altValue <- arbitrary
           altDataLayoutExpr <- genDataLayoutExpr altSize
           return $ (altName, noPos, altValue, altDataLayoutExpr) : otherAlts
--}
-genAlternatives :: Int -> Int -> Gen [(TagName, SourcePos, Size, DataLayoutExpr)]
-genAlternatives nth size = do
-  altSize <- choose (0, size)
-  if altSize == 0
-    then return []
-    else do
-      otherAlts <- genAlternatives (nth + 1) (size - altSize)
-      altName <- return ("con" ++ show nth) -- arbitrary
-      altValue <- arbitrary
-      altDataLayoutExpr <- genDataLayoutExpr altSize
-      sourcePos <- arbitrary
-      return $ (altName, sourcePos, altValue, altDataLayoutExpr) : otherAlts
 
     genOffset :: Size -> Gen DataLayoutExpr
     genOffset size = DL <$> (Offset <$> genDataLayoutExpr size <*> arbitrary)

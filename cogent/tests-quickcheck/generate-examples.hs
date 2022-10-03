@@ -17,7 +17,7 @@ module Main where
 -- import System.Directory
 import Prelude
 
-import System.Directory (createDirectory)
+import System.Directory (createDirectoryIfMissing)
 import Test.QuickCheck
 import Control.Monad
 import System.Exit
@@ -39,7 +39,7 @@ named 'pass-dargent-verifs' and testing the CorresProof phase
 for these examples.
 -}
 main = do
-  _ <- createDirectory dir
+  _ <- createDirectoryIfMissing False dir
   exs <- sample' (genTestLayoutProg size)
   let filenames = map (\ n -> "ex" ++ show n ++ ".cogent") [1..(length exs)]
   _ <- writeFile (dir ++ "/config.yaml") 

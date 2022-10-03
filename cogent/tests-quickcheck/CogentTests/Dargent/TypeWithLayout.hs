@@ -46,20 +46,14 @@ import CogentTests.Dargent.Core (genRecordLayout)
 primIntMinSize = 1
 
 primIntSizeBits' :: PrimInt -> Size
-primIntSizeBits' U8      = 8
-primIntSizeBits' U16     = 16
-primIntSizeBits' U32     = 32
-primIntSizeBits' U64     = 64
+primIntSizeBits' (UInt n) = n
 primIntSizeBits' Boolean = 1
 
 possiblePrimInt :: Size -> [ PrimInt ]
-possiblePrimInt n = filter (\p ->  primIntSizeBits' p == n) [ U8, U16, U32, U64, Boolean ]
+possiblePrimInt n = filter (\p ->  primIntSizeBits' p == n) (Boolean : [UInt n | n <- [1..64]])
 
 primIntSurfName :: PrimInt -> String
-primIntSurfName U8      = "U8"
-primIntSurfName U16     = "U16"
-primIntSurfName U32     = "U32"
-primIntSurfName U64     = "U64"
+primIntSurfName (UInt n) = 'U':show n
 primIntSurfName Boolean = "Bool"
 
 primIntSurfType :: PrimInt -> Type t e l
@@ -92,7 +86,7 @@ genSurfaceType (DLVariant _ fs) = do
   l <- sequence (map con_type fs)
   return $ RT $ TVariant (Map.fromList l)
   where
-      con_type :: (TagName, SourcePos, Size, DataLayoutExpr) -> Gen (TagName, ([RawType], Taken))
+      con_type :: (TagName, SourcePos, Integer, DataLayoutExpr) -> Gen (TagName, ([RawType], Taken))
       con_type (name, _, _, dl) = do
         typ <- genSurfaceType dl
         return (name, ([typ], False))
@@ -121,8 +115,8 @@ bitRangeToDL (BitRange bitSizeBR bitOffsetBR) =
 -- Core to surface layout
 genSurfaceLayout :: DataLayout' BitRange -> Gen DataLayoutExpr
 genSurfaceLayout UnitLayout = return (DL (Prim (Bits 0)))
-genSurfaceLayout (PrimLayout bitrange@(BitRange bitSizeBR bitOffsetBR)) =
-  frequency $  ((3, return $ bitRangeToDL bitrange) :
+genSurfaceLayout (PrimLayout bitrange@(BitRange bitSizeBR bitOffsetBR) ω) =
+  frequency $ ((3, return $ bitRangeToDL bitrange) :
         if bitSizeBR >= pointerSizeBits then
           [ (1, return $ DL $ Offset (DL Ptr) $ Bits bitOffsetBR)]
         else
@@ -139,7 +133,7 @@ genSurfaceLayout (RecordLayout fs) =
 genSurfaceLayout (SumLayout bitrange fs) = 
   (DL . (Variant (bitRangeToDL bitrange))) <$> sequence (map con_aux (Map.toList fs))
   where
-      con_aux :: (TagName, (Integer, DataLayout' BitRange)) -> Gen (TagName, SourcePos, Size, DataLayoutExpr)
+      con_aux :: (TagName, (Integer, DataLayout' BitRange)) -> Gen (TagName, SourcePos, Integer, DataLayoutExpr)
       con_aux (name, (v, dl)) = do
         sl <- genSurfaceLayout dl
         return (name, somePos, v, sl)
@@ -155,7 +149,7 @@ setRecordLayout _ t = t
   -- size of the array of bytes as input
 genRecordWithLayout :: Size -> Gen RawType
 genRecordWithLayout size = do
-    (dl, _) <- genRecordLayout (fromIntegral size) size (Allocation []) -- genRecord size
+    (dl, _) <- genRecordLayout size size (Allocation [] []) -- genRecord size
     dlSurf <- genSurfaceLayout dl
     typ <- genSurfaceType dlSurf
     return $ (setRecordLayout dlSurf) typ 
