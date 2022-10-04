@@ -2,3 +2,6 @@
 	path = isabelle
 	url = https://github.com/seL4/isabelle.git
   ignore = untracked
+[submodule "autocorres"]
+	path = autocorres
+	url = git@github.com:amblafont/AutoCorres.git
