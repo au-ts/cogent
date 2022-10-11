@@ -79,6 +79,7 @@ import Cogent.Compiler
 import qualified Cogent.Core as CC
 import Cogent.Core (TypedExpr(..))
 import Cogent.Desugar as D (freshVarPrefix)
+import Cogent.Inference as IN (unfoldSynsShallow, unfoldSynsDeep)
 import Cogent.Isabelle.Shallow (isRecTuple)
 import Cogent.Isabelle.ShallowTable (TypeStr(..), st)
 import Cogent.PrettyPrint ()
@@ -105,13 +106,14 @@ import Data.Maybe (maybe)
 import Data.Set as Set (empty, fromList, insert, isSubsetOf)
 -- import GHC.LanguageExtensions.Type
 import Language.Haskell.Exts.Build
-import Language.Haskell.Exts.Pretty
+import Language.Haskell.Exts.Pretty hiding (Pretty)
 import Language.Haskell.Exts.Syntax as HS
 -- import Language.Haskell.HS.LanguageExtensions
 -- import Language.Haskell.HS.Syntax as TH
 -- import Language.Haskell.HS.Ppr    as PP
 -- import Language.Haskell.HS.PprLib as PP
 import Prelude as P
+import Text.PrettyPrint.ANSI.Leijen as PP (Pretty, pretty)
 
 -- import Debug.Trace
 
@@ -119,7 +121,8 @@ import Prelude as P
 -- * Contexts
 
 data ReaderGen = ReaderGen
-  { _typeStrs :: [TypeStr]    -- ^ type structures, as in the Isabelle shallow embedding generator
+  { _defs :: [CC.Definition TypedExpr VarName VarName]
+  , _typeStrs :: [TypeStr]    -- ^ type structures, as in the Isabelle shallow embedding generator
   , _typeVars :: [TyVarName]  -- ^ type variables in scope
   , _recoverTuples :: Bool    -- ^ whether we use unboxed records for tuples
   , _localBindings :: [M.Map VarName VarName]  -- ^ a stack of (Cogent var &#x21A6; Haskell var)
@@ -166,6 +169,8 @@ newtype SG a = SG { runSG :: RWS ReaderGen WriterGen StateGen a }
                        MonadWriter WriterGen,
                        MonadState  StateGen )
 
+instance MonadFail SG where
+  fail = __impossible
 
 -- ----------------------------------------------------------------------------
 -- * Haskell shallow embedding generation
@@ -175,7 +180,7 @@ shallow :: Bool    -- ^ Whether we recover the tuple syntax for tuple types.
                    --   If 'False', we will use unboxed records for tuples.
         -> String  -- ^ The name of the Cogent module
         -> Stage   -- ^ The 'Stage' of the compilatation
-        -> [CC.Definition TypedExpr VarName b]  -- ^ A list of Cogent definitions
+        -> [CC.Definition TypedExpr VarName VarName]  -- ^ A list of Cogent definitions
         -> [CC.CoreConst TypedExpr]             -- ^ A list of Cogent constants
         -> String                               -- ^ The log header to be included in the generated code
         -> String
@@ -185,7 +190,7 @@ shallow tuples name stg defs consts log =
                                       ds <- shallowDefinitions defs
                                       return $ cs ++ ds
                           )
-                          (ReaderGen (st defs) [] tuples [])
+                          (ReaderGen defs (st defs) [] tuples [])
                           (StateGen 0 M.empty)
       tds = datatypes w
       header = (("{-\n" ++ log ++ "\n-}\n") ++)
@@ -224,12 +229,12 @@ shallow tuples name stg defs consts log =
 -- * Top-level definition generation
 
 -- | create a type synonym
-shallowTypeDef :: TypeName -> [TyVarName] -> CC.Type t b -> SG (Decl ())
+shallowTypeDef :: TypeName -> [TyVarName] -> CC.Type t VarName -> SG (Decl ())
 shallowTypeDef tn tvs t = do
   t' <- shallowType t
   pure $ TypeDecl () (mkDeclHead (mkName tn) (P.map (mkName . snm) tvs)) t'
 
-shallowDefinition :: CC.Definition TypedExpr VarName b -> SG [Decl ()]
+shallowDefinition :: CC.Definition TypedExpr VarName VarName -> SG [Decl ()]
 shallowDefinition (CC.FunDef _ fn ps _ ti to e) = __fixme $  -- FIXME: dlvars ignored here
   local (typarUpd typar) $ do
     ti' <- shallowType ti
@@ -280,7 +285,7 @@ shallowDefinition (CC.TypeDef tn ps (Just t)) = do
   where typar = Vec.cvtToList ps
 
 
-shallowDefinitions :: [CC.Definition TypedExpr VarName b] -> SG [Decl ()]
+shallowDefinitions :: [CC.Definition TypedExpr VarName VarName] -> SG [Decl ()]
 shallowDefinitions = (concat <$>) . mapM shallowDefinition
 
 shallowConst :: CC.CoreConst TypedExpr -> SG [HS.Decl ()]
@@ -339,9 +344,9 @@ typeParam   = "t"
 -- __NOTE:__ [How to deal with variant types] / zilinc
 --
 -- Containment doesn\'t mean Cogent subtyping relations. Instead, they refer to a relation mainly
--- for variant types that /doesn\'t/ form a subtyping relation. For example, @\<A a | B b\>@ is
+-- for variant types that /don\'t/ form a subtyping relation. For example, @\<A a | B b\>@ is
 -- /contained/ in a larger type @\<A a | B b | C c\>@. We need to keep track of these relations as
--- in Haskell, data constructors can not duplicate. Two different solutions will work:
+-- in Haskell, data constructors can not duplicate. Two different solutions can be used:
 --
 --   1. Generate different names for duplicate constructors;
 --
@@ -355,10 +360,10 @@ typeParam   = "t"
 -- | generate a type structure
 --
 --   __ASSUME:__ @'isRecOrVar' input == 'True'@
-typeStr :: CC.Type t b -> TypeStr
+typeStr :: CC.Type t VarName -> TypeStr
 typeStr (CC.TRecord _ fs _) = RecordStr $ P.map fst fs
 typeStr (CC.TSum alts) = VariantStr $ sort $ P.map fst alts
-typeStr _ = __impossible "Precondition failed: isRecOrVar input == True"
+typeStr t = __impossible $ "Precondition failed (typeStr): isRecOrVar " ++ show (pretty t) ++ " == True"
 
 -- | check if a type is a record or a variant
 isRecOrVar :: CC.Type t b -> Bool
@@ -369,11 +374,11 @@ isRecOrVar _ = False
 -- | 'typeComponents' takes a record or variant and returns a list of its components in the right order
 --
 --   __ASSUME:__ @'isRecOrVar' input == 'True'@
-typeComponents :: CC.Type t b -> [(String, CC.Type t b)]
+typeComponents :: CC.Type t VarName -> [(String, CC.Type t VarName)]
 typeComponents (CC.TRecord rp fs _) = P.map (second fst) fs  -- FIXME: deal with @rp@ / zilinc
 typeComponents (CC.TSum alts) = P.map (second fst) $ sortBy (compare `on` fst) alts
   -- \ ^^^ NOTE: this sorting must stay in-sync with the algorithm `toTypeStr` in ShallowTable.hs / zilinc
-typeComponents _ = __impossible "Precondition failed: isRecOrVar input == True"
+typeComponents t = __impossible $ "Precondition failed (typeComponents): isRecOrVar " ++ show (pretty t) ++ " == True"
 
 -- | get field/tag names of a type structure
 typeStrFields :: TypeStr -> [String]
@@ -383,7 +388,7 @@ typeStrFields (VariantStr alts) = alts
 -- | Given a Cogent type, it returns a nominal type @(type_name, [field/tag_name])@
 --
 --   __ASSUME:__ @'isRecOrVar' input == 'True'@
-nominalType :: CC.Type t b -> SG (TypeName, [String])
+nominalType :: CC.Type t VarName -> SG (TypeName, [String])
 nominalType = nominalTypeStr . typeStr
 
 -- | It takes a type structure and returns a nominal type @(type_name, [field/tag_name])@
@@ -411,7 +416,7 @@ nominalTypeStr st = do
 -- | convert a Cogent composite type to a Haskell datatype
 --
 --   __ASSUME:__ @'isRecOrVar' input == 'True'@
-shallowTypeNominal :: CC.Type t b -> SG (HS.Type ())
+shallowTypeNominal :: CC.Type t VarName -> SG (HS.Type ())
 shallowTypeNominal t = do
   (tn,fs) <- nominalType t
   nts <- forM (typeComponents t) (secondM shallowType)  -- generate a type for each component
@@ -451,14 +456,16 @@ decTypeStr (VariantStr tags) = do
   return tn
 
 -- | generate a record type as a tuple type
-shallowRecTupleType :: [(FieldName, (CC.Type t b, Bool))] -> SG (HS.Type ())
+shallowRecTupleType :: [(FieldName, (CC.Type t VarName, Bool))] -> SG (HS.Type ())
 shallowRecTupleType fs = mkTupleT <$> mapM shallowType (map (fst . snd) fs)
 
 -- | generate a Haskell shallow embedding of a Cogent type
-shallowType :: CC.Type t b -> SG (HS.Type ())
+shallowType :: CC.Type t VarName -> SG (HS.Type ())
 shallowType (CC.TVar v) = mkVarT . mkName . snm <$> ((!!) <$> view typeVars <*> pure (finInt v))
-shallowType (CC.TVarBang v) = shallowType (CC.TVar v)
+shallowType (CC.TVarBang v) = mkVarT . mkName . snm <$> ((!!) <$> view typeVars <*> pure (finInt v))
+shallowType (CC.TVarUnboxed v) = mkVarT . mkName . snm <$> ((!!) <$> view typeVars <*> pure (finInt v))
 shallowType (CC.TCon tn ts _) = mkConT (mkName tn) <$> mapM shallowType ts
+shallowType (CC.TSyn tn ts _ _) = mkConT (mkName tn) <$> mapM shallowType ts
 shallowType (CC.TFun t1 t2) = TyFun () <$> shallowType t1 <*> shallowType t2
 shallowType (CC.TPrim pt) = pure $ shallowPrimType pt
 shallowType (CC.TString) = pure . mkTyConT $ mkName "String"
@@ -475,6 +482,7 @@ shallowType (CC.TUnit) = pure $ TyCon () $ Special () $ UnitCon ()
 shallowType (CC.TArray t _ _ _) = mkListT <$> shallowType t
 #endif
 
+
 -- | generate a Haskell shallow embedding of a primitive Cogent type
 shallowPrimType :: PrimInt -> HS.Type ()
 shallowPrimType U8  = mkTyConT $ mkName "Word8"
@@ -487,7 +495,7 @@ shallowPrimType Boolean = mkTyConT $ mkName "Bool"
 -- * Expression generators
 --
 
-shallowExpr :: TypedExpr t v VarName b -> SG (Exp ())
+shallowExpr :: TypedExpr t v VarName VarName -> SG (Exp ())
 shallowExpr (TE _ (CC.Variable (_,v))) = do
   bs <- view localBindings
   let v' = case M.lookup v (M.unions bs) of  -- also heap-top-biased unions
@@ -503,7 +511,7 @@ shallowExpr (TE _ (CC.App f arg)) = appFun <$> shallowExpr f <*> (mapM shallowEx
 
 shallowExpr (TE t (CC.Con cn e _))  = do
   e' <- shallowExpr e
-  (tn,_) <- nominalType t
+  (tn,_) <- nominalType =<< (unfoldSynsShallow <$> view defs <*> pure t)
   pure $ appFun (mkConE $ mkName (tagName tn cn)) [e']
 
 shallowExpr (TE _ (CC.Unit)) = pure $ HS.Con () $ Special () $ UnitCon ()
@@ -534,7 +542,7 @@ shallowExpr (TE t (CC.LetBang _ nm e1 e2)) = shallowExpr (TE t $ CC.Let nm e1 e2
 shallowExpr (TE _ (CC.Tuple e1 e2)) = HS.Tuple () Boxed <$> mapM shallowExpr [e1,e2]
 
 shallowExpr (TE t (CC.Struct fs)) = do
-  (tn,_) <- nominalType t
+  (tn,_) <- nominalType =<< (unfoldSynsShallow <$> view defs <*> pure t)
   tuple <- view recoverTuples
   let fnms = map fst fs
   if tuple && isRecTuple fnms then
@@ -555,7 +563,7 @@ shallowExpr (TE t (CC.Case e tag (_,n1,e1) (_,n2,e2))) = do
   n2' <- getSafeBinder n2
   e1' <- local (addBindings [(n1,n1')] . pushScope) $ shallowExpr e1
   e2' <- local (addBindings [(n2,n2')] . pushScope) $ shallowExpr e2
-  (tn,_) <- nominalType (exprType e)
+  (tn,_) <- nominalType =<< (unfoldSynsShallow <$> view defs <*> pure (exprType e))
   let c1 = HS.Alt () (PApp () (UnQual () $ mkName (tagName tn tag)) [pvar $ mkName $ snm n1']) (UnGuardedRhs () e1') Nothing
       c2 = HS.Alt () (pvar . mkName $ snm n2') (UnGuardedRhs () e2') Nothing
   pure $ HS.Case () e' [c1,c2]
@@ -563,7 +571,7 @@ shallowExpr (TE t (CC.Case e tag (_,n1,e1) (_,n2,e2))) = do
 shallowExpr (TE t (CC.Esac e)) = do
   let te@(CC.TSum alts) = exprType e
       [(tag,_)] = filter (not . snd . snd) alts
-  (tn,_) <- nominalType te
+  (tn,_) <- nominalType =<< (unfoldSynsShallow <$> view defs <*> pure te)
   vn <- freshInt <<+= 1
   let v = mkName $ internalVar ++ show vn
   appFun (Lambda () [PApp () (UnQual () . mkName $ snm (tagName tn tag)) [pvar v]] (var v)) <$>
@@ -586,7 +594,7 @@ shallowExpr (TE _ (CC.Take (n1,n2) rec fld e)) = do
   n2' <- getSafeBinder n2
   let pf = pvar . mkName $ snm n1'  -- taken field
       pr = pvar . mkName $ snm n2'  -- new record
-      rect@(CC.TRecord _ fs _) = exprType rec
+  rect@(CC.TRecord _ fs _) <- unfoldSynsShallow <$> view defs <*> pure (exprType rec)
   f' <- shallowGetter' rec (map fst fs) fld rec'
   e' <- local (addBindings [(n1,n1'),(n2,n2')]) $ shallowExpr e
   pure $ mkLetE [(pr,rec'), (pf,f')] e'
@@ -637,11 +645,11 @@ shallowILit n Boolean = HS.Con () . UnQual () . mkName $ if n > 0 then "True" el
 shallowILit n v = Paren () $ ExpTypeSig () (Lit () $ Int () n $ show n) (shallowPrimType v)
 
 -- | makes @let p = e1 in e2@
-shallowLet :: SNat n                           -- ^ a proof for @'SNat' n@
-           -> [(VarName, VarName)]             -- ^ Haskell variable bindings for Cogent variables
-           -> Pat ()                           -- ^ pattern @p@
-           -> TypedExpr t v VarName b          -- ^ binding @e1@
-           -> TypedExpr t (v :+: n) VarName b  -- ^ body @e2@
+shallowLet :: SNat n                                 -- ^ a proof for @'SNat' n@
+           -> [(VarName, VarName)]                   -- ^ Haskell variable bindings for Cogent variables
+           -> Pat ()                                 -- ^ pattern @p@
+           -> TypedExpr t v VarName VarName          -- ^ binding @e1@
+           -> TypedExpr t (v :+: n) VarName VarName  -- ^ body @e2@
            -> SG (Exp ())
 shallowLet n vs p e1 e2 = do
   __assert (toInt n == P.length vs) "n == |vs|"
@@ -658,7 +666,7 @@ getSafeBinder v = do
     then getSafeBinder =<< (((v ++) . show) <$> (freshInt <<+= 1))
     else return v
 
-getRecordFieldName :: TypedExpr t v VarName b -> FieldIndex -> FieldName
+getRecordFieldName :: TypedExpr t v VarName VarName -> FieldIndex -> FieldName
 getRecordFieldName rec idx | CC.TRecord _ fs _ <- exprType rec = P.map fst fs !! idx
 getRecordFieldName _ _ = __impossible "input should be of record type"
 
@@ -671,7 +679,7 @@ getRecordFieldName _ _ = __impossible "input should be of record type"
 --   [@rec\'@]: the Haskell embedding of @rec@
 --
 --   For example: @rec { f = x } = ...@ becomes @f rec@
-shallowGetter :: TypedExpr t v VarName b -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ())
+shallowGetter :: TypedExpr t v VarName VarName -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ())
 shallowGetter rec fnms idx rec' = do
   tuples <- view recoverTuples
   return $ if | tuples, isRecTuple fnms -> appFun (mkQVarE "Tup" . mkName $ "sel" ++ show (idx+1)) [rec']
@@ -685,12 +693,12 @@ shallowGetter rec fnms idx rec' = do
 --   let R {f, g, h, ...} = rec  -- field puns are used
 --    in f
 -- @
-shallowGetter' :: TypedExpr t v VarName b -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ())  -- use puns
+shallowGetter' :: TypedExpr t v VarName VarName -> [FieldName] -> FieldIndex -> Exp () -> SG (Exp ())  -- use puns
 shallowGetter' rec fnms idx rec' = do
   tuples <- view recoverTuples
   if | tuples, isRecTuple fnms -> shallowGetter rec fnms idx rec'
      | otherwise -> do
-         let t@(CC.TRecord _ fs _) = exprType rec
+         t@(CC.TRecord _ fs _) <- unfoldSynsShallow <$> view defs <*> pure (exprType rec)
          vs <- mapM (\_ -> freshInt <<+= 1) fs
          (tn,_) <- nominalType t
          let bs = P.map (\v -> mkName $ internalVar ++ show v) vs
@@ -712,7 +720,7 @@ shallowGetter' rec fnms idx rec' = do
 --
 --    __NOTE:__ the type signature is required due to
 --   [GHC T11343](https://ghc.haskell.org/trac/ghc/ticket/11343)
-shallowSetter :: TypedExpr t v VarName b -> [FieldName] -> FieldIndex -> Exp () -> HS.Type () -> Exp () -> SG (Exp ())
+shallowSetter :: TypedExpr t v VarName VarName -> [FieldName] -> FieldIndex -> Exp () -> HS.Type () -> Exp () -> SG (Exp ())
 shallowSetter rec fnms idx rec' rect' e' = do
   tuples <- view recoverTuples
   return $ if | tuples, isRecTuple fnms -> appFun (mkQVarE "Tup" . mkName $ "upd" ++ show (idx+1)) [e', rec']

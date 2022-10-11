@@ -709,9 +709,10 @@ instance (Pretty b) => Pretty (Type t b) where
   pretty (TRecord rp fs s) = pretty rp <+> record (map (\(f,(t,b)) -> fieldname f <+> symbol ":" L.<> prettyTaken b <+> pretty t) fs)
                           <> pretty s
   pretty (TCon tn [] s) = typename tn <> pretty s
-  pretty (TCon tn ts s) = typename tn <> pretty s <+> typeargs (map pretty ts)
+  pretty (TCon tn ts s) = typename tn <> pretty s <+> hsep (map (parens . pretty) ts)
   pretty (TSyn tn [] s r) = typename tn <> pretty s <> (if r then typesymbol "!" else empty)
-  pretty (TSyn tn ts s r) = typename tn <> pretty s <> (if r then typesymbol "!" else empty) <+> typeargs (map pretty ts)
+  pretty (TSyn tn ts s r) = typename tn <> pretty s <> (if r then typesymbol "!" else empty)
+                            <+> hsep (map (parens . pretty) ts)
   pretty (TRPar v m) = keyword "rec" <+> typevar v
 #ifdef BUILTIN_ARRAYS
   pretty (TArray t l s mhole) = (pretty t <> brackets (pretty l) <+> pretty s) &

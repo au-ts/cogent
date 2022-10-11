@@ -44,7 +44,7 @@ maintainer:         Zilin Chen <z3350478@unsw.edu.au>
 -- copyright:
 category:           Testing
 
-tested-with:        GHC==8.6.5
+tested-with:        GHC==8.6.5, GHC==8.8.4
 
 
 -- Extra files to be distributed with the package, such as examples or a README.
@@ -66,7 +66,7 @@ library cogent-quickcheck-utils
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.9 && <4.14
+  build-depends:       base >=4.9 && <4.15
                      , extra
                      , QuickCheck
                      -- , QuickCheck-GenT
@@ -82,7 +82,7 @@ library wa-example-simple
   other-modules:       Wa_FFI
                      , Wa_FFI_Types
                      , Wa_FFI_Types_Abs
-  build-depends:       base >=4.9 && <4.14
+  build-depends:       base >=4.9 && <4.15
                      , array
                      , containers
                      , enumerate
@@ -104,7 +104,7 @@ library wa-example
   other-modules:       Wa_FFI
                      , Wa_FFI_Types
                      , Wa_FFI_Types_Abs
-  build-depends:       base >=4.9 && <4.14
+  build-depends:       base >=4.9 && <4.15
                      , array
                      , containers
                      , enumerate
@@ -123,7 +123,7 @@ library wa-example
 
 executable wa-example-exe
   main-is:             Main.hs
-  build-depends:       base >=4.9 && <4.14
+  build-depends:       base >=4.9 && <4.15
                      , QuickCheck
                      , wa-example
 
@@ -137,7 +137,7 @@ executable wa-example-exe
 library fsm-example
   exposed-modules:     Fsm
   other-modules:
-  build-depends:       base >=4.9 && <4.14
+  build-depends:       base >=4.9 && <4.15
                      , QuickCheck
                      , cogent-quickcheck-utils
                      , containers
@@ -150,7 +150,7 @@ library readpage-example
   exposed-modules:     Fsop
                      , Readpage
   other-modules:       Readpage_Shallow_Desugar_Tuples
-  build-depends:       base >=4.9 && <4.14
+  build-depends:       base >=4.9 && <4.15
                      , array
                      , containers
                      , lens
@@ -180,7 +180,7 @@ executable cogent-quickcheck
   -- other-extensions:
 
   -- Other library packages from which modules are imported.
-  build-depends:       base >=4.9 && <4.14
+  build-depends:       base >=4.9 && <4.15
                      , extra
                      , QuickCheck
                      , cogent-quickcheck-utils

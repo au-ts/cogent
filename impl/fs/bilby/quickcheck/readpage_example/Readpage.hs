@@ -221,11 +221,6 @@ rel_fsop_readpage_ret _ _ = False
 
 
 -- /////////////////////////////////////////////////////////////////////////////
---
--- low-levle properties
-
-
--- /////////////////////////////////////////////////////////////////////////////
 -- 
 -- misc.
 
@@ -235,9 +230,6 @@ for = flip map
 -- 
 -- top level
 
-main = do
-  r <- quickCheckWithResult (stdArgs { chatty = True, maxSuccess = 500, maxSize = 40 }) prop_corres_fsop_readpage
-  case r of Qc.Success {} -> putStrLn "Passed!"
-            _ -> putStrLn $ "Failed!"
+main = quickCheckWith (stdArgs { maxSuccess = 500, maxSize = 40 }) prop_corres_fsop_readpage
 
 
