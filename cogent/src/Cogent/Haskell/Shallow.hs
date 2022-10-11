@@ -91,6 +91,7 @@ import Data.Vec as Vec hiding (sym)
 
 import Control.Arrow (second, (***))
 import Control.Applicative
+import Control.Monad.Fail
 import Lens.Micro
 import Lens.Micro.TH
 import Lens.Micro.Mtl
