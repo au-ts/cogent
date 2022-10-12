@@ -18,14 +18,22 @@ where `<cogent-repo>` is the repository's top-level directory.
 
 3. Build QuickCheck Utils:
 ```
-> cabal build cogent-quickcheck-utils
+> cabal new-build cogent-quickcheck-utils
 ```
 
 ## Running the `WordArray` example
 
-1. `cd wa_example; make; cd ../` which generates the C code and binary files.
+1. Generate the C code and binary files:
+```
+> cd wa_example
+> make
+> cd ../
+```
 
-2. `cabal new-build wa-example --ghc-options="`pwd`/wa_example/build/wa.o"`
+2. Build the PBT code:
+```
+cabal new-build wa-example --ghc-options="`pwd`/wa_example/build/wa.o"
+```
 
 3. To run the tests:
 ```
