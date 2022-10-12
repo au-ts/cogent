@@ -23,10 +23,10 @@ synopsis: Cogent QuickCheck Testing Framework
 -- description:
 
 -- URL for the project homepage or repository.
-homepage:           https://ts.data61.csiro.au/projects/TS/filesystems.pml.html
+homepage:           https://trustworthy.systems/projects/TS/cogent.pml
 
 -- A URL where users can report bugs.
-bug-reports: https://github.com/NICTA/cogent/issues
+bug-reports: https://github.com/au-ts/cogent/issues
 
 -- The license under which the package is released.
 license:            GPL-2.0-only
