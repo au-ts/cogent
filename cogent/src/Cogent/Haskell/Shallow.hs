@@ -570,8 +570,8 @@ shallowExpr (TE t (CC.Case e tag (_,n1,e1) (_,n2,e2))) = do
   pure $ HS.Case () e' [c1,c2]
 
 shallowExpr (TE t (CC.Esac e)) = do
-  let te@(CC.TSum alts) = exprType e
-      [(tag,_)] = filter (not . snd . snd) alts
+  te@(CC.TSum alts) <- unfoldSynsShallow <$> view defs <*> pure (exprType e)
+  let [(tag,_)] = filter (not . snd . snd) alts
   (tn,_) <- nominalType =<< (unfoldSynsShallow <$> view defs <*> pure te)
   vn <- freshInt <<+= 1
   let v = mkName $ internalVar ++ show vn
@@ -586,7 +586,7 @@ shallowExpr (TE _ (CC.Split (n1,n2) e1 e2)) = do
   shallowLet s2 [(n1,n1'),(n2,n2')] (PTuple () Boxed [p1,p2]) e1 e2
 
 shallowExpr (TE _ (CC.Member rec fld)) = do
-  let (CC.TRecord _ fs _) = exprType rec
+  CC.TRecord _ fs _ <- unfoldSynsShallow <$> view defs <*> pure (exprType rec)
   shallowGetter' rec (map fst fs) fld =<< shallowExpr rec
 
 shallowExpr (TE _ (CC.Take (n1,n2) rec fld e)) = do
@@ -602,7 +602,7 @@ shallowExpr (TE _ (CC.Take (n1,n2) rec fld e)) = do
 
 shallowExpr (TE _ (CC.Put rec fld e)) = do
   rec' <- shallowExpr rec
-  let rect@(CC.TRecord _ fs _) = exprType rec
+  rect@(CC.TRecord _ fs _) <- unfoldSynsShallow <$> view defs <*> pure (exprType rec)
   rect' <- shallowType rect
   e' <- shallowExpr e
   shallowSetter rec (map fst fs) fld rec' rect' e'
