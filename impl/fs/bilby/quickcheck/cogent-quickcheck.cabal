@@ -77,27 +77,6 @@ library cogent-quickcheck-utils
   -- Base language which the package is written in.
   default-language:    Haskell2010
 
-library wa-example-simple
-  exposed-modules:     WordArraySimple
-  other-modules:       Wa_FFI
-                     , Wa_FFI_Types
-                     , Wa_FFI_Types_Abs
-  build-depends:       base >=4.9 && <4.15
-                     , array
-                     , containers
-                     , enumerate
-                     , extra
-                     , lens
-                     , transformers
-                     , QuickCheck
-                     -- , QuickCheck-GenT
-                     , cogent-quickcheck-utils
-  hs-source-dirs:      wa_example, wa_example/build
-  default-language:    Haskell2010
-  -- cpp-options:
-  include-dirs:        . wa_example wa_example/build $(COGENT_LIBGUM_DIR)
-  -- build-tools:         hsc2hs  -- ^ This causes some bug similar to this one:
-                                  -- https://github.com/haskell/cabal/issues/4215
 
 library wa-example
   exposed-modules:     WordArray
@@ -184,7 +163,6 @@ executable cogent-quickcheck
                      , extra
                      , QuickCheck
                      , cogent-quickcheck-utils
-                     , wa-example-simple
                      , wa-example
                      , fsm-example
                      , readpage-example

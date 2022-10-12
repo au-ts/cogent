@@ -67,11 +67,6 @@ import Util
 
 -- import Debug.Trace
 
-{- |
-To run the REPL: 
-> cabal v1-repl wa-example --ghc-options=" wa_example/build/wa.o"
--}
-
 
 -- * Haskell specification
 
@@ -128,14 +123,14 @@ hs_wordarray_modify xs i f acc obsv
        in (xs // [(i, e')], acc')
   | otherwise = (xs, acc)                          
 
--- | __NOTE__: We also need to specify all inner functions used. As on the Cogent
+-- | __NOTE__: We also need to specify all argument functions used. As on the Cogent
 -- side, due to the way higher-order function calls are made, we cannot generate
 -- random functions for testing. The way we test higher-order functions is
--- to show that for all callable inner functions, the outer function behaves
--- correctly. 
+-- to show that for all functions in the program that can be passed to the HOF, the
+-- HOF behaves correctly. 
 --
--- In the case of @wordarray_modify@, @modify_bofy_f@ is the only callable
--- function. This can be seem in the @dispatch@ functions generated in the .h file. / zilinc
+-- In the case of @wordarray_modify@, @modify_bofy_f@ is the only possible argument. 
+-- This can be seen in the @dispatch@ functions generated in the .h file. / zilinc
 hs_modify_body_f :: (Word8, Word8, Bool) -> (Word8, Word8)
 hs_modify_body_f (e, acc, obsv) =
   if obsv then (e + acc, e + acc) else (e, acc)
