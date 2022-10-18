@@ -4,4 +4,4 @@
   ignore = untracked
 [submodule "autocorres"]
 	path = autocorres
-	url = git@github.com:amblafont/AutoCorres.git
+	url = https://github.com/amblafont/AutoCorres.git
