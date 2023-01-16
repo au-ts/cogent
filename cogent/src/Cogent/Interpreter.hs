@@ -54,7 +54,11 @@ import qualified Data.Vec as V
 
 import Control.Monad.RWS.Strict
 import Control.Monad.State
+#if MIN_VERSION_base(4,16,0)
+import Data.Bits hiding (And)
+#else
 import Data.Bits
+#endif
 import Data.Either (fromLeft, fromRight, isLeft)
 import Data.Function ((&))
 import Data.IORef
