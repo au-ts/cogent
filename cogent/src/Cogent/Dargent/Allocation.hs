@@ -250,8 +250,7 @@ data AlignedBitRange
 {- * Word alignment transformations -}
 
 alignSize :: Size -> Size -> Size
-alignSize toMultipleOf size =
-    size + ((toMultipleOf - size `mod` toMultipleOf) `mod` toMultipleOf)
+alignSize toMultipleOf size = ceiling (fromIntegral size / fromIntegral toMultipleOf) * toMultipleOf
 
 -- | Aligns an 'Offsettable' (assumed to initially have offset 0)
 --   so that its new offset is the smallest offset which is at least 'minBitOffset'
