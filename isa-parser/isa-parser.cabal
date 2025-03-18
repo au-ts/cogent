@@ -32,9 +32,9 @@ library
     DeriveDataTypeable, 
     QuasiQuotes
 
-  build-depends:       
+  build-depends:
     haskell-exp-parser >= 0.1.1,
-    ansi-wl-pprint >= 0.6,
+    ansi-wl-pprint >= 0.6 && < 1,
     base >= 4.7,
     mtl >= 2.2.1,
     parsec >= 3.1,

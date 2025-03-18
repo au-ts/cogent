@@ -176,7 +176,7 @@ library
               , Version_cogent
 
   build-depends:
-                ansi-wl-pprint >= 0.6
+                ansi-wl-pprint >= 0.6 && < 1
               , base >= 4.10 && < 4.17
               , binary
               , bytestring >= 0.10
@@ -255,7 +255,7 @@ Executable cogent
 
   build-depends:
                 cogent
-              , ansi-wl-pprint >= 0.6
+              , ansi-wl-pprint >= 0.6 && < 1
               , atomic-write >= 0.2.0.4
               , base >= 4.10 && < 4.17
               , binary
@@ -334,4 +334,4 @@ test-suite test-quickcheck
               , QuickCheck >= 2.11.3
               , transformers
               , mtl >= 2.2.1
-              , ansi-wl-pprint >= 0.6
+              , ansi-wl-pprint >= 0.6 && < 1
