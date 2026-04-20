@@ -6,7 +6,7 @@
 ## Project homepage
 
 For general context of this project, motivation, an overview, and published papers, see
-our [project homepage](https://trustworthy.systems/projects/TS/cogent.pml).
+our [project homepage](https://trustworthy.systems/projects/OLD/cogent/).
 
 ## Online documentation
 
